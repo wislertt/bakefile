@@ -1,0 +1,49 @@
+name: cd
+
+# Note: Ensure CD pipeline is idempotent to safely handle re-runs from push,
+# workflow dispatch, and tag versioning triggers
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    issues: write
+    pull-requests: write
+
+jobs:
+    # ====================================================
+    # Versioning and Release
+    # ====================================================
+    semantic-release:
+        name: semantic-release
+        uses: wislertt/zerv/.github/workflows/shared-semantic-release.yml@v0
+        with:
+            allowed_workflow_dispatch_branches: '["main"]'
+            fail_on_invalid_workflow_dispatch_ref: true
+
+    zerv-versioning:
+        needs: semantic-release
+        if: needs.semantic-release.outputs.is_valid_semantic_release == 'true'
+        uses: wislertt/zerv/.github/workflows/shared-zerv-versioning.yml@v0
+
+    create-version-prefix-tags:
+        needs: zerv-versioning
+        uses: wislertt/zerv/.github/workflows/shared-create-tags.yml@v0
+        with:
+            tags: >-
+                [
+                  "${{ fromJson(needs.zerv-versioning.outputs.versions).v_major }}",
+                  "${{ fromJson(needs.zerv-versioning.outputs.versions).v_major_minor }}"
+                ]
+
+    # ====================================================
+    # Test and Lint
+    # ====================================================
+    test:
+        uses: ./.github/workflows/test.yml
+        secrets:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

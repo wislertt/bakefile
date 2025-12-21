@@ -1,0 +1,43 @@
+[project]
+name = "bakefile"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+  {name = "Wisaroot Lertthaweedech", email = "l.wisaroot@gmail.com"}
+]
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.12.5"
+]
+
+[dependency-groups]
+dev = [
+  "pre-commit>=4.5.1",
+  "pytest-cov>=7.0.0",
+  "pytest>=9.0.2",
+  "ruff>=0.14.10",
+  "toml-sort>=0.24.3",
+  "ty>=0.0.5"
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.ruff.lint]
+select = [
+  "ARG",
+  "B", # bugbear
+  "B9",
+  "C4", # flake8-comprehensions
+  "E", # pycodestyle (error)
+  "F", # pyflakes
+  "I", # isort
+  "PGH", # pygrep-hooks
+  "PIE", # flake8-pie
+  "PYI", # flake8-pyi
+  "RUF",
+  "SIM", # flake8-simplify
+  "UP" # pyupgrade
+]
