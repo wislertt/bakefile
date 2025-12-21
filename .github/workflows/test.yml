@@ -7,6 +7,10 @@ on:
                 type: string
                 default: "['3.10', '3.11', '3.12', '3.13', '3.14']"
                 description: "JSON array of Python versions to test"
+            target_python_version:
+                type: string
+                default: "3.14"
+                description: "Python version to use for coverage and SonarQube scans"
             upload_coverage:
                 type: boolean
                 default: true
@@ -48,18 +52,21 @@ jobs:
                       uv-${{ runner.os }}-
 
             - name: Install dependencies
-              run: |
-                  which uv
-                  uv sync --all-groups --frozen
+              run: uv sync --all-groups --frozen
 
             - name: Run tests
               run: make test
 
-            # - name: Upload coverage reports to Codecov
-            #   if: matrix.python-version == '3.13' && inputs.upload_coverage == 'true'
-            #   uses: codecov/codecov-action@v4
-            #   with:
-            #       file: ./htmlcov/
-            #       flags: unittests
-            #       name: codecov-umbrella
-            #       fail_ci_if_error: false
+            - name: SonarQube Scan
+              if: matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+              uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+              env:
+                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+            - name: Upload coverage reports to Codecov
+              if: matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+              uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+              with:
+                  fail_ci_if_error: true
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  verbose: true
