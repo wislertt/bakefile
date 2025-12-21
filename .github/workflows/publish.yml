@@ -20,9 +20,11 @@ jobs:
     publish:
         name: publish-to-${{ inputs.repository }}
         runs-on: ubuntu-latest
-        environment:
-            name: ${{ inputs.repository }}
-            url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/project/bakefile/' || 'https://pypi.org/project/bakefile/' }}
+        # environment:
+        #     name: ${{ inputs.repository }}
+        #     url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/project/bakefile/' || 'https://pypi.org/project/bakefile/' }}
+        permissions:
+            id-token: write
 
         steps:
             - name: Checkout
