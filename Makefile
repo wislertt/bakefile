@@ -1,6 +1,6 @@
 test:
 	uv run pytest tests/ \
-		--cov=bakefile --cov-report=html \
+		--cov=src --cov-report=html \
 		--cov-report=term-missing --cov-report=xml
 
 lint:
