@@ -51,7 +51,7 @@ jobs:
     # Deployment without environment
     # ====================================================
     publish-test-pypi:
-        name: publish to test pypi
+        name: publish-to-test-pypi
         if: needs.check-pre-release.outputs.is_valid == 'true'
         needs: [zerv-versioning, check-pre-release, test]
         uses: ./.github/workflows/publish.yml
