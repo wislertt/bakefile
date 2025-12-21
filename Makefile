@@ -1,5 +1,7 @@
 test:
-	uv run pytest tests/ --cov=bakefile --cov-report=html
+	uv run pytest tests/ \
+		--cov=bakefile --cov-report=html \
+		--cov-report=term-missing --cov-report=xml
 
 lint:
 	npx prettier --write "**/*.{ts,tsx,css,json,yaml,yml,md}"
