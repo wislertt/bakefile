@@ -23,8 +23,6 @@ jobs:
         # environment:
         #     name: ${{ inputs.repository }}
         #     url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/project/bakefile/' || 'https://pypi.org/project/bakefile/' }}
-        permissions:
-            id-token: write
 
         steps:
             - name: Checkout
