@@ -88,7 +88,8 @@ jobs:
 
     publish-pypi:
         name: publish-to-pypi
-        if: startsWith(github.ref, 'refs/tags/v') && !startsWith(github.ref_name, 'v0')
+        if: needs.check-pre-release.outputs.is_valid == 'true'
+        needs: [zerv-versioning, check-pre-release, test]
         runs-on: ubuntu-latest
         environment:
             name: pypi
@@ -98,12 +99,9 @@ jobs:
             - name: Checkout
               uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-            - name: Extract version from tag
-              run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
             - name: Update version in pyproject.toml
               run: |
-                  sed -i.bak 's/^version = .*/version = "${VERSION}"/' pyproject.toml
+                  sed -i.bak 's/^version = .*/version = "${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}"/' pyproject.toml
                   grep '^version' pyproject.toml
 
             - name: Set up Python
