@@ -1,6 +1,6 @@
 [project]
 name = "bakefile"
-version = "0.1.0"
+version = "0.0.0" # use git tag
 description = "Add your description here"
 readme = "README.md"
 authors = [

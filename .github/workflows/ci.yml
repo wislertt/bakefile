@@ -46,3 +46,15 @@ jobs:
 
     pre-commit:
         uses: ./.github/workflows/pre-commit.yml
+
+    # ====================================================
+    # Deployment without environment
+    # ====================================================
+    publish-testpypi:
+        name: publish to testpypi
+        if: needs.check-pre-release.outputs.is_valid == 'true'
+        needs: [zerv-versioning, check-pre-release, test]
+        uses: ./.github/workflows/publish.yml
+        with:
+            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
+            repository: testpypi
