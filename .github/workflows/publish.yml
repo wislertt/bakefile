@@ -1,6 +1,7 @@
 name: publish
 
 on:
+    workflow_dispatch:
     workflow_call:
         inputs:
             version:
@@ -10,11 +11,8 @@ on:
             repository:
                 description: "Repository to publish to"
                 required: true
-                type: choice
+                type: string
                 default: "test-pypi"
-                options:
-                    - "test-pypi"
-                    - "pypi"
 
 permissions:
     id-token: write
@@ -25,7 +23,7 @@ jobs:
         runs-on: ubuntu-latest
         environment:
             name: ${{ inputs.repository }}
-            url: ${{ inputs.repository == 'testpypi' && 'https://test.pypi.org/project/bakefile/' || 'https://pypi.org/project/bakefile/' }}
+            url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/project/bakefile/' || 'https://pypi.org/project/bakefile/' }}
 
         steps:
             - name: Checkout
@@ -51,5 +49,5 @@ jobs:
             # - name: Publish to PyPI
             #   uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
             #   with:
-            #       repository-url: ${{ inputs.repository == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}
+            #       repository-url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/legacy/' || '' }}
             #       verbose: true
