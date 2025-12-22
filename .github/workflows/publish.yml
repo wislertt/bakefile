@@ -1,28 +1,25 @@
-name: publish
+name: Reusable PyPI Publisher
 
 on:
     workflow_call:
         inputs:
             version:
-                description: "Version to publish (e.g., 0.1.0)"
                 required: true
                 type: string
-            repository:
-                description: "Repository to publish to"
-                required: true
+                description: "PEP440 version string"
+            repository_url:
+                required: false
                 type: string
-                default: "test-pypi"
-
-# permissions:
-#     id-token: write
+                description: "PyPI repository URL (default: official PyPI)"
+                default: ""
+        secrets:
+            PYPI_API_TOKEN:
+                required: true
 
 jobs:
     publish:
-        name: publish-to-${{ inputs.repository }}
+        name: publish-to-pypi
         runs-on: ubuntu-latest
-        # environment:
-        #     name: ${{ inputs.repository }}
-        #     url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/project/bakefile/' || 'https://pypi.org/project/bakefile/' }}
 
         steps:
             - name: Checkout
@@ -49,5 +46,7 @@ jobs:
             - name: Publish to PyPI
               uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
               with:
-                  repository-url: ${{ inputs.repository == 'test-pypi' && 'https://test.pypi.org/legacy/' || '' }}
+                  repository-url: ${{ inputs.repository_url || '' }}
+                  password: ${{ secrets.PYPI_API_TOKEN }}
                   verbose: true
+                  skip-existing: true
