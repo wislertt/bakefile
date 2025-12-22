@@ -19,7 +19,8 @@ jobs:
         uses: wislertt/zerv/.github/workflows/shared-check-pr-label-and-branch.yml@v0
         with:
             target_label: "pre-release"
-            branch_prefix: "release/"
+            branch_prefixes: '["release/"]'
+            branch_names: '["develop"]'
 
     zerv-versioning:
         name: zerv-versioning
@@ -54,7 +55,7 @@ jobs:
     publish-test-pypi:
         name: publish-to-test-pypi
         if: needs.check-pre-release.outputs.is_valid == 'true'
-        needs: [zerv-versioning, check-pre-release, test]
+        needs: [zerv-versioning, check-pre-release]
         uses: ./.github/workflows/publish.yml
         with:
             version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
@@ -62,12 +63,12 @@ jobs:
         secrets:
             PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
-    publish-pypi:
-        name: publish-to-pypi
-        if: needs.check-pre-release.outputs.is_valid == 'true'
-        needs: [zerv-versioning, check-pre-release, test]
-        uses: ./.github/workflows/publish.yml
-        with:
-            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
-        secrets:
-            PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+    # publish-pypi:
+    #     name: publish-to-pypi
+    #     if: needs.check-pre-release.outputs.is_valid == 'true'
+    #     needs: [zerv-versioning, check-pre-release]
+    #     uses: ./.github/workflows/publish.yml
+    #     with:
+    #         version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
+    #     secrets:
+    #         PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
