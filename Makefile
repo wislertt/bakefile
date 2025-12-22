@@ -4,7 +4,7 @@ test:
 		--cov-report=term-missing --cov-report=xml
 
 lint:
-	npx prettier --write "**/*.{ts,tsx,css,json,yaml,yml,md}"
+	bunx prettier --write "**/*.{ts,tsx,css,json,yaml,yml,md}"
 	uv run toml-sort \
 		--sort-inline-arrays --in-place \
 		--sort-first=project,dependency-groups \
