@@ -6,8 +6,6 @@ import types
 
 import typer
 
-MODULE_NAME = "bakefile"
-
 
 def change_directory(path: str) -> None:
     if not path or not path.strip():
@@ -41,13 +39,14 @@ def resolve_file_path(file_name: str) -> pathlib.Path:
 
 
 def load_module(path: pathlib.Path) -> types.ModuleType:
-    spec = importlib.util.spec_from_file_location(MODULE_NAME, path)
+    module_name = "bakefile"
+    spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         typer.echo(f"Failed to load: {path}", err=True)
         raise SystemExit(1)
 
     module: types.ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules[MODULE_NAME] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -67,27 +66,6 @@ def get_bakebook(module: types.ModuleType, bakebook_name: str, path: pathlib.Pat
 
 
 def resolve_bakebook(file_name: str, bakebook_name: str, chdir: str | None = None) -> str:
-    """Load a bakefile and retrieve a bakebook object.
-
-    Parameters
-    ----------
-    file_name : str
-        Name of the .py file (must end with .py, no path separators)
-    bakebook_name : str
-        Name of the bakebook object to retrieve
-    chdir : str | None, optional
-        Optional directory to change to before loading
-
-    Returns
-    -------
-    str
-        The bakebook string value
-
-    Raises
-    ------
-    SystemExit
-        If any validation or loading step fails
-    """
     if chdir:
         change_directory(chdir)
 
