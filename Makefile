@@ -18,7 +18,7 @@ update:
 	uv sync
 
 pipx-install-bake-test:
-	pipx install "bakefile>=0.0.3b1" \
+	pipx install "bakefile>0.0.3" \
 		--index-url https://test.pypi.org/simple/ \
 		--pip-args="--pre --extra-index-url https://pypi.org/simple" \
 		--force
