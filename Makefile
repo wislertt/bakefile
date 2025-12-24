@@ -24,4 +24,4 @@ pipx-install-bake-test:
 		--force
 
 pipx-install-bake:
-	pipx install bake
+	pipx install bakefile --force
