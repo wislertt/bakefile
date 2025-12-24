@@ -26,7 +26,6 @@ This command uses the **dev docs pattern** for persistent task management.
 For each task in `/.dev/active/`:
 
 - Update `[task-name]-context.md` with:
-
     - Current implementation state
     - Key decisions made this session
     - Files modified and why

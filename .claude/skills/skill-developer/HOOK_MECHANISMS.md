@@ -230,13 +230,11 @@ Prevent repeated nagging in the same session - once Claude uses a skill, don't b
 ### How It Works
 
 1. **First edit** of file with Prisma:
-
     - Hook blocks with exit code 2
     - Updates session state: adds "database-verification" to skills_used
     - Claude sees message, uses skill
 
 2. **Second edit** (same session):
-
     - Hook checks session state
     - Finds "database-verification" in skills_used
     - Exits with code 0 (allow)
@@ -266,18 +264,15 @@ The hook cannot detect when the skill is _actually_ invoked - it just blocks onc
 ### Performance Bottlenecks
 
 1. **Loading skill-rules.json** (every execution)
-
     - Future: Cache in memory
     - Future: Watch for changes, reload only when needed
 
 2. **Reading file content** (PreToolUse)
-
     - Only when contentPatterns configured
     - Only if file exists
     - Can be slow for large files
 
 3. **Glob matching** (PreToolUse)
-
     - Regex compilation for each pattern
     - Future: Compile once, cache
 

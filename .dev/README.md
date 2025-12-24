@@ -230,7 +230,6 @@ To continue:
     ```
 
 2. **Claude creates the three files:**
-
     - Analyzes requirements
     - Examines codebase
     - Creates comprehensive plan
@@ -381,14 +380,12 @@ If scope changes:
 
 1. **Use the /dev-docs slash command** if available
 2. **Or create manually:**
-
     - Ask about the task scope
     - Analyze relevant codebase files
     - Create comprehensive plan
     - Generate context and tasks
 
 3. **Structure the plan with:**
-
     - Clear phases
     - Actionable tasks
     - Acceptance criteria
