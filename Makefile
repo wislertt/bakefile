@@ -22,3 +22,6 @@ pipx-install-bake-test:
 		--index-url https://test.pypi.org/simple/ \
 		--pip-args="--pre --extra-index-url https://pypi.org/simple" \
 		--force
+
+pipx-install-bake:
+	pipx install bake
