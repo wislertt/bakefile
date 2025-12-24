@@ -31,6 +31,8 @@ make lint   # Run linters and formatters
 3. Run `make test` to verify tests pass
 4. Commit when both pass
 
+**IMPORTANT:** Read `.claude/BEST_PRACTICES.md` before adding/editing code.
+
 ## Project Structure
 
 ```

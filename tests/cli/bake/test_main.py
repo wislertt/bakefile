@@ -6,10 +6,8 @@ from bakefile.cli.bake import app
 
 runner = CliRunner()
 
-EXAMPLES_DIR = Path(__file__).parent.parent.parent.parent / "examples" / "simple"
 
-
-def test_bake_with_chdir() -> None:
-    result = runner.invoke(app, ["-C", str(EXAMPLES_DIR)])
+def test_bake_with_chdir(examples_simple_dir: Path) -> None:
+    result = runner.invoke(app, ["-C", str(examples_simple_dir)])
     assert result.exit_code == 0
     assert result.stdout == "some_bakebook\n"
