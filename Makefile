@@ -9,6 +9,10 @@ lint:
 		--sort-inline-arrays --in-place \
 		--sort-first=project,dependency-groups \
 		pyproject.toml
-	uv run ruff check --fix --exit-non-zero-on-fix .
 	uv run ruff format --exit-non-zero-on-format .
+	uv run ruff check --fix --exit-non-zero-on-fix .
 	uv run ty check --error-on-warning
+
+update:
+	uv lock --upgrade
+	uv sync
