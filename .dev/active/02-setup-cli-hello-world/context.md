@@ -10,14 +10,21 @@
 
 - Initial exploration complete
 - Dev docs structure created
+- **Phase 1: Add CLI Dependency**
+    - Added `typer>=0.0.1` to pyproject.toml
+    - Verified with `uv sync` - typer v0.20.1 installed
 
 ### 🟡 IN PROGRESS
 
-- None - awaiting user approval to begin implementation
+- None - awaiting user to continue with Phase 2
 
 ### ⏳ NOT STARTED
 
-- All implementation tasks (see tasks.md)
+- Phase 2: Create CLI Structure
+- Phase 3: Implement bake CLI
+- Phase 4: Implement bakefile CLI
+- Phase 5: Add CLI Tests
+- Phase 6: Test Both CLIs
 
 ---
 

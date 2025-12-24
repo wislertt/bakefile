@@ -12,3 +12,6 @@ lint:
 	uv run ruff check --fix --exit-non-zero-on-fix .
 	uv run ruff format --exit-non-zero-on-format .
 	uv run ty check --error-on-warning
+
+update:
+	uv lock --upgrade
