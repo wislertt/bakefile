@@ -2,7 +2,29 @@
 
 **Coding standards and patterns for bakefile**
 
-_TODO: Fill in with established patterns when they emerge._
+## Testing Practices
+
+### Test Folder Structure
+
+Tests mirror the source folder structure for easy navigation and maintainability.
+
+**Example:**
+
+```
+src/bakefile/cli/          tests/cli/
+├── __init__.py         →  ├── __init__.py
+├── bake.py              →  ├── test_bake.py
+└── bakefile.py          →  └── test_bakefile.py
+```
+
+**Rules:**
+
+- Create corresponding test file in `tests/` for each module in `src/`
+- Use `test_` prefix for test files
+- Maintain same directory hierarchy
+- Each test file should test its corresponding source module
+
+---
 
 ## Sections to Add:
 
@@ -10,5 +32,4 @@ _TODO: Fill in with established patterns when they emerge._
 - Design patterns used
 - File organization standards
 - Naming conventions
-- Testing practices
 - Error handling patterns
