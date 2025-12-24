@@ -3,7 +3,7 @@ import typer
 from bakefile.cli.bake.resolve_bakebook import resolve_bakebook
 from bakefile.cli.utils.version import version_callback
 
-app = typer.Typer(add_completion=False)
+app = typer.Typer(add_completion=True)
 
 
 @app.command()
@@ -13,7 +13,7 @@ def main(
     bakebook_name: str = typer.Option(
         "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
     ),
-    version: bool = typer.Option(  # noqa: ARG001
+    version: bool = typer.Option(
         False,
         "--version",
         help="Show version and exit",
@@ -21,5 +21,6 @@ def main(
         is_eager=True,
     ),
 ) -> None:
+    _ = version
     bakebook = resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
     typer.echo(bakebook)
