@@ -5,6 +5,20 @@ argument-hint: Optional - specific context or tasks to focus on (leave empty for
 
 We're approaching context limits. Please update the development documentation to ensure seamless continuation after context reset.
 
+## Dev Docs Pattern
+
+This command uses the **dev docs pattern** for persistent task management.
+
+**Key concepts:**
+
+- `dev/active/` - Work in progress
+- `dev/archive/` - Completed tasks (move here when done)
+- Three-file structure: plan, context, tasks
+- Update `context.md` frequently during session
+- Use `/dev-docs-update` before context reset
+
+**See `dev/README.md` for complete documentation on the dev docs pattern.**
+
 ## Required Updates
 
 ### 1. Update Active Task Documentation

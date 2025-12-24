@@ -4,22 +4,24 @@
 
 ### ✅ COMPLETED
 
-- Created plan file with all phases
-- Identified tech stack (Typer, Pydantic, UV)
-- Mapped showcase components to Python CLI needs
-- Created dev/active/ directory structure
-- **Phase 1: Essential Hooks** - Copied and installed
+- **Phase 1: Essential Hooks** - Copied skill-activation-prompt and post-tool-use-tracker
+- **Phase 2.1: skill-developer** - Copied from showcase
+- **Phase 2.2: python-cli-guidelines** - Created new skill with 6 resource files (typer, pydantic, oop, testing, packaging, uv)
+- **Phase 2.3: skill-rules.json** - Customized for Python paths (src/\*_/_.py), added python-cli-guidelines triggers
+- **Phase 3: Agents** - Copied 6 agents (code-architecture-reviewer, code-refactor-master, documentation-architect, plan-reviewer, refactor-planner, web-research-specialist)
+- **Phase 4: Slash Commands** - Copied dev-docs.md and dev-docs-update.md, updated to reference dev/README.md
+- Created `.claude/PROJECT_KNOWLEDGE.md`, `BEST_PRACTICES.md`, `TROUBLESHOOTING.md` (TODO placeholders)
+- Created `dev/README.md` (copied from showcase for dev docs pattern documentation)
+- Updated all agent/command references to use `.claude/` prefix for documentation files
 
 ### 🟡 IN PROGRESS
 
-- Phase 2: Skills (ready to start)
+- None (awaiting Phase 5)
 
 ### ⏳ NOT STARTED
 
-- Phase 2: Create skills
-- Phase 3: Copy agents
-- Phase 4: Copy commands
 - Phase 5: Settings and verification
+- Cleanup: Remove `.claude/plan/` and `.claude/ref/` (non-standard)
 
 ### ⚠️ BLOCKERS
 
@@ -53,6 +55,7 @@ Python-based build system (Make/Justfile alternative) with OOP reusability.
 2. **Skip Node/React skills** - Create Python-specific skills instead
 3. **Skip Stop hooks** - Too complex for single-service project
 4. **Keep essential hooks only** - skill-activation-prompt, post-tool-use-tracker
+5. **Claude docs in .claude/** - PROJECT_KNOWLEDGE.md, BEST_PRACTICES.md, TROUBLESHOOTING.md placed in .claude/ to keep repo root clean
 
 ---
 
@@ -73,13 +76,15 @@ Python-based build system (Make/Justfile alternative) with OOP reusability.
 
 ## Directory Changes
 
-**Creating:**
+**Created:**
 
-- `.claude/hooks/`
-- `.claude/skills/`
-- `.claude/agents/`
-- `.claude/commands/`
-- `dev/active/`
+- `.claude/hooks/` - skill-activation-prompt, post-tool-use-tracker
+- `.claude/skills/` - skill-developer, python-cli-guidelines, skill-rules.json
+- `.claude/agents/` - 6 agents for code review, refactoring, documentation, planning
+- `.claude/commands/` - dev-docs.md, dev-docs-update.md
+- `.claude/PROJECT_KNOWLEDGE.md`, `BEST_PRACTICES.md`, `TROUBLESHOOTING.md`
+- `dev/README.md` - Dev docs pattern documentation
+- `dev/active/setup-claude-infrastructure/` - Three-file structure (plan/context/tasks)
 
 **Removing (non-standard):**
 
@@ -97,4 +102,4 @@ To continue setup:
 3. Execute implementation steps from plan.md
 4. Update this file after each phase
 
-**Next action:** Execute Phase 1 (Essential Hooks)
+**Next action:** Execute Phase 5 (Settings and Verification) - create `.claude/settings.json`

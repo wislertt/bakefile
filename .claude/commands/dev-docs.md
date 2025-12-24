@@ -30,12 +30,29 @@ You are an elite strategic planning specialist. Create a comprehensive, actionab
     - Estimate effort levels (S/M/L/XL)
 
 5. **Create task management structure**:
-    - Create directory: `dev/active/[task-name]/` (relative to project root)
+    - Follow the dev docs pattern (see `dev/README.md` for complete documentation)
+    - Create directory: `dev/active/[xx-task-name]/` (relative to project root)
+        - `xx` = Incremental number (01, 02, 03, ...)
+        - `task-name` = Concise descriptive name in kebab-case
     - Generate three files:
-        - `[task-name]-plan.md` - The comprehensive plan
-        - `[task-name]-context.md` - Key files, decisions, dependencies
-        - `[task-name]-tasks.md` - Checklist format for tracking progress
+        - `plan.md` - The comprehensive plan
+        - `context.md` - Key files, decisions, dependencies
+        - `tasks.md` - Checklist format for tracking progress
     - Include "Last Updated: YYYY-MM-DD" in each file
+
+## Dev Docs Pattern
+
+This command uses the **dev docs pattern** for persistent task management.
+
+**Key concepts:**
+
+- `dev/active/` - Work in progress
+- `dev/archive/` - Completed tasks (move here when done)
+- Three-file structure: plan, context, tasks
+- Update `context.md` frequently during session
+- Use `/dev-docs-update` before context reset
+
+**See `dev/README.md` for complete documentation on the dev docs pattern.**
 
 ## Quality Standards
 
