@@ -12,9 +12,9 @@
 
 ---
 
-## Phase 2: Create CLI Module Structure ⏳
+## Phase 2: Create CLI Module Structure ✅
 
-- [ ] Create cli directory and **init**.py
+- [x] Create cli directory and **init**.py
     - Acceptance: `src/bakefile/cli/__init__.py` exists
 
 ---
@@ -66,12 +66,12 @@
 | Phase                           | Status         | Tasks    |
 | ------------------------------- | -------------- | -------- |
 | Phase 1: Add CLI Dependency     | ✅ Complete    | 1/1      |
-| Phase 2: Create CLI Structure   | ⏳ Not Started | 0/1      |
+| Phase 2: Create CLI Structure   | ✅ Complete    | 1/1      |
 | Phase 3: Implement bake CLI     | ⏳ Not Started | 0/2      |
 | Phase 4: Implement bakefile CLI | ⏳ Not Started | 0/2      |
 | Phase 5: Add CLI Tests          | ⏳ Not Started | 0/3      |
 | Phase 6: Test Both CLIs         | ⏳ Not Started | 0/5      |
-| **TOTAL**                       | **🟡 7%**      | **1/14** |
+| **TOTAL**                       | **🟡 14%**     | **2/14** |
 
 ---
 

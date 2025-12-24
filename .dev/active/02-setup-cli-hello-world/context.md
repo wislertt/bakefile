@@ -13,14 +13,16 @@
 - **Phase 1: Add CLI Dependency**
     - Added `typer>=0.0.1` to pyproject.toml
     - Verified with `uv sync` - typer v0.20.1 installed
+- **Phase 2: Create CLI Structure**
+    - Created `src/bakefile/cli/` directory
+    - Created `src/bakefile/cli/__init__.py`
 
 ### 🟡 IN PROGRESS
 
-- None - awaiting user to continue with Phase 2
+- None - awaiting user to continue with Phase 3
 
 ### ⏳ NOT STARTED
 
-- Phase 2: Create CLI Structure
 - Phase 3: Implement bake CLI
 - Phase 4: Implement bakefile CLI
 - Phase 5: Add CLI Tests
