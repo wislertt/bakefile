@@ -1,0 +1,73 @@
+name: Reusable Test Workflow
+
+on:
+    workflow_call:
+        inputs:
+            python_versions:
+                type: string
+                default: "['3.10', '3.11', '3.12', '3.13', '3.14']"
+                description: "JSON array of Python versions to test"
+            target_python_version:
+                type: string
+                default: "3.14"
+                description: "Python version to use for coverage and SonarQube scans"
+            upload_coverage:
+                type: boolean
+                default: true
+                description: "Whether to upload coverage reports"
+        secrets:
+            SONAR_TOKEN:
+                required: false
+            CODECOV_TOKEN:
+                required: false
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: ${{ fromJson(inputs.python_versions) }}
+
+        steps:
+            - name: checkout
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+            - name: setup-python
+              uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: setup-uv
+              uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+              with:
+                  version: "latest"
+                  enable-cache: true
+
+            - name: cache-uv
+              uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+              with:
+                  path: ${{ github.workspace }}/.venv
+                  key: uv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+                  restore-keys: |
+                      uv-${{ runner.os }}-py${{ matrix.python-version }}-
+                      uv-${{ runner.os }}-
+
+            - name: install-dependencies
+              run: uv sync --all-groups --frozen
+
+            - name: run-tests
+              run: make test
+
+            - name: sonarqube-scan
+              if: matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+              uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+              env:
+                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+            - name: upload-coverage-reports-to-codecov
+              if: matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+              uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+              with:
+                  fail_ci_if_error: true
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  verbose: true
