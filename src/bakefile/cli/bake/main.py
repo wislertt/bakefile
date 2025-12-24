@@ -13,5 +13,5 @@ def main(
         "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
     ),
 ) -> None:
-    book_obj = resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
-    typer.echo(book_obj)
+    bakebook = resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
+    typer.echo(bakebook)

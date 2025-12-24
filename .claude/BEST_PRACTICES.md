@@ -4,35 +4,63 @@
 
 ## Documentation
 
-### Docstrings and Comments
+### Docstring Format
 
-**Rule:** Omit redundant docstrings/comments that repeat what the filename or function name already conveys.
-
-**Examples of what NOT to do:**
+**Use NumPy format for multi-line docstrings:**
 
 ```python
-# Bad - redundant, filename already tells us this
-"""CLI commands for bakefile."""
-# in src/bakefile/cli/__init__.py
+def resolve_bakebook(file_name: str, bakebook_name: str, chdir: str | None = None) -> str:
+    """Load a bakefile and retrieve a bakebook object.
 
-# Bad - function name is self-explanatory
-def greet(name: str) -> str:
-    """Greet the user."""  # adds no value
-    return f"Hello, {name}"
+    Parameters
+    ----------
+    file_name : str
+        Name of the .py file (must end with .py, no path separators)
+    bakebook_name : str
+        Name of the bakebook object to retrieve
+    chdir : str | None, optional
+        Optional directory to change to before loading
+
+    Returns
+    -------
+    str
+        The bakebook object value
+
+    Raises
+    ------
+    SystemExit
+        If any validation or loading step fails
+    """
 ```
 
-**When to use docstrings:**
+### When to Omit Docstrings
 
-- To explain **why** something exists, not **what** it is
-- To document non-obvious behavior or edge cases
-- To describe parameters/return values for complex functions
-- To provide usage examples
+**Omit docstrings that add no value beyond the function name:**
 
-**When to omit:**
+```python
+# Bad - redundant, function name is self-explanatory
+def validate_file_name(file_name: str) -> None:
+    """Validate file_name is a filename (not a path) and ends with .py."""
+    # Implementation...
 
-- `__init__.py` files (directory structure is self-explanatory)
-- Simple functions with descriptive names
-- One-liners where the code is obvious
+# Good - no docstring, function name says it all
+def validate_file_name(file_name: str) -> None:
+    # Implementation...
+```
+
+**Use docstrings when:**
+
+- Function has **multiple parameters** to document
+- Function has **complex behavior** not obvious from name
+- Function **raises exceptions** worth documenting
+- Public API that needs **usage documentation**
+
+**Omit docstrings when:**
+
+- Function name is **self-explanatory** (`validate_file_name`, `change_directory`)
+- Implementation is **obvious** from code
+- Private/internal functions
+- `__init__.py` files
 
 ---
 
@@ -47,8 +75,8 @@ Tests mirror the source folder structure for easy navigation and maintainability
 ```
 src/bakefile/cli/          tests/cli/
 ├── __init__.py         →  ├── __init__.py
-├── bake.py              →  ├── test_bake.py
-└── bakefile.py          →  └── test_bakefile.py
+├── bake.py             →  ├── test_bake.py
+└── bakefile.py         →  └── test_bakefile.py
 ```
 
 **Rules:**

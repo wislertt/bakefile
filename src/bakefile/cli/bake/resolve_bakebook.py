@@ -2,6 +2,7 @@ import importlib.util
 import os
 import pathlib
 import sys
+import types
 
 import typer
 
@@ -9,7 +10,9 @@ MODULE_NAME = "bakefile"
 
 
 def change_directory(path: str) -> None:
-    """Change to specified directory after validation."""
+    if not path or not path.strip():
+        typer.echo("Directory path cannot be empty", err=True)
+        raise SystemExit(1)
     dir_path = pathlib.Path(path)
     if not dir_path.exists():
         typer.echo(f"Directory not found: {path}", err=True)
@@ -21,7 +24,6 @@ def change_directory(path: str) -> None:
 
 
 def validate_file_name(file_name: str) -> None:
-    """Validate file_name is a filename (not a path) and ends with .py."""
     if "/" in file_name or "\\" in file_name:
         typer.echo(f"File name must not contain path separators: {file_name}", err=True)
         raise SystemExit(1)
@@ -31,7 +33,6 @@ def validate_file_name(file_name: str) -> None:
 
 
 def resolve_file_path(file_name: str) -> pathlib.Path:
-    """Resolve file path relative to current directory."""
     path = pathlib.Path.cwd() / file_name
     if not path.exists():
         typer.echo(f"File not found: {file_name}", err=True)
@@ -39,40 +40,53 @@ def resolve_file_path(file_name: str) -> pathlib.Path:
     return path
 
 
-def load_module(path: pathlib.Path) -> object:
-    """Load Python module from file path."""
+def load_module(path: pathlib.Path) -> types.ModuleType:
     spec = importlib.util.spec_from_file_location(MODULE_NAME, path)
     if spec is None or spec.loader is None:
         typer.echo(f"Failed to load: {path}", err=True)
         raise SystemExit(1)
 
-    module = importlib.util.module_from_spec(spec)
+    module: types.ModuleType = importlib.util.module_from_spec(spec)
     sys.modules[MODULE_NAME] = module
     spec.loader.exec_module(module)
     return module
 
 
-def get_bakebook(module: object, bakebook_name: str, path: pathlib.Path) -> str:
-    """Retrieve bakebook object from module."""
+def get_bakebook(module: types.ModuleType, bakebook_name: str, path: pathlib.Path) -> str:
     if not hasattr(module, bakebook_name):
         typer.echo(f"No '{bakebook_name}' found in {path}", err=True)
         raise SystemExit(1)
-    return getattr(module, bakebook_name)
+    bakebook = getattr(module, bakebook_name)
+    if not isinstance(bakebook, str):
+        typer.echo(
+            f"Bakebook '{bakebook_name}' must be a string, got {type(bakebook).__name__}",
+            err=True,
+        )
+        raise SystemExit(1)
+    return bakebook
 
 
 def resolve_bakebook(file_name: str, bakebook_name: str, chdir: str | None = None) -> str:
     """Load a bakefile and retrieve a bakebook object.
 
-    Args:
-        file_name: Name of the .py file (must end with .py, no path separators)
-        bakebook_name: Name of the bakebook object to retrieve
-        chdir: Optional directory to change to before loading
+    Parameters
+    ----------
+    file_name : str
+        Name of the .py file (must end with .py, no path separators)
+    bakebook_name : str
+        Name of the bakebook object to retrieve
+    chdir : str | None, optional
+        Optional directory to change to before loading
 
-    Returns:
-        The bakebook object value
+    Returns
+    -------
+    str
+        The bakebook string value
 
-    Raises:
-        SystemExit(1): If any validation or loading step fails
+    Raises
+    ------
+    SystemExit
+        If any validation or loading step fails
     """
     if chdir:
         change_directory(chdir)
