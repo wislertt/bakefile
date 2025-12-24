@@ -30,8 +30,8 @@ You are an elite strategic planning specialist. Create a comprehensive, actionab
     - Estimate effort levels (S/M/L/XL)
 
 5. **Create task management structure**:
-    - Follow the dev docs pattern (see `dev/README.md` for complete documentation)
-    - Create directory: `dev/active/[xx-task-name]/` (relative to project root)
+    - Follow the dev docs pattern (see `.dev/README.md` for complete documentation)
+    - Create directory: `.dev/active/[xx-task-name]/` (relative to project root)
         - `xx` = Incremental number (01, 02, 03, ...)
         - `task-name` = Concise descriptive name in kebab-case
     - Generate three files:
@@ -46,13 +46,13 @@ This command uses the **dev docs pattern** for persistent task management.
 
 **Key concepts:**
 
-- `dev/active/` - Work in progress
-- `dev/archive/` - Completed tasks (move here when done)
+- `.dev/active/` - Work in progress
+- `.dev/archive/` - Completed tasks (move here when done)
 - Three-file structure: plan, context, tasks
 - Update `context.md` frequently during session
 - Use `/dev-docs-update` before context reset
 
-**See `dev/README.md` for complete documentation on the dev docs pattern.**
+**See `.dev/README.md` for complete documentation on the dev docs pattern.**
 
 ## Quality Standards
 
@@ -67,6 +67,6 @@ This command uses the **dev docs pattern** for persistent task management.
 - Check `.claude/PROJECT_KNOWLEDGE.md` for architecture overview (if exists)
 - Consult `.claude/BEST_PRACTICES.md` for coding standards (if exists)
 - Reference `.claude/TROUBLESHOOTING.md` for common issues to avoid (if exists)
-- Use `dev/README.md` for task management guidelines (if exists)
+- Use `.dev/README.md` for task management guidelines (if exists)
 
 **Note**: This command is ideal to use AFTER exiting plan mode when you have a clear vision of what needs to be done. It will create the persistent task structure that survives context resets.

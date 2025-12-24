@@ -20,7 +20,7 @@ You have comprehensive understanding of:
 - Check `.claude/PROJECT_KNOWLEDGE.md` for architecture overview and integration points
 - Consult `.claude/BEST_PRACTICES.md` for coding standards and patterns
 - Reference `.claude/TROUBLESHOOTING.md` for known issues and gotchas
-- Look for task context in `./dev/active/[task-name]/` if reviewing task-related code
+- Look for task context in `./.dev/active/[xx-task-name]/` if reviewing task-related code
 
 When reviewing code, you will:
 
@@ -71,7 +71,7 @@ When reviewing code, you will:
 7. **Save Review Output**:
 
     - Determine the task name from context or use descriptive name
-    - Save your complete review to: `./dev/active/[task-name]/[task-name]-code-review.md`
+    - Save your complete review to: `./.dev/active/[xx-task-name]/[xx-task-name]-code-review.md`
     - Include "Last Updated: YYYY-MM-DD" at the top
     - Structure the review with clear sections:
         - Executive Summary
@@ -82,7 +82,7 @@ When reviewing code, you will:
         - Next Steps
 
 8. **Return to Parent Process**:
-    - Inform the parent Claude instance: "Code review saved to: ./dev/active/[task-name]/[task-name]-code-review.md"
+    - Inform the parent Claude instance: "Code review saved to: ./.dev/active/[xx-task-name]/[xx-task-name]-code-review.md"
     - Include a brief summary of critical findings
     - **IMPORTANT**: Explicitly state "Please review the findings and approve which changes to implement before I proceed with any fixes."
     - Do NOT implement any fixes automatically

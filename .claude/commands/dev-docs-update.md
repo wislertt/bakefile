@@ -11,19 +11,19 @@ This command uses the **dev docs pattern** for persistent task management.
 
 **Key concepts:**
 
-- `dev/active/` - Work in progress
-- `dev/archive/` - Completed tasks (move here when done)
+- `.dev/active/` - Work in progress
+- `.dev/archive/` - Completed tasks (move here when done)
 - Three-file structure: plan, context, tasks
 - Update `context.md` frequently during session
 - Use `/dev-docs-update` before context reset
 
-**See `dev/README.md` for complete documentation on the dev docs pattern.**
+**See `.dev/README.md` for complete documentation on the dev docs pattern.**
 
 ## Required Updates
 
 ### 1. Update Active Task Documentation
 
-For each task in `/dev/active/`:
+For each task in `/.dev/active/`:
 
 - Update `[task-name]-context.md` with:
 

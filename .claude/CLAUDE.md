@@ -19,12 +19,12 @@ make lint   # Run all linters and formatters
 
 ## Dev Docs
 
-Active work uses `dev/active/` with three-file structure:
+Active work uses `.dev/active/` with three-file structure:
 
 - `plan.md` - Strategic plan
 - `context.md` - Key decisions & files (update frequently!)
 - `tasks.md` - Checklist format
 
-**Naming:** `dev/active/[xx-task-name]/` where `xx` is an incremental number (01, 02, ...) and `task-name` is a concise kebab-case name.
+**Naming:** `.dev/active/[xx-task-name]/` where `xx` is an incremental number (01, 02, ...) and `task-name` is a concise kebab-case name.
 
 Use `/dev-docs` command to create these automatically.

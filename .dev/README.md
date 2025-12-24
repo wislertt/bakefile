@@ -23,7 +23,7 @@ A methodology for maintaining project context across Claude Code sessions and co
 A three-file structure that captures everything needed to resume work:
 
 ```
-dev/active/[xx-task-name]/
+.dev/active/[xx-task-name]/
 ├── plan.md      # Strategic plan
 ├── context.md   # Key decisions & files
 └── tasks.md     # Checklist format
@@ -274,7 +274,7 @@ No need to explain what you were doing - it's all documented!
 
 **Generates:**
 
-- `dev/active/02-implement-real-time-notifications/`
+- `.dev/active/02-implement-real-time-notifications/`
     - plan.md
     - context.md
     - tasks.md
@@ -303,7 +303,7 @@ No need to explain what you were doing - it's all documented!
 ## File Organization
 
 ```
-dev/
+.dev/
 ├── README.md              # This file
 ├── active/                # Current work
 │   ├── 01-task-name/
@@ -324,7 +324,7 @@ dev/
 
 ## Example: Real Usage
 
-See **dev/active/public-infrastructure-repo/** in this repository for a real example:
+See **.dev/active/public-infrastructure-repo/** in this repository for a real example:
 
 - **plan.md** - 700+ line strategic plan for creating this showcase
 - **context.md** - Tracks what's completed, decisions made, what's next
@@ -421,7 +421,7 @@ If you don't have the /dev-docs command:
 **1. Create directory:**
 
 ```bash
-mkdir -p dev/active/your-task-name
+mkdir -p .dev/active/your-task-name
 ```
 
 **2. Create plan.md:**
@@ -471,6 +471,6 @@ mkdir -p dev/active/your-task-name
 1. **Try the pattern** on your next complex task
 2. **Use /dev-docs** slash command (if available)
 3. **Update frequently** - especially context.md
-4. **See it in action** - Browse dev/active/public-infrastructure-repo/
+4. **See it in action** - Browse .dev/active/public-infrastructure-repo/
 
 **Questions?** See [CLAUDE_INTEGRATION_GUIDE.md](../CLAUDE_INTEGRATION_GUIDE.md)
