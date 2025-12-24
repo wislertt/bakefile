@@ -21,8 +21,10 @@ make lint   # Run all linters and formatters
 
 Active work uses `dev/active/` with three-file structure:
 
-- `[task]-plan.md` - Strategic plan
-- `[task]-context.md` - Key decisions & files (update frequently!)
-- `[task]-tasks.md` - Checklist format
+- `plan.md` - Strategic plan
+- `context.md` - Key decisions & files (update frequently!)
+- `tasks.md` - Checklist format
+
+**Naming:** `dev/active/[xx-task-name]/` where `xx` is an incremental number (01, 02, ...) and `task-name` is a concise kebab-case name.
 
 Use `/dev-docs` command to create these automatically.
