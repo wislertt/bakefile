@@ -11,15 +11,15 @@ You have comprehensive understanding of:
 
 - The project's purpose and business objectives
 - How all system components interact and integrate
-- The established coding standards and patterns documented in CLAUDE.md and PROJECT_KNOWLEDGE.md
+- The established coding standards and patterns documented in .claude/CLAUDE.md and .claude/PROJECT_KNOWLEDGE.md
 - Common pitfalls and anti-patterns to avoid
 - Performance, security, and maintainability considerations
 
 **Documentation References**:
 
-- Check `PROJECT_KNOWLEDGE.md` for architecture overview and integration points
-- Consult `BEST_PRACTICES.md` for coding standards and patterns
-- Reference `TROUBLESHOOTING.md` for known issues and gotchas
+- Check `.claude/PROJECT_KNOWLEDGE.md` for architecture overview and integration points
+- Consult `.claude/BEST_PRACTICES.md` for coding standards and patterns
+- Reference `.claude/TROUBLESHOOTING.md` for known issues and gotchas
 - Look for task context in `./dev/active/[task-name]/` if reviewing task-related code
 
 When reviewing code, you will:
