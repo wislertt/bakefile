@@ -1,0 +1,86 @@
+{
+    "version": "1.0",
+    "description": "Skill activation triggers for Claude Code in bakefile project.",
+    "skills": {
+        "skill-developer": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "Meta-skill for creating and managing Claude Code skills",
+            "promptTriggers": {
+                "keywords": [
+                    "skill system",
+                    "create skill",
+                    "add skill",
+                    "skill triggers",
+                    "skill rules",
+                    "hook system",
+                    "skill development",
+                    "skill-rules.json"
+                ],
+                "intentPatterns": [
+                    "(how do|how does|explain).*?skill",
+                    "(create|add|modify|build).*?skill",
+                    "skill.*?(work|trigger|activate|system)"
+                ]
+            }
+        },
+        "python-cli-guidelines": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "Python CLI development patterns for Typer, Pydantic, UV",
+            "promptTriggers": {
+                "keywords": [
+                    "cli",
+                    "command",
+                    "typer",
+                    "pydantic",
+                    "task",
+                    "recipe",
+                    "validation",
+                    "uv",
+                    "python version",
+                    "test",
+                    "pytest",
+                    "type check",
+                    "package",
+                    "pyproject"
+                ],
+                "intentPatterns": [
+                    "(create|add|implement).*?(cli|command|task)",
+                    "(how to|best practice).*?(typer|pydantic|cli)",
+                    "(add|implement).*?(validation|pydantic)",
+                    "(test|pytest).*?(cli|command)",
+                    "(package|build).*?(python|cli)",
+                    "o?op.*?(design|pattern)"
+                ]
+            },
+            "fileTriggers": {
+                "pathPatterns": ["src/**/*.py", "src/bakefile/**/*.py", "tests/**/*.py"],
+                "pathExclusions": ["**/*.pyc", "**/__pycache__/**"],
+                "contentPatterns": [
+                    "import typer",
+                    "from pydantic",
+                    "class.*Task",
+                    "class.*Recipe",
+                    "def.*command",
+                    "BaseModel"
+                ]
+            }
+        }
+    },
+    "notes": {
+        "enforcement_types": {
+            "suggest": "Skill suggestion appears but doesn't block execution",
+            "block": "Requires skill to be used before proceeding (guardrail)",
+            "warn": "Shows warning but allows proceeding"
+        },
+        "priority_levels": {
+            "critical": "Highest - Always trigger when matched",
+            "high": "Important - Trigger for most matches",
+            "medium": "Moderate - Trigger for clear matches",
+            "low": "Optional - Trigger only for explicit matches"
+        }
+    }
+}

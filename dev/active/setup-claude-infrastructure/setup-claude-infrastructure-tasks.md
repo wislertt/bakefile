@@ -31,13 +31,13 @@
 - [x] Create `resources/packaging.md`
 - [x] Create `resources/uv-integration.md`
 
-### 2.3 skill-rules.json
+### 2.3 skill-rules.json ✅ COMPLETE
 
-- [ ] Copy `skill-rules.json` from showcase
-- [ ] Customize path patterns for Python (`src/**/*.py`)
-- [ ] Remove irrelevant skills
-- [ ] Add python-cli-guidelines triggers
-- [ ] Validate JSON (`cat skill-rules.json | jq .`)
+- [x] Copy `skill-rules.json` from showcase
+- [x] Customize path patterns for Python (`src/**/*.py`)
+- [x] Remove irrelevant skills
+- [x] Add python-cli-guidelines triggers
+- [x] Validate JSON (`cat skill-rules.json | jq .`)
 
 ---
 
