@@ -16,17 +16,30 @@
 - **Phase 2: Create CLI Structure**
     - Created `src/bakefile/cli/` directory
     - Created `src/bakefile/cli/__init__.py`
+- **Phase 3: Implement bake CLI**
+    - Created `src/bakefile/cli/bake.py` with typer app
+    - Added `bake = "bakefile.cli.bake:app"` to `[project.scripts]`
+- **Phase 4: Implement bakefile CLI**
+    - Created `src/bakefile/cli/bakefile.py` with typer app
+    - Added `bakefile = "bakefile.cli.bakefile:app"` to `[project.scripts]`
+- **Phase 5: Add CLI Tests**
+    - Created `tests/cli/` directory with `__init__.py`
+    - Created `tests/cli/test_bake.py` with test for bake CLI
+    - Created `tests/cli/test_bakefile.py` with test for bakefile CLI
+    - Deleted unused `src/bakefile/hello.py` and `tests/test_bakefile.py`
+- **Phase 6: Test Both CLIs**
+    - `uv sync` completed successfully
+    - Both `bake` and `bakefile` commands output "hello world"
+    - `make lint` passed (all linters)
+    - `make test` passed (2 tests, 100% coverage)
 
 ### 🟡 IN PROGRESS
 
-- None - awaiting user to continue with Phase 3
+- None - **ALL PHASES COMPLETE**
 
 ### ⏳ NOT STARTED
 
-- Phase 3: Implement bake CLI
-- Phase 4: Implement bakefile CLI
-- Phase 5: Add CLI Tests
-- Phase 6: Test Both CLIs
+- None
 
 ---
 

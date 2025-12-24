@@ -19,59 +19,59 @@
 
 ---
 
-## Phase 3: Implement bake CLI ⏳
+## Phase 3: Implement bake CLI ✅
 
-- [ ] Create src/bakefile/cli/bake.py
+- [x] Create src/bakefile/cli/bake.py
     - Acceptance: File created with typer app that prints "hello world"
-- [ ] Add bake entry point to pyproject.toml
+- [x] Add bake entry point to pyproject.toml
     - Acceptance: `bake = "bakefile.cli.bake:app"` in `[project.scripts]`
 
 ---
 
-## Phase 4: Implement bakefile CLI ⏳
+## Phase 4: Implement bakefile CLI ✅
 
-- [ ] Create src/bakefile/cli/bakefile.py
+- [x] Create src/bakefile/cli/bakefile.py
     - Acceptance: File created with typer app that prints "hello world"
-- [ ] Add bakefile entry point to pyproject.toml
+- [x] Add bakefile entry point to pyproject.toml
     - Acceptance: `bakefile = "bakefile.cli.bakefile:app"` in `[project.scripts]`
 
 ---
 
-## Phase 5: Add CLI Tests ⏳
+## Phase 5: Add CLI Tests ✅
 
-- [ ] Create tests/cli/ directory structure
+- [x] Create tests/cli/ directory structure
     - Acceptance: `tests/cli/__init__.py` exists
-- [ ] Create tests/cli/test_bake.py
+- [x] Create tests/cli/test_bake.py
     - Acceptance: Test file for `bake` CLI that verifies "hello world" output
-- [ ] Create tests/cli/test_bakefile.py
+- [x] Create tests/cli/test_bakefile.py
     - Acceptance: Test file for `bakefile` CLI that verifies "hello world" output
 
-## Phase 6: Test Both CLIs ⏳
+## Phase 6: Test Both CLIs ✅
 
-- [ ] Install package with uv sync
+- [x] Install package with uv sync
     - Acceptance: No errors during sync
-- [ ] Test bake command manually
+- [x] Test bake command manually
     - Acceptance: Running `bake` outputs "hello world"
-- [ ] Test bakefile command manually
+- [x] Test bakefile command manually
     - Acceptance: Running `bakefile` outputs "hello world"
-- [ ] Run make lint
+- [x] Run make lint
     - Acceptance: All linters pass
-- [ ] Run make test
+- [x] Run make test
     - Acceptance: All tests pass (including new CLI tests)
 
 ---
 
 ## Progress Summary
 
-| Phase                           | Status         | Tasks    |
-| ------------------------------- | -------------- | -------- |
-| Phase 1: Add CLI Dependency     | ✅ Complete    | 1/1      |
-| Phase 2: Create CLI Structure   | ✅ Complete    | 1/1      |
-| Phase 3: Implement bake CLI     | ⏳ Not Started | 0/2      |
-| Phase 4: Implement bakefile CLI | ⏳ Not Started | 0/2      |
-| Phase 5: Add CLI Tests          | ⏳ Not Started | 0/3      |
-| Phase 6: Test Both CLIs         | ⏳ Not Started | 0/5      |
-| **TOTAL**                       | **🟡 14%**     | **2/14** |
+| Phase                           | Status      | Tasks     |
+| ------------------------------- | ----------- | --------- |
+| Phase 1: Add CLI Dependency     | ✅ Complete | 1/1       |
+| Phase 2: Create CLI Structure   | ✅ Complete | 1/1       |
+| Phase 3: Implement bake CLI     | ✅ Complete | 2/2       |
+| Phase 4: Implement bakefile CLI | ✅ Complete | 2/2       |
+| Phase 5: Add CLI Tests          | ✅ Complete | 3/3       |
+| Phase 6: Test Both CLIs         | ✅ Complete | 5/5       |
+| **TOTAL**                       | **✅ 100%** | **14/14** |
 
 ---
 

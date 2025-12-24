@@ -15,3 +15,4 @@ lint:
 
 update:
 	uv lock --upgrade
+	uv sync

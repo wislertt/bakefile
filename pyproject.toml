@@ -12,6 +12,10 @@ dependencies = [
   "typer>=0.0.1"
 ]
 
+[project.scripts]
+bake = "bakefile.cli.bake:app"
+bakefile = "bakefile.cli.bakefile:app"
+
 [dependency-groups]
 dev = [
   "pre-commit>=4.5.1",
