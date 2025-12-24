@@ -11,19 +11,18 @@ make lint   # Run all linters and formatters
 
 ## Project
 
-Python package template using UV for package management. Currently a minimal hello world.
+**bakefile** - Python-based build system (Make/Justfile alternative) using OOP for reusability.
 
-## Planning
+- Tech: Typer, Pydantic, UV, pytest, ty
+- `bake` CLI - runs commands from `bakefile.py`
+- `bakefile` CLI - manages bakefile (init, lint, docs)
 
-Use `.claude/plan/` for task plans:
+## Dev Docs
 
-- File format: `xx-task-name.md`
-- `xx` = incremental number (01, 02, 03, ...)
-- `task-name` = kebab-case description
+Active work uses `dev/active/` with three-file structure:
 
-## Reference Docs
+- `[task]-plan.md` - Strategic plan
+- `[task]-context.md` - Key decisions & files (update frequently!)
+- `[task]-tasks.md` - Checklist format
 
-Use `.claude/ref/` for detailed reference docs:
-
-- Store content that's too long for CLAUDE.md
-- Reference the path to `.md` files in ref/ instead of duplicating content
+Use `/dev-docs` command to create these automatically.
