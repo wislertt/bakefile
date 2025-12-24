@@ -20,16 +20,16 @@
 - [x] Copy `skill-developer/` directory from showcase
 - [x] Verify all resource files copied
 
-### 2.2 python-cli-guidelines (NEW)
+### 2.2 python-cli-guidelines ✅ COMPLETE
 
-- [ ] Create `python-cli-guidelines/` directory
-- [ ] Create `SKILL.md` with Python CLI patterns
-- [ ] Create `resources/typer-patterns.md`
-- [ ] Create `resources/pydantic-patterns.md`
-- [ ] Create `resources/oop-design.md`
-- [ ] Create `resources/testing.md`
-- [ ] Create `resources/packaging.md`
-- [ ] Create `resources/uv-integration.md`
+- [x] Create `python-cli-guidelines/` directory
+- [x] Create `SKILL.md` with Python CLI patterns
+- [x] Create `resources/typer-patterns.md`
+- [x] Create `resources/pydantic-patterns.md`
+- [x] Create `resources/oop-design.md`
+- [x] Create `resources/testing.md`
+- [x] Create `resources/packaging.md`
+- [x] Create `resources/uv-integration.md`
 
 ### 2.3 skill-rules.json
 
