@@ -10,17 +10,17 @@
 - **Phase 2.3: skill-rules.json** - Customized for Python paths (src/\*_/_.py), added python-cli-guidelines triggers
 - **Phase 3: Agents** - Copied 6 agents (code-architecture-reviewer, code-refactor-master, documentation-architect, plan-reviewer, refactor-planner, web-research-specialist)
 - **Phase 4: Slash Commands** - Copied dev-docs.md and dev-docs-update.md, updated to reference dev/README.md
+- **Phase 5: Settings and Verification** - Created `.claude/settings.json` with UserPromptSubmit and PostToolUse hooks
 - Created `.claude/PROJECT_KNOWLEDGE.md`, `BEST_PRACTICES.md`, `TROUBLESHOOTING.md` (TODO placeholders)
 - Created `dev/README.md` (copied from showcase for dev docs pattern documentation)
 - Updated all agent/command references to use `.claude/` prefix for documentation files
 
 ### 🟡 IN PROGRESS
 
-- None (awaiting Phase 5)
+- None
 
 ### ⏳ NOT STARTED
 
-- Phase 5: Settings and verification
 - Cleanup: Remove `.claude/plan/` and `.claude/ref/` (non-standard)
 
 ### ⚠️ BLOCKERS
@@ -82,6 +82,7 @@ Python-based build system (Make/Justfile alternative) with OOP reusability.
 - `.claude/skills/` - skill-developer, python-cli-guidelines, skill-rules.json
 - `.claude/agents/` - 6 agents for code review, refactoring, documentation, planning
 - `.claude/commands/` - dev-docs.md, dev-docs-update.md
+- `.claude/settings.json` - Hook configuration (UserPromptSubmit, PostToolUse)
 - `.claude/PROJECT_KNOWLEDGE.md`, `BEST_PRACTICES.md`, `TROUBLESHOOTING.md`
 - `dev/README.md` - Dev docs pattern documentation
 - `dev/active/setup-claude-infrastructure/` - Three-file structure (plan/context/tasks)
@@ -102,4 +103,4 @@ To continue setup:
 3. Execute implementation steps from plan.md
 4. Update this file after each phase
 
-**Next action:** Execute Phase 5 (Settings and Verification) - create `.claude/settings.json`
+**Next action:** Execute Cleanup - Remove `.claude/plan/` and `.claude/ref/` (non-standard)
