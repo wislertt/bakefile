@@ -7,23 +7,25 @@ jobs:
     pre-commit:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+            - name: checkout
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
               with:
                   fetch-depth: 0
                   submodules: recursive
                   token: ${{ secrets.GITHUB_TOKEN }}
 
-            - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+            - name: setup-python
+              uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
               with:
                   python-version: "3.14"
 
-            - name: Install uv
+            - name: setup-uv
               uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
               with:
                   version: "latest"
                   enable-cache: true
 
-            - name: Cache uv
+            - name: cache-uv
               uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
               with:
                   path: ${{ github.workspace }}/.venv
@@ -32,14 +34,15 @@ jobs:
                       uv-${{ runner.os }}-py${{ matrix.python-version }}-
                       uv-${{ runner.os }}-
 
-            - name: Install dependencies
+            - name: install-dependencies
               run: uv sync --all-groups
 
-            - name: Setup Bun
+            - name: setup-bun
               uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
               with:
                   bun-version: latest
 
-            - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+            - name: run-pre-commit
+              uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
               with:
                   extra_args: --all-files

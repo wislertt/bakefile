@@ -1,7 +1,5 @@
 name: cd
 
-# Note: Ensure CD pipeline is idempotent to safely handle re-runs from push,
-# workflow dispatch, and tag versioning triggers
 on:
     push:
         branches:
@@ -12,6 +10,9 @@ permissions:
     contents: write
     issues: write
     pull-requests: write
+
+env:
+    PYTHON_VERSION: "3.14"
 
 jobs:
     # ====================================================
@@ -47,3 +48,28 @@ jobs:
         secrets:
             SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
             CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    pre-commit:
+        uses: ./.github/workflows/pre-commit.yml
+
+    # ====================================================
+    # Deployment
+    # ====================================================
+    publish-pypi:
+        needs: zerv-versioning
+        uses: ./.github/workflows/publish.yml
+        with:
+            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
+            python_version: ${{ env.PYTHON_VERSION }}
+        secrets:
+            PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+    publish-test-pypi:
+        needs: zerv-versioning
+        uses: ./.github/workflows/publish.yml
+        with:
+            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
+            python_version: ${{ env.PYTHON_VERSION }}
+            repository_url: https://test.pypi.org/legacy/
+        secrets:
+            PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}

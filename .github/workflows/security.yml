@@ -10,10 +10,10 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - name: Checkout repository
+            - name: checkout
               uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-            - name: Run Trivy dependency scan
+            - name: run-trivy-scan
               uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
               with:
                   scan-type: fs
@@ -26,10 +26,12 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+            - name: checkout
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
               with:
                   fetch-depth: 0
 
-            - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+            - name: run-gitleaks
+              uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

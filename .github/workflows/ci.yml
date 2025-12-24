@@ -10,6 +10,9 @@ permissions:
     contents: write
     id-token: write
 
+env:
+    PYTHON_VERSION: "3.14"
+
 jobs:
     # ====================================================
     # Versioning and Release
@@ -53,22 +56,12 @@ jobs:
     # Deployment
     # ====================================================
     publish-test-pypi:
-        name: publish-to-test-pypi
         if: needs.check-pre-release.outputs.is_valid == 'true'
         needs: [zerv-versioning, check-pre-release]
         uses: ./.github/workflows/publish.yml
         with:
             version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
+            python_version: ${{ env.PYTHON_VERSION }}
             repository_url: https://test.pypi.org/legacy/
         secrets:
             PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
-
-    # publish-pypi:
-    #     name: publish-to-pypi
-    #     if: needs.check-pre-release.outputs.is_valid == 'true'
-    #     needs: [zerv-versioning, check-pre-release]
-    #     uses: ./.github/workflows/publish.yml
-    #     with:
-    #         version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
-    #     secrets:
-    #         PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
