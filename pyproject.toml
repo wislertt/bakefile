@@ -30,6 +30,9 @@ dev = [
 requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
 
+[tool.ruff]
+line-length = 100
+
 [tool.ruff.lint]
 select = [
   "ARG",
