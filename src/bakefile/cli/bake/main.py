@@ -81,7 +81,20 @@ def get_bakebook(
     file_name: str = file_name_option,
     bakebook_name: str = bakebook_name_option,
 ):
-    return resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
+    try:
+        return resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
+    except BakebookError as e:
+        # Print error with context about what values were used
+        context_parts = []
+        context_parts.append(f"chdir={chdir!r}")
+        context_parts.append(f"file_name={file_name!r}")
+        context_parts.append(f"bakebook_name={bakebook_name!r}")
+
+        typer.secho("⚠️  ", fg="yellow", err=True, nl=False)
+        typer.secho(str(e), fg="yellow", bold=True, err=True)
+        if context_parts:
+            typer.secho(f"({', '.join(context_parts)})", fg="yellow", err=True)
+        return None
 
 
 def try_get_local_bake_app() -> typer.Typer | None:
@@ -94,13 +107,11 @@ def try_get_local_bake_app() -> typer.Typer | None:
                 pretty_exceptions_short=bake_app.pretty_exceptions_short,
                 rich_markup_mode=bake_app.rich_markup_mode,
             )
-            try:
-                with command.make_context(info_name=GET_BAKEBOOK, args=args) as ctx:
-                    bakebook = command.invoke(ctx)
+            with command.make_context(info_name=GET_BAKEBOOK, args=args) as ctx:
+                bakebook = command.invoke(ctx)
+                if bakebook is not None:
                     local_bake_app.add_typer(bakebook)
                     return local_bake_app
-            except BakebookError as e:
-                typer.echo(str(e), err=True)
                 return None
 
 

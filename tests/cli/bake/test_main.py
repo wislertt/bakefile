@@ -109,3 +109,4 @@ class TestMain:
         )
         assert captured.exit_code == 2
         assert "File not found" in captured.err
+        # assert "No such command 'hello'." not in captured.err
