@@ -1,5 +1,5 @@
 import typer
-from typer.main import TyperCommand, get_command_from_info
+from typer.main import get_command_from_info
 
 from bakefile.cli.bake.resolve_bakebook import resolve_bakebook
 
@@ -40,8 +40,6 @@ def bake(
 
 
 def main():
-    print(app.registered_commands[0].name)
-
     for registered_command in app.registered_commands:
         if registered_command.name == "bake":
             command = get_command_from_info(
@@ -49,6 +47,10 @@ def main():
                 pretty_exceptions_short=app.pretty_exceptions_short,
                 rich_markup_mode=app.rich_markup_mode,
             )
-            assert isinstance(command, TyperCommand)
-            bakebook = command.main(standalone_mode=False)
-            bakebook()
+            with command.make_context("bake", []) as ctx:
+                bakebook = command.invoke(ctx)
+                print(type(bakebook))
+
+                app.add_typer(bakebook)
+
+                app()
