@@ -1,3 +1,3 @@
-from bakefile.cli.bake.main import app, main
+from bakefile.cli.bake.main import main
 
-__all__ = ["app", "main"]
+__all__ = ["main"]

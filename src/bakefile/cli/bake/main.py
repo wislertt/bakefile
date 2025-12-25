@@ -2,36 +2,34 @@ import typer
 from typer.main import get_command_from_info
 
 from bakefile.cli.bake.resolve_bakebook import resolve_bakebook
+from bakefile.cli.utils.version import version_callback
 
-app = typer.Typer(
+from .utils import get_bakebook_args
+
+bake_app = typer.Typer(
     add_completion=True,
     # rich_markup_mode=None,  # ONLY for debugging
 )
+
+local_bake_app = typer.Typer(
+    add_completion=True,
+    # rich_markup_mode=None,  # ONLY for debugging
+)
+
+
+GET_BAKEBOOK = "get_bakebook"
+
+
+# @app1.command(name="hi")
+# def hi(name: str = typer.Option("world", help="Name to greet")) -> None:
+#     typer.echo(f"Hi {name}!")
 
 
 # bakebook_1 = resolve_bakebook(file_name="bakefile.py", bakebook_name="bakebook", chdir=None)
 # app.add_typer(bakebook_1, name="bakebook")
 
 
-@app.command(
-    name="bake", context_settings={"allow_extra_args": True, "allow_interspersed_args": False}
-)
-def bake(
-    # ctx: typer.Context,
-    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
-    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
-    bakebook_name: str = typer.Option(
-        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
-    ),
-    # version: bool = typer.Option(
-    #     False,
-    #     "--version",
-    #     help="Show version and exit",
-    #     callback=version_callback,
-    #     is_eager=True,
-    # ),
-):
-    # _ = version
+def _bake(chdir: str, file_name: str, bakebook_name: str):
     print("start bake")
     bakebook = resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
 
@@ -39,18 +37,70 @@ def bake(
     return bakebook
 
 
-def main():
-    for registered_command in app.registered_commands:
-        if registered_command.name == "bake":
+@local_bake_app.callback(
+    invoke_without_command=True,
+)
+def local_bake_app_callback(
+    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
+    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
+    bakebook_name: str = typer.Option(
+        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
+    ),
+): ...
+
+
+@bake_app.command(
+    name=GET_BAKEBOOK,
+    context_settings={
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "ignore_unknown_options": True,
+    },
+)
+def get_bakebook(
+    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
+    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
+    bakebook_name: str = typer.Option(
+        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
+    ),
+):
+    version_callback(version)
+    return _bake(chdir=chdir, file_name=file_name, bakebook_name=bakebook_name)
+
+
+def try_get_local_bake_app() -> typer.Typer | None:
+    args = get_bakebook_args()
+
+    for registered_command in bake_app.registered_commands:
+        if registered_command.name == GET_BAKEBOOK:
             command = get_command_from_info(
                 registered_command,
-                pretty_exceptions_short=app.pretty_exceptions_short,
-                rich_markup_mode=app.rich_markup_mode,
+                pretty_exceptions_short=bake_app.pretty_exceptions_short,
+                rich_markup_mode=bake_app.rich_markup_mode,
             )
-            with command.make_context("bake", []) as ctx:
+            with command.make_context(info_name=GET_BAKEBOOK, args=args) as ctx:
                 bakebook = command.invoke(ctx)
-                print(type(bakebook))
+                local_bake_app.add_typer(bakebook)
+                return local_bake_app
 
-                app.add_typer(bakebook)
 
-                app()
+def main():
+    local_bake_app = try_get_local_bake_app()
+    if local_bake_app is None:
+        bake_app()
+    else:
+        local_bake_app()
