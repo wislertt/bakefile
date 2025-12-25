@@ -1,8 +1,5 @@
-"""Environment variable configuration."""
-
 import os
 
-# Environment variable names
 ENV_NO_COLOR = "NO_COLOR"
 
 
