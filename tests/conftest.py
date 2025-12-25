@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from bakefile.constants import ENV_NO_COLOR
+from bakefile.env import ENV_NO_COLOR
 
 
 @pytest.fixture(autouse=True)

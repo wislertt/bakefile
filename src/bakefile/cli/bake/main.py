@@ -1,20 +1,24 @@
 import typer
 from typer.main import get_command_from_info
 
+from bakefile import env
 from bakefile.cli.bake.resolve_bakebook import resolve_bakebook
 from bakefile.cli.utils.version import version_callback
 from bakefile.exceptions import BakebookError
 
 from .utils import get_bakebook_args
 
+rich_markup_mode = None if not env.should_use_colors() else "rich"
+
+
 bake_app = typer.Typer(
     add_completion=False,
-    # rich_markup_mode=None,  # ONLY for debugging
+    rich_markup_mode=rich_markup_mode,
 )
 
 local_bake_app = typer.Typer(
     add_completion=False,
-    # rich_markup_mode=None,  # ONLY for debugging
+    rich_markup_mode=rich_markup_mode,
 )
 
 
