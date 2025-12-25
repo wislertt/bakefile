@@ -43,6 +43,13 @@ class TestMain:
         assert "--chdir" in captured.out and "-C" in captured.out
         assert "--file-name" in captured.out and "-f" in captured.out
         assert "--book-name" in captured.out and "-b" in captured.out
+        assert "--version" in captured.out
+        assert "--help" in captured.out
+
+        if dir_fixture == "examples_simple_dir":
+            assert "hello" in captured.out
+        else:
+            assert "hello" not in captured.out
 
     @pytest.mark.parametrize(
         "dir_fixture,args",
