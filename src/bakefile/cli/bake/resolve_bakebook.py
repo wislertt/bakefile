@@ -50,6 +50,8 @@ def load_module(path: pathlib.Path) -> types.ModuleType:
     return module
 
 
+# Update this is lowest python support is >= 3.12
+# Use a generic type parameter for this function instead of a "TypeVar".
 def validate_bakebook(bakebook: Any, bakebook_name: str, expected_type: type[T]) -> T:
     """Validate bakebook is of expected type and return it.
 
