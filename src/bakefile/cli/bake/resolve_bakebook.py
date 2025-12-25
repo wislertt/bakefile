@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 import types
+from typing import Any
 
 import typer
 
@@ -51,17 +52,24 @@ def load_module(path: pathlib.Path) -> types.ModuleType:
     return module
 
 
+def validate_bakebook(bakebook: Any, bakebook_name: str, expected_type: type) -> str:
+    if not isinstance(bakebook, expected_type):
+        typer.echo(
+            f"Bakebook '{bakebook_name}' must be a {expected_type.__name__}, "
+            f"got {type(bakebook).__name__}",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    return bakebook
+
+
 def get_bakebook(module: types.ModuleType, bakebook_name: str, path: pathlib.Path) -> str:
     if not hasattr(module, bakebook_name):
         typer.echo(f"No '{bakebook_name}' found in {path}", err=True)
         raise SystemExit(1)
     bakebook = getattr(module, bakebook_name)
-    if not isinstance(bakebook, str):
-        typer.echo(
-            f"Bakebook '{bakebook_name}' must be a string, got {type(bakebook).__name__}",
-            err=True,
-        )
-        raise SystemExit(1)
+    bakebook = validate_bakebook(bakebook=bakebook, bakebook_name=bakebook_name, expected_type=str)
     return bakebook
 
 
