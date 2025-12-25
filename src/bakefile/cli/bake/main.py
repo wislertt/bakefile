@@ -21,12 +21,9 @@ local_bake_app = typer.Typer(
 GET_BAKEBOOK = "get_bakebook"
 
 
-def _bake(chdir: str, file_name: str, bakebook_name: str):
-    print("start bake")
-    bakebook = resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
-
-    print("get bakebook")
-    return bakebook
+def show_help_if_no_command(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
 
 
 @local_bake_app.callback(
@@ -47,8 +44,7 @@ def local_bake_app_callback(
         is_eager=True,
     ),
 ):
-    if ctx.invoked_subcommand is None:
-        typer.echo(ctx.get_help())
+    show_help_if_no_command(ctx)
 
 
 @bake_app.callback(
@@ -69,8 +65,7 @@ def bake_app_callback(
         is_eager=True,
     ),
 ):
-    if ctx.invoked_subcommand is None:
-        typer.echo(ctx.get_help())
+    show_help_if_no_command(ctx)
 
 
 @bake_app.command(
@@ -96,8 +91,10 @@ def get_bakebook(
         is_eager=True,
     ),
 ):
+    # version parameter is required for Typer to process --version option
+    # (is_eager=True causes callback to exit before function body runs)
     _ = version
-    return _bake(chdir=chdir, file_name=file_name, bakebook_name=bakebook_name)
+    return resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
 
 
 def try_get_local_bake_app() -> typer.Typer | None:

@@ -11,15 +11,19 @@
 - Dev docs structure created (plan, context, tasks files)
 - Analysis of current state completed
 - Implementation plan documented
+- **Phase 1:** Removed debug print statements from `_bake` function
+- **Phase 2:** Removed `_bake` abstraction, using `resolve_bakebook` directly
+- **Phase 3:** Extracted shared callback logic into `show_help_if_no_command()` function
+- **Phase 4:** Fixed `version` parameter handling with proper comment
+- **Phase 5:** Evaluated option consolidation - determined not viable
 
 ### 🟡 IN PROGRESS
 
-- Awaiting user approval to begin implementation
-- Phase 1-4 are straightforward, Phase 5 needs evaluation
+- None - all phases completed
 
 ### ⚠️ BLOCKERS
 
-- None currently
+- None
 
 ---
 
@@ -115,6 +119,40 @@
 - Typer expects `typer.Option()` directly in function signatures for proper type checking
 - Factory pattern may break IDE autocomplete and type hints
 - Callback logic duplication is easier to extract without side effects
+
+### Decision 3: Option Consolidation Not Viable (2025-12-25)
+
+**Question:** Should we consolidate duplicate option definitions using a shared options factory?
+
+**Decision:** NO - current duplication is necessary due to Typer's design.
+
+**Rationale:**
+
+1. **Typer's type system relies on function signatures** - Typer uses Python's type hints and function signatures to generate CLI interfaces. The framework inspects function parameters at definition time.
+
+2. **`**kwargs`pattern doesn't work with Typer** - The proposed`\*\*\_options: COMMON_OPTIONS` syntax is not valid Python type annotation. You cannot use a dict as a type annotation for keyword arguments.
+
+3. **Type checking impact** - Type checkers (mypy, pyright) require explicit parameter types for proper inference. Shared option definitions would break this.
+
+4. **IDE autocomplete** - IDEs rely on explicit function signatures for autocomplete. A factory pattern would hide parameter names and types.
+
+5. **Current duplication is acceptable** - The 69 lines of duplicated option definitions across 3 functions is a necessary trade-off for:
+    - Type safety
+    - IDE support
+    - Typer compatibility
+    - Code clarity
+
+**Alternative considered but rejected:**
+
+```python
+# NOT VIABLE - Typer can't inspect this
+COMMON_OPTIONS = {
+    "chdir": typer.Option(None, "-C", "--chdir", help="..."),
+    ...
+}
+def callback(**options: COMMON_OPTIONS):  # Invalid syntax
+    pass
+```
 
 ---
 
