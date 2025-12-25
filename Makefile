@@ -16,6 +16,7 @@ lint:
 update:
 	uv lock --upgrade
 	uv sync
+	make install-local-deps # only for debugging
 
 pipx-install-bake-test:
 	pipx install "bakefile" \
@@ -25,3 +26,7 @@ pipx-install-bake-test:
 
 pipx-install-bake:
 	pipx install bakefile --force
+
+install-local-deps:
+	uv pip install -e ../typer
+	uv pip install -e ../click

@@ -3,9 +3,11 @@ import os
 import pathlib
 import sys
 import types
-from typing import Any
+from typing import Any, TypeVar
 
 import typer
+
+T = TypeVar("T")
 
 
 def change_directory(path: str) -> None:
@@ -52,7 +54,28 @@ def load_module(path: pathlib.Path) -> types.ModuleType:
     return module
 
 
-def validate_bakebook(bakebook: Any, bakebook_name: str, expected_type: type) -> str:
+def validate_bakebook(bakebook: Any, bakebook_name: str, expected_type: type[T]) -> T:
+    """Validate bakebook is of expected type and return it.
+
+    Parameters
+    ----------
+    bakebook : Any
+        The bakebook object to validate
+    bakebook_name : str
+        Name of the bakebook variable (for error messages)
+    expected_type : type[T]
+        The expected type (e.g., typer.Typer)
+
+    Returns
+    -------
+    T
+        The validated bakebook
+
+    Raises
+    ------
+    SystemExit
+        If bakebook is not of expected type
+    """
     if not isinstance(bakebook, expected_type):
         typer.echo(
             f"Bakebook '{bakebook_name}' must be a {expected_type.__name__}, "
@@ -64,16 +87,18 @@ def validate_bakebook(bakebook: Any, bakebook_name: str, expected_type: type) ->
     return bakebook
 
 
-def get_bakebook(module: types.ModuleType, bakebook_name: str, path: pathlib.Path) -> str:
+def get_bakebook(module: types.ModuleType, bakebook_name: str, path: pathlib.Path) -> typer.Typer:
     if not hasattr(module, bakebook_name):
         typer.echo(f"No '{bakebook_name}' found in {path}", err=True)
         raise SystemExit(1)
     bakebook = getattr(module, bakebook_name)
-    bakebook = validate_bakebook(bakebook=bakebook, bakebook_name=bakebook_name, expected_type=str)
+    bakebook = validate_bakebook(
+        bakebook=bakebook, bakebook_name=bakebook_name, expected_type=typer.Typer
+    )
     return bakebook
 
 
-def resolve_bakebook(file_name: str, bakebook_name: str, chdir: str | None = None) -> str:
+def resolve_bakebook(file_name: str, bakebook_name: str, chdir: str | None = None) -> typer.Typer:
     if chdir:
         change_directory(chdir)
 

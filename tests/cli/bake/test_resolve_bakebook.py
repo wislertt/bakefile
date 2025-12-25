@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import typer
 
 from bakefile.cli.bake.resolve_bakebook import (
     change_directory,
@@ -90,14 +91,14 @@ class TestLoadModule:
 
 
 class TestGetBakebook:
-    def test_get_bakebook_valid_string(self) -> None:
+    def test_get_bakebook_valid_typer(self) -> None:
         import types
 
         module = types.ModuleType("test_module")
-        module.bakebook = "some_bakebook"  # type: ignore[attr-defined]
+        module.bakebook = typer.Typer()  # type: ignore[attr-defined]
 
         result = get_bakebook(module, "bakebook", Path("test.py"))
-        assert result == "some_bakebook"
+        assert isinstance(result, typer.Typer)
 
     def test_get_bakebook_attribute_missing(self) -> None:
         import types
@@ -108,11 +109,11 @@ class TestGetBakebook:
             get_bakebook(module, "bakebook", Path("test.py"))
         assert exc_info.value.code == 1
 
-    def test_get_bakebook_not_string(self) -> None:
+    def test_get_bakebook_not_typer(self) -> None:
         import types
 
         module = types.ModuleType("test_module")
-        module.bakebook = 123  # type: ignore[attr-defined]
+        module.bakebook = "not_a_typer_app"  # type: ignore[attr-defined]
 
         with pytest.raises(SystemExit) as exc_info:
             get_bakebook(module, "bakebook", Path("test.py"))
@@ -122,16 +123,16 @@ class TestGetBakebook:
 class TestResolveBakebook:
     def test_resolve_bakebook_with_chdir(self, examples_simple_dir: Path) -> None:
         result = resolve_bakebook("bakefile.py", "bakebook", str(examples_simple_dir))
-        assert result == "some_bakebook"
+        assert isinstance(result, typer.Typer)
 
     def test_resolve_bakebook_without_chdir(self, tmp_path: Path) -> None:
         import os
 
         os.chdir(tmp_path)
-        (tmp_path / "bakefile.py").write_text('bakebook = "test_bakebook"')
+        (tmp_path / "bakefile.py").write_text("import typer\nbakebook = typer.Typer()\n")
 
         result = resolve_bakebook("bakefile.py", "bakebook", None)
-        assert result == "test_bakebook"
+        assert isinstance(result, typer.Typer)
 
     def test_resolve_bakebook_invalid_chdir(self) -> None:
         with pytest.raises(SystemExit) as exc_info:

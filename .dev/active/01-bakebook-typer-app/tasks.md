@@ -16,40 +16,53 @@
 
 ### Source Code
 
-- [ ] Update `src/bakefile/cli/bake/resolve_bakebook.py`
-    - [ ] Add `from typing import TypeVar` and define `T = TypeVar("T")`
-    - [ ] Update `validate_bakebook(expected_type: type[T]) -> T` for generic type inference
-    - [ ] Add docstring explaining TypeVar usage
-    - [ ] Update return types to `typer.Typer`
+- [x] Update `src/bakefile/cli/bake/resolve_bakebook.py`
+    - [x] Add `from typing import TypeVar` and define `T = TypeVar("T")`
+    - [x] Update `validate_bakebook(expected_type: type[T]) -> T` for generic type inference
+    - [x] Add docstring explaining TypeVar usage
+    - [x] Update return types to `typer.Typer`
 
-- [ ] Update `src/bakefile/cli/bake/main.py`
-    - [ ] Add `context_settings={"ignore_unknown_options": True}` to main command
-    - [ ] Add `ctx: typer.Context` parameter
-    - [ ] Replace `typer.echo(bakebook)` with app execution
-    - [ ] Forward remaining args to `bakebook` (NOT `bakebook_app`)
+- [x] Update `src/bakefile/cli/bake/main.py`
+    - [x] Add `context_settings={"allow_extra_args": True, "allow_interspersed_args": False}`
+    - [x] Add `ctx: typer.Context` parameter
+    - [x] Replace `typer.echo(bakebook)` with app execution
+    - [x] Forward remaining args to `bakebook` (NOT `bakebook_app`)
 
 ### Example
 
-- [ ] Update `examples/simple/bakefile.py`
-    - [ ] Import `typer`
-    - [ ] Create `bakebook = typer.Typer()`
-    - [ ] Add example commands (e.g., `hello`, `build`)
+- [x] Update `examples/simple/bakefile.py`
+    - [x] Import `typer`
+    - [x] Create `bakebook = typer.Typer()`
+    - [x] Add example commands (e.g., `hello`, `build`)
 
 ### Tests
 
-- [ ] Update `tests/cli/bake/test_resolve_bakebook.py`
-    - [ ] Update `test_get_bakebook_valid_string` → `test_get_bakebook_valid_typer`
-    - [ ] Create mock typer.Typer instead of string
-    - [ ] Update `test_resolve_bakebook_with_chdir` expectations
-    - [ ] Update `test_resolve_bakebook_without_chdir` expectations
-    - [ ] Update `test_get_bakebook_not_string` → `test_get_bakebook_not_typer`
+- [x] Update `tests/cli/bake/test_resolve_bakebook.py`
+    - [x] Update `test_get_bakebook_valid_string` → `test_get_bakebook_valid_typer`
+    - [x] Create mock typer.Typer instead of string
+    - [x] Update `test_resolve_bakebook_with_chdir` expectations
+    - [x] Update `test_resolve_bakebook_without_chdir` expectations
+    - [x] Update `test_get_bakebook_not_string` → `test_get_bakebook_not_typer`
 
-- [ ] Update `tests/cli/bake/test_main.py`
-    - [ ] Update `test_bake_with_chdir` for new output behavior
+- [x] Update `tests/cli/bake/test_main.py`
+    - [x] Update `test_bake_with_chdir` for new output behavior
+    - [x] Add `test_bake_with_chdir_runs_command` for actual command execution
 
 ## Verification
 
-- [ ] Run `make lint` - all checks pass
-- [ ] Run `make test` - all tests pass
-- [ ] Manual test: `bake -C examples/simple` shows help
-- [ ] Manual test: `bake -C examples/simple hello --name=Claude` works
+- [x] Run `make lint` - all checks pass
+- [x] Run `make test` - all tests pass (28/28, 100% coverage)
+- [x] Manual test: `bake -C examples/simple` shows help
+- [x] Manual test: `bake -C examples/simple hello --name=Claude` works
+
+## Summary
+
+**Phase 1 (v1) of bakebook evolution is complete!**
+
+The `bakebook` is now a `typer.Typer` app that supports:
+
+- Multiple commands as subcommands
+- Proper argument parsing and help generation
+- Nested subcommands via `typer.Typer()` groups
+
+**Next phase (v2):** Add Pydantic model for variables/config (OOP reusability)
