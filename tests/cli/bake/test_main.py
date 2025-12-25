@@ -34,3 +34,17 @@ class TestMain:
         assert "--chdir" in captured.out and "-C" in captured.out
         assert "--file-name" in captured.out and "-f" in captured.out
         assert "--book-name" in captured.out and "-b" in captured.out
+
+    def test_main_help3(
+        self,
+        examples_simple_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setattr(sys, "argv", ["bake", "-C", str(examples_simple_dir)])
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert "--chdir" in captured.out and "-C" in captured.out
+        assert "--file-name" in captured.out and "-f" in captured.out
+        assert "--book-name" in captured.out and "-b" in captured.out

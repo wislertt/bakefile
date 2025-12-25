@@ -33,42 +33,49 @@ def _bake(chdir: str, file_name: str, bakebook_name: str):
     invoke_without_command=True,
 )
 def local_bake_app_callback(
-    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
-    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
-    bakebook_name: str = typer.Option(
+    ctx: typer.Context,
+    _chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
+    _file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
+    _bakebook_name: str = typer.Option(
         "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
     ),
-    version: bool = typer.Option(
+    _version: bool = typer.Option(
         False,
         "--version",
         help="Show version and exit",
         callback=version_callback,
         is_eager=True,
     ),
-): ...
+):
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
 
 
 @bake_app.callback(
     invoke_without_command=True,
 )
 def bake_app_callback(
-    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
-    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
-    bakebook_name: str = typer.Option(
+    ctx: typer.Context,
+    _chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
+    _file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
+    _bakebook_name: str = typer.Option(
         "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
     ),
-    version: bool = typer.Option(
+    _version: bool = typer.Option(
         False,
         "--version",
         help="Show version and exit",
         callback=version_callback,
         is_eager=True,
     ),
-): ...
+):
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
 
 
 @bake_app.command(
     name=GET_BAKEBOOK,
+    hidden=True,
     context_settings={
         "allow_extra_args": True,
         "allow_interspersed_args": False,
