@@ -2,6 +2,30 @@
 
 **Coding standards and patterns for bakefile**
 
+## Naming Conventions
+
+### bakebook Variable Name
+
+**Always use `bakebook` (not `bakebook_app`, `bakebook_cli`, etc.)**
+
+This applies consistently across:
+
+- User's `bakefile.py`
+- Internal variable names in `bake` CLI
+- Test files
+- Documentation
+
+```python
+# Good
+bakebook = typer.Typer()
+
+# Bad
+bakebook_app = typer.Typer()
+bakebook_cli = typer.Typer()
+```
+
+---
+
 ## Documentation
 
 ### Docstring Format
@@ -9,27 +33,29 @@
 **Use NumPy format for multi-line docstrings:**
 
 ```python
-def resolve_bakebook(file_name: str, bakebook_name: str, chdir: str | None = None) -> str:
-    """Load a bakefile and retrieve a bakebook object.
+from typing import TypeVar
+
+T = TypeVar("T")
+
+def validate_value(value: Any, expected_type: type[T]) -> T:
+    """Validate that value matches expected type.
 
     Parameters
     ----------
-    file_name : str
-        Name of the .py file (must end with .py, no path separators)
-    bakebook_name : str
-        Name of the bakebook object to retrieve
-    chdir : str | None, optional
-        Optional directory to change to before loading
+    value : Any
+        The value to validate
+    expected_type : type[T]
+        The expected type to check against
 
     Returns
     -------
-    str
-        The bakebook object value
+    T
+        The validated value
 
     Raises
     ------
     SystemExit
-        If any validation or loading step fails
+        If validation fails
     """
 ```
 
@@ -88,10 +114,68 @@ src/bakefile/cli/          tests/cli/
 
 ---
 
+---
+
+## Bakebook Pattern
+
+### User's bakefile.py
+
+Users define their bakebook as a `typer.Typer` app with commands as methods:
+
+```python
+import typer
+
+bakebook = typer.Typer()
+
+@bakebook.command()
+def build(
+    prod: bool = typer.Option(False, "--prod", help="Production build"),
+):
+    """Build the project."""
+    typer.echo(f"Building{' (prod)' if prod else ''}...")
+
+@bakebook.command()
+def test(
+    coverage: bool = typer.Option(False, "--coverage", help="Run with coverage"),
+):
+    """Run tests."""
+    typer.echo("Running tests...")
+
+@bakebook.command()
+def lint():
+    """Run linters."""
+    typer.echo("Running linters...")
+```
+
+### Running Commands
+
+```bash
+# List all commands (shows help)
+bake -C /path/to/project
+
+# Run a specific command
+bake -C /path/to/project build --prod
+
+# With custom bakefile name
+bake -f custom_tasks.py test
+
+# With custom bakebook variable name
+bake -b my_tasks build
+```
+
+### Bakebook Evolution
+
+| Phase        | bakebook Type    | Description                    |
+| ------------ | ---------------- | ------------------------------ |
+| v0 (past)    | `str`            | Temporary placeholder          |
+| v1 (current) | `typer.Typer`    | Commands only                  |
+| v2 (future)  | `Bakebook` class | Full OOP: commands + variables |
+
+---
+
 ## Sections to Add:
 
 - Code conventions
 - Design patterns used
 - File organization standards
-- Naming conventions
 - Error handling patterns
