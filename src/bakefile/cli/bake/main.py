@@ -3,30 +3,22 @@ from typer.main import get_command_from_info
 
 from bakefile.cli.bake.resolve_bakebook import resolve_bakebook
 from bakefile.cli.utils.version import version_callback
+from bakefile.exceptions import BakebookError
 
 from .utils import get_bakebook_args
 
 bake_app = typer.Typer(
-    add_completion=True,
+    add_completion=False,
     # rich_markup_mode=None,  # ONLY for debugging
 )
 
 local_bake_app = typer.Typer(
-    add_completion=True,
+    add_completion=False,
     # rich_markup_mode=None,  # ONLY for debugging
 )
 
 
 GET_BAKEBOOK = "get_bakebook"
-
-
-# @app1.command(name="hi")
-# def hi(name: str = typer.Option("world", help="Name to greet")) -> None:
-#     typer.echo(f"Hi {name}!")
-
-
-# bakebook_1 = resolve_bakebook(file_name="bakefile.py", bakebook_name="bakebook", chdir=None)
-# app.add_typer(bakebook_1, name="bakebook")
 
 
 def _bake(chdir: str, file_name: str, bakebook_name: str):
@@ -41,6 +33,25 @@ def _bake(chdir: str, file_name: str, bakebook_name: str):
     invoke_without_command=True,
 )
 def local_bake_app_callback(
+    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
+    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
+    bakebook_name: str = typer.Option(
+        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
+    ),
+): ...
+
+
+@bake_app.callback(
+    invoke_without_command=True,
+)
+def bake_app_callback(
     chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
     file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
     bakebook_name: str = typer.Option(
@@ -78,7 +89,7 @@ def get_bakebook(
         is_eager=True,
     ),
 ):
-    version_callback(version)
+    _ = version
     return _bake(chdir=chdir, file_name=file_name, bakebook_name=bakebook_name)
 
 
@@ -92,10 +103,14 @@ def try_get_local_bake_app() -> typer.Typer | None:
                 pretty_exceptions_short=bake_app.pretty_exceptions_short,
                 rich_markup_mode=bake_app.rich_markup_mode,
             )
-            with command.make_context(info_name=GET_BAKEBOOK, args=args) as ctx:
-                bakebook = command.invoke(ctx)
-                local_bake_app.add_typer(bakebook)
-                return local_bake_app
+            try:
+                with command.make_context(info_name=GET_BAKEBOOK, args=args) as ctx:
+                    bakebook = command.invoke(ctx)
+                    local_bake_app.add_typer(bakebook)
+                    return local_bake_app
+            except BakebookError as e:
+                typer.echo(str(e), err=True)
+                return None
 
 
 def main():
