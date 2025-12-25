@@ -21,6 +21,21 @@ local_bake_app = typer.Typer(
 GET_BAKEBOOK = "get_bakebook"
 
 
+# Common option definitions (reused across callbacks and commands)
+chdir_option = typer.Option(None, "-C", "--chdir", help="Change directory before running")
+file_name_option = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py")
+bakebook_name_option = typer.Option(
+    "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
+)
+version_option = typer.Option(
+    False,
+    "--version",
+    help="Show version and exit",
+    callback=version_callback,
+    is_eager=True,
+)
+
+
 def show_help_if_no_command(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -31,18 +46,10 @@ def show_help_if_no_command(ctx: typer.Context) -> None:
 )
 def local_bake_app_callback(
     ctx: typer.Context,
-    _chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
-    _file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
-    _bakebook_name: str = typer.Option(
-        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
-    ),
-    _version: bool = typer.Option(
-        False,
-        "--version",
-        help="Show version and exit",
-        callback=version_callback,
-        is_eager=True,
-    ),
+    _chdir: str = chdir_option,
+    _file_name: str = file_name_option,
+    _bakebook_name: str = bakebook_name_option,
+    _version: bool = version_option,
 ):
     show_help_if_no_command(ctx)
 
@@ -52,18 +59,10 @@ def local_bake_app_callback(
 )
 def bake_app_callback(
     ctx: typer.Context,
-    _chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
-    _file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
-    _bakebook_name: str = typer.Option(
-        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
-    ),
-    _version: bool = typer.Option(
-        False,
-        "--version",
-        help="Show version and exit",
-        callback=version_callback,
-        is_eager=True,
-    ),
+    _chdir: str = chdir_option,
+    _file_name: str = file_name_option,
+    _bakebook_name: str = bakebook_name_option,
+    _version: bool = version_option,
 ):
     show_help_if_no_command(ctx)
 
@@ -78,22 +77,10 @@ def bake_app_callback(
     },
 )
 def get_bakebook(
-    chdir: str = typer.Option(None, "-C", "--chdir", help="Change directory before running"),
-    file_name: str = typer.Option("bakefile.py", "--file-name", "-f", help="Path to bakefile.py"),
-    bakebook_name: str = typer.Option(
-        "bakebook", "--book-name", "-b", help="Name of bakebook object to retrieve"
-    ),
-    version: bool = typer.Option(
-        False,
-        "--version",
-        help="Show version and exit",
-        callback=version_callback,
-        is_eager=True,
-    ),
+    chdir: str = chdir_option,
+    file_name: str = file_name_option,
+    bakebook_name: str = bakebook_name_option,
 ):
-    # version parameter is required for Typer to process --version option
-    # (is_eager=True causes callback to exit before function body runs)
-    _ = version
     return resolve_bakebook(file_name=file_name, bakebook_name=bakebook_name, chdir=chdir)
 
 
