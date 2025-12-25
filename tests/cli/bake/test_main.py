@@ -4,10 +4,24 @@ from pathlib import Path
 
 import pytest
 
+from bakefile import __version__
 from bakefile.cli.bake.main import main
 
 
 class TestMain:
+    def _run_main_with_args(
+        self,
+        dir_path: Path,
+        args: list[str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ):
+        argv = ["bake", "-C", str(dir_path), *args]
+        monkeypatch.setattr(sys, "argv", argv)
+        with pytest.raises(SystemExit):
+            main()
+        return capsys.readouterr()
+
     @pytest.mark.parametrize(
         "dir_fixture,args",
         itertools.product(
@@ -24,11 +38,7 @@ class TestMain:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         dir_path: Path = request.getfixturevalue(dir_fixture)
-        argv = ["bake", "-C", str(dir_path), *args]
-        monkeypatch.setattr(sys, "argv", argv)
-        with pytest.raises(SystemExit):
-            main()
-        captured = capsys.readouterr()
+        captured = self._run_main_with_args(dir_path, args, monkeypatch, capsys)
         # All cases should show help with these options
         assert "--chdir" in captured.out and "-C" in captured.out
         assert "--file-name" in captured.out and "-f" in captured.out
@@ -50,10 +60,5 @@ class TestMain:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         dir_path: Path = request.getfixturevalue(dir_fixture)
-        argv = ["bake", "-C", str(dir_path), *args]
-        monkeypatch.setattr(sys, "argv", argv)
-        with pytest.raises(SystemExit):
-            main()
-        captured = capsys.readouterr()
-        # All cases should show help with these options
-        assert "0.0.0" in captured.out
+        captured = self._run_main_with_args(dir_path, args, monkeypatch, capsys)
+        assert __version__ in captured.out
