@@ -1,0 +1,1 @@
+ENV_NO_COLOR = "NO_COLOR"
