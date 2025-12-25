@@ -16,9 +16,17 @@ lint:
 update:
 	uv lock --upgrade
 	uv sync
+	make install-local-deps # only for debugging
 
 pipx-install-bake-test:
-	pipx install "bakefile>=0.0.3b1" \
+	pipx install "bakefile" \
 		--index-url https://test.pypi.org/simple/ \
 		--pip-args="--pre --extra-index-url https://pypi.org/simple" \
 		--force
+
+pipx-install-bake:
+	pipx install bakefile --force
+
+install-local-deps:
+	uv pip install -e ../typer
+	uv pip install -e ../click

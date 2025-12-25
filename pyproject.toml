@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-bake = "bakefile.cli.bake:app"
+bake = "bakefile.cli.bake:main"
 bakefile = "bakefile.cli.bakefile:app"
 
 [dependency-groups]
