@@ -8,7 +8,7 @@ from bakefile.exceptions import BakebookError
 
 from .utils import get_bakebook_args
 
-rich_markup_mode = None if not env.should_use_colors() else "rich"
+rich_markup_mode = "rich" if env.should_use_colors() else None
 
 
 bake_app = typer.Typer(
