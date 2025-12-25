@@ -1,3 +1,4 @@
+import itertools
 import sys
 from pathlib import Path
 
@@ -7,44 +8,52 @@ from bakefile.cli.bake.main import main
 
 
 class TestMain:
-    def test_main_help(
+    @pytest.mark.parametrize(
+        "dir_fixture,args",
+        itertools.product(
+            ["examples_simple_dir", "examples_no_bakebook_dir", "examples_no_bakefile_dir"],
+            [[], ["--help"]],
+        ),
+    )
+    def test_main_shows_help_with_options(
         self,
-        examples_simple_dir: Path,
+        dir_fixture: str,
+        args: list[str],
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.setattr(sys, "argv", ["bake", "--help", "-C", str(examples_simple_dir)])
+        dir_path: Path = request.getfixturevalue(dir_fixture)
+        argv = ["bake", "-C", str(dir_path), *args]
+        monkeypatch.setattr(sys, "argv", argv)
         with pytest.raises(SystemExit):
             main()
         captured = capsys.readouterr()
+        # All cases should show help with these options
         assert "--chdir" in captured.out and "-C" in captured.out
         assert "--file-name" in captured.out and "-f" in captured.out
         assert "--book-name" in captured.out and "-b" in captured.out
 
-    def test_main_help2(
+    @pytest.mark.parametrize(
+        "dir_fixture,args",
+        itertools.product(
+            ["examples_simple_dir", "examples_no_bakebook_dir", "examples_no_bakefile_dir"],
+            [["--version"]],
+        ),
+    )
+    def test_main_shows_version(
         self,
-        examples_no_bakebook_dir: Path,
+        dir_fixture: str,
+        args: list[str],
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.setattr(sys, "argv", ["bake", "--help", "-C", str(examples_no_bakebook_dir)])
+        dir_path: Path = request.getfixturevalue(dir_fixture)
+        argv = ["bake", "-C", str(dir_path), *args]
+        monkeypatch.setattr(sys, "argv", argv)
         with pytest.raises(SystemExit):
             main()
         captured = capsys.readouterr()
-        assert "--chdir" in captured.out and "-C" in captured.out
-        assert "--file-name" in captured.out and "-f" in captured.out
-        assert "--book-name" in captured.out and "-b" in captured.out
-
-    def test_main_help3(
-        self,
-        examples_simple_dir: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        monkeypatch.setattr(sys, "argv", ["bake", "-C", str(examples_simple_dir)])
-        with pytest.raises(SystemExit):
-            main()
-        captured = capsys.readouterr()
-        assert "--chdir" in captured.out and "-C" in captured.out
-        assert "--file-name" in captured.out and "-f" in captured.out
-        assert "--book-name" in captured.out and "-b" in captured.out
+        # All cases should show help with these options
+        assert "0.0.0" in captured.out
