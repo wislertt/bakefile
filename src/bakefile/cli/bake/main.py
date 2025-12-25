@@ -94,10 +94,27 @@ def get_bakebook(
         context_parts.append(f"file_name={file_name!r}")
         context_parts.append(f"bakebook_name={bakebook_name!r}")
 
-        typer.secho("⚠️  ", fg="yellow", err=True, nl=False)
-        typer.secho(str(e), fg="yellow", bold=True, err=True)
+        typer.secho(
+            "⚠️  ",
+            fg="yellow",
+            err=True,
+            nl=False,
+            color=env.should_use_colors(),
+        )
+        typer.secho(
+            str(e),
+            fg="yellow",
+            bold=True,
+            err=True,
+            color=env.should_use_colors(),
+        )
         if context_parts:
-            typer.secho(f"({', '.join(context_parts)})", fg="yellow", err=True)
+            typer.secho(
+                f"({', '.join(context_parts)})\n",
+                fg="yellow",
+                err=True,
+                color=env.should_use_colors(),
+            )
         return None
 
 
