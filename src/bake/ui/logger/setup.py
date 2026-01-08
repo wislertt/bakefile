@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 def setup_logging(
-    level_per_module: FilterDict | None = None,
+    level_per_module: "FilterDict | None" = None,
     thread_local_context: dict[str, ContextVar[Any]] | None = None,
     is_pretty_log: bool = False,
 ) -> None:
