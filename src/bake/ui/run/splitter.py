@@ -22,43 +22,49 @@ class OutputSplitter:
                 output_list.append(line)
         stream.close()
 
+    def _handle_data(self, data: bytes, target, output_list) -> bool:
+        """Handle data chunk: return False if data is empty (EOF)."""
+        if not data:
+            return False
+        if self._stream:
+            target.buffer.write(data)
+            target.buffer.flush()
+        if self._capture:
+            output_list.append(data)
+        return True
+
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
         """Read from PTY file descriptor in chunks and stream to output."""
         while True:
             # Wait for data to be available or process to exit
             ready, _, _ = select.select([pty_fd], [], [], 0.1)
 
-            if ready:
-                try:
-                    data = os.read(pty_fd, 4096)
-                    if not data:
-                        break
-                    if self._stream:
-                        target.buffer.write(data)
-                        target.buffer.flush()
-                    if self._capture:
-                        output_list.append(data)
-                except OSError:
-                    break
+            if ready and not self._read_pty_data(pty_fd, target, output_list):
+                break
 
-            # Check if process has exited
             if proc.poll() is not None:
-                # Process ended, do one final read to get any remaining data
-                try:
-                    while True:
-                        data = os.read(pty_fd, 4096)
-                        if not data:
-                            break
-                        if self._stream:
-                            target.buffer.write(data)
-                            target.buffer.flush()
-                        if self._capture:
-                            output_list.append(data)
-                except OSError:
-                    pass
+                self._drain_pty(pty_fd, target, output_list)
                 break
 
         os.close(pty_fd)
+
+    def _read_pty_data(self, pty_fd: int, target, output_list) -> bool:
+        """Read and handle available PTY data. Returns False on EOF/error."""
+        try:
+            data = os.read(pty_fd, 4096)
+            return self._handle_data(data, target, output_list)
+        except OSError:
+            return False
+
+    def _drain_pty(self, pty_fd: int, target, output_list):
+        """Drain remaining data from PTY after process exits."""
+        try:
+            while True:
+                data = os.read(pty_fd, 4096)
+                if not self._handle_data(data, target, output_list):
+                    break
+        except OSError:
+            pass
 
     def attach(self, proc: subprocess.Popen):
         threads = []
