@@ -41,7 +41,7 @@ class LogKey(str, Enum):
         return frozenset(key.value for key in LogKey if key is not LogKey.EXCEPTION)
 
 
-def get_global_min_log_level(level_per_module: FilterDict) -> int:
+def get_global_min_log_level(level_per_module: "FilterDict") -> int:
     if "" not in level_per_module:
         raise ValueError("Missing empty string key for default logging level")
 
@@ -115,7 +115,6 @@ class InterceptHandler(logging.Handler):
 
 def to_json_serializable(data: Any) -> Any:
     return orjson.dumps(data, default=str).decode()
-    # return orjson.loads(orjson.dumps(data, default=str))
 
 
 def flatten_extra(record_extra: dict[str, Any]) -> dict[str, Any]:

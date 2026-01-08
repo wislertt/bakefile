@@ -61,7 +61,9 @@ def test_find_python_cli_success_with_uv_project_with_lock_and_venv(
 def test_find_python_cli_success_with_uv_project_without_lock_and_venv(
     uv_project_folder_without_dep: Path,
     run_cli: RunCli,
+    isolate_virtual_env: None,  # TODO: [Debug]
 ) -> None:
+    _ = isolate_virtual_env
     result = run_cli(
         command=CMD_BAKEFILE, dir_path=uv_project_folder_without_dep, args=["find-python"]
     )

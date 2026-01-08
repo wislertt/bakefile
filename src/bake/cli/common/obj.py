@@ -99,7 +99,6 @@ class BakefileObject:
             raise SystemExit(1) from e
 
     def warn_if_no_bakebook(self, color_echo: bool):
-        # TODO: find the way to capture bakebook error and raise here
         if self.bakebook is None:
             _ = color_echo  # Color handled by console module
             console.warning(f"Bakebook `{self.bakebook_name}` not found in `{self.file_name}`")

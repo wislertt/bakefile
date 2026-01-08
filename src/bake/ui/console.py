@@ -7,6 +7,8 @@ from rich.console import Console
 out = Console(stderr=False)
 err = Console(stderr=True)
 
+BOLD_GREEN = "bold green"
+
 
 def _print(
     console_obj: Console, emoji: str | None, label: str, style: str, message: str, **kwargs
@@ -18,7 +20,7 @@ def _print(
 
 
 def success(message: str, **kwargs) -> None:
-    _print(out, ":white_check_mark:", "SUCCESS", "bold green", message, **kwargs)
+    _print(out, ":white_check_mark:", "SUCCESS", BOLD_GREEN, message, **kwargs)
 
 
 def echo(message: Any, **kwargs) -> None:
@@ -41,11 +43,11 @@ def script_block(title: str, script: str, **kwargs) -> None:
     bold_line = "━" * width
     thin_line = "─" * width
 
-    err.print(bold_line, style="bold green")
+    err.print(bold_line, style=BOLD_GREEN)
     err.print(title, style="bold")
-    err.print(thin_line, style="bold green")
+    err.print(thin_line, style=BOLD_GREEN)
     err.print(formatted, highlight=False, **kwargs)
-    err.print(bold_line, style="bold green")
+    err.print(bold_line, style=BOLD_GREEN)
 
 
 def warning(message: str, **kwargs) -> None:

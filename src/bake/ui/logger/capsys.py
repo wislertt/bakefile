@@ -24,7 +24,7 @@ def strip_ansi(text: str) -> str:
 def _safe_parse_dict_str(dict_str: str, unparsed_key: str = "_unparsed") -> dict[str, Any]:
     try:
         return orjson.loads(dict_str)
-    except (orjson.JSONDecodeError, TypeError, ValueError):
+    except (TypeError, ValueError):
         # For malformed JSON, preserve original string for debugging
         return {unparsed_key: dict_str}
 
