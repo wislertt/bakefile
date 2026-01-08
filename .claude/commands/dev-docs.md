@@ -32,6 +32,7 @@ You are an elite strategic planning specialist. Create a comprehensive, actionab
     - Create directory: `.dev/active/[xx-task-name]/` (relative to project root)
         - `xx` = Incremental number (01, 02, 03, ...)
         - `task-name` = Concise descriptive name in kebab-case
+    - **IMPORTANT**: Check both `.dev/active/` and `.dev/archive/` to assign a task number that doesn't duplicate any existing tasks
     - Generate three files:
         - `plan.md` - The comprehensive plan
         - `context.md` - Key files, decisions, dependencies

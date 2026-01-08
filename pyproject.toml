@@ -8,27 +8,50 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+  "beautysh>=6.4.2",
+  "click>=8.3.1",
+  "loguru>=0.7.3",
+  "orjson>=3.11.5",
+  "pydantic-settings>=2.0.0",
   "pydantic>=2.12.5",
-  "typer>=0.0.1"
+  "rich>=14.2.0",
+  "ruff>=0.14.10",
+  "tomli>=2.0.0; python_version < '3.11'",
+  "ty>=0.0.8",
+  "typer>=0.21.0",
+  "uv>=0.9.20"
+]
+
+[project.optional-dependencies]
+lib = [
+  "requests>=2.32.5"
 ]
 
 [project.scripts]
-bake = "bakefile.cli.bake:main"
-bakefile = "bakefile.cli.bakefile:app"
+bake = "bake.cli.bake:main"
+bakefile = "bake.cli.bakefile:main"
+bf = "bake.cli.bakefile:main"
 
 [dependency-groups]
 dev = [
+  "deptry>=0.24.0",
   "pre-commit>=4.5.1",
   "pytest-cov>=7.0.0",
   "pytest>=9.0.2",
-  "ruff>=0.14.10",
-  "toml-sort>=0.24.3",
-  "ty>=0.0.5"
+  "toml-sort>=0.24.3"
 ]
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.deptry]
+known_first_party = ["bake", "bakelib"]
+
+[tool.pytest.ini_options]
+markers = [
+  "integration: marks tests as integration tests (slower, full flow tests)"
+]
 
 [tool.ruff]
 line-length = 100
@@ -37,11 +60,11 @@ line-length = 100
 select = [
   "ARG",
   "B", # bugbear
-  "B9",
   "C4", # flake8-comprehensions
   "E", # pycodestyle (error)
   "F", # pyflakes
   "I", # isort
+  "N",
   "PGH", # pygrep-hooks
   "PIE", # flake8-pie
   "PYI", # flake8-pyi
@@ -49,3 +72,7 @@ select = [
   "SIM", # flake8-simplify
   "UP" # pyupgrade
 ]
+
+[tool.uv.build-backend]
+module-name = ["bake", "bakelib"]
+module-root = "src"
