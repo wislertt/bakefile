@@ -1,4 +1,3 @@
-import contextlib
 import logging
 import re
 from pathlib import Path
@@ -342,45 +341,3 @@ def test_find_python_with_no_bakefile(
     # Assert =================
     error_message = str(exc_info.value)
     assert str(bakefile_path) in error_message
-
-
-# TODO: [Debug]
-def test_debug_uv_python_find_output(
-    uv_project_folder_without_dep: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Diagnostic test to debug uv python find output differences across Python versions.
-
-    This test helps diagnose why the CLI test fails on Python 3.13 CI but passes on 3.14 local.
-    It captures the actual stderr output from `uv python find -v` to identify source strings.
-    """
-    # Arrange ================
-    setup_logging(
-        level_per_module={"": logging.DEBUG},
-        is_pretty_log=False,
-    )
-    bakefile_path = uv_project_folder_without_dep / DEFAULT_FILE_NAME
-
-    # Act ====================
-    _ = capsys.readouterr()
-    with contextlib.suppress(Exception):
-        find_python_path(bakefile_path)
-
-    # Assert =================
-    logs = capsys_to_logs(capsys)
-
-    # Print the uv python find stderr for debugging
-    uv_find_logs = [log for log in logs if "uv python find -v stderr:" in log["message"]]
-    if uv_find_logs:
-        print("\n=== uv python find -v stderr output ===")
-        for log in uv_find_logs:
-            print(f"  {log['message']}")
-        print("=== End stderr output ===\n")
-
-    # Print the extracted source string
-    source_logs = [log for log in logs if "uv python find -v source:" in log["message"]]
-    if source_logs:
-        print("\n=== Extracted source string ===")
-        for log in source_logs:
-            print(f"  {log['message']}")
-        print("=== End source string ===\n")

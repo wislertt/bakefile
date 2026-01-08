@@ -61,7 +61,7 @@ def test_find_python_cli_success_with_uv_project_with_lock_and_venv(
 def test_find_python_cli_success_with_uv_project_without_lock_and_venv(
     uv_project_folder_without_dep: Path,
     run_cli: RunCli,
-    isolate_virtual_env: None,  # TODO: [Debug]
+    isolate_virtual_env: None,
 ) -> None:
     _ = isolate_virtual_env
     result = run_cli(
@@ -76,7 +76,9 @@ def test_find_python_cli_success_with_uv_project_without_lock_and_venv(
 def test_find_python_cli_success_with_uv_project_with_lock_without_venv(
     uv_project_folder_without_dep: Path,
     run_cli: RunCli,
+    isolate_virtual_env: None,
 ) -> None:
+    _ = isolate_virtual_env
     # Create lock but no venv
     run_uv(["lock"], cwd=uv_project_folder_without_dep)
 

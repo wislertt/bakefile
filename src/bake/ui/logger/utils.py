@@ -133,7 +133,7 @@ class PrettyLogFormatter:
     def __init__(self, thread_local_context: dict[str, ContextVar[Any]]):
         self.thread_local_context = thread_local_context
 
-    def __call__(self, record: ExtendedRecord):
+    def __call__(self, record: "ExtendedRecord"):
         thread_local_extra = {}
         for context_var_name, context_var in self.thread_local_context.items():
             thread_local_extra[context_var_name] = str(context_var.get())

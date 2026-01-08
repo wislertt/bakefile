@@ -104,13 +104,8 @@ def _find_project_python(bakefile_path: Path) -> Path | None:
     pattern = r"Found `[^`]+` at `[^`]+` \(([^)]+)\)"
     match = re.search(pattern, stderr)
 
-    # TODO: [Debug] log the full stderr to help diagnose CI failures
-    logger.debug(f"uv python find -v stderr: {stderr}")
-
     if result.returncode == 0 and match:
         source = match.group(1)
-        # TODO: [Debug]
-        logger.debug(f"uv python find -v source: {source}")
         if source in {"active virtual environment", "virtual environment"}:
             python_path = Path(result.stdout.strip())
             logger.debug(f"Found project Python at {python_path} (source: {source})")
