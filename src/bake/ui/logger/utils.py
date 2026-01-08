@@ -184,7 +184,7 @@ class JsonSink(StreamSink):
         ).decode()
         return super().write(log_message)
 
-    def json_formatter(self, record: Record) -> LogType:
+    def json_formatter(self, record: "Record") -> LogType:
         log_entry: LogType = {
             LogKey.TIMESTAMP.value: record["time"],
             LogKey.LEVEL.value: record["level"].name,
