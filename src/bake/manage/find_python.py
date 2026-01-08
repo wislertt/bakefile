@@ -101,7 +101,7 @@ def _find_project_python(bakefile_path: Path) -> Path | None:
     # Check if stderr contains "Found `...` at `...` (...)"
     # where source is "active virtual environment" or "virtual environment"
     stderr = result.stderr.strip()
-    pattern = r"Found `.+` at `.+` \((.+)\)"
+    pattern = r"Found `[^`]+` at `[^`]+` \(([^)]+)\)"
     match = re.search(pattern, stderr)
 
     if result.returncode == 0 and match:
