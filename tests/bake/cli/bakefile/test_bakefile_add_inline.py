@@ -37,6 +37,8 @@ def test_add_inline_cli_nonexistent_bakefile(
     result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["add-inline"])
 
     assert result.exit_code == 1
-    assert "ERROR" in result.err
-    assert "Bakefile not found at" in result.err
-    assert "Run `bakefile init --inline` to" in result.err
+    result_err = result.err.replace("\n", "")
+
+    assert "ERROR" in result_err
+    assert "Bakefile not found at" in result_err
+    assert "Run `bakefile init --inline` to" in result_err
