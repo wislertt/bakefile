@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from bake import __version__
+from bake.ui.logger import strip_ansi
 from bake.utils.constants import CMD_BAKEFILE
 from tests.conftest import RunCli
 
@@ -28,15 +29,16 @@ class TestMain:
 
         # --help exits with 0 (normal help), no args exits with 1 (error)
         expected_exit_code = 0 if args == ["--help"] else 1
+        captured_out = strip_ansi(captured.out)
         assert captured.exit_code == expected_exit_code
-        assert "--chdir" in captured.out and "-C" in captured.out
-        assert "--file-name" in captured.out and "-f" in captured.out
-        assert "--book-name" in captured.out and "-b" in captured.out
-        assert "--version" in captured.out
-        assert "--verbose" in captured.out and "-v" in captured.out
-        assert "--chain" in captured.out and "-c" in captured.out
-        assert "--dry-run" in captured.out and "-n" in captured.out
-        assert "--help" in captured.out
+        assert "--chdir" in captured_out and "-C" in captured_out
+        assert "--file-name" in captured_out and "-f" in captured_out
+        assert "--book-name" in captured_out and "-b" in captured_out
+        assert "--version" in captured_out
+        assert "--verbose" in captured_out and "-v" in captured_out
+        assert "--chain" in captured_out and "-c" in captured_out
+        assert "--dry-run" in captured_out and "-n" in captured_out
+        assert "--help" in captured_out
 
     @pytest.mark.parametrize(
         "dir_fixture,args",
