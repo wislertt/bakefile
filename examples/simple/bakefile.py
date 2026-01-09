@@ -52,7 +52,7 @@ def build(
     ctx: Context,
     prod: bool = typer.Option(False, "--prod", help="Production build"),
 ) -> None:
-    if ctx.obj.dry_run:
+    if ctx.dry_run:
         console.err.print("This is dry run")
 
     console.success(f"Building{' (prod)' if prod else ''}...")

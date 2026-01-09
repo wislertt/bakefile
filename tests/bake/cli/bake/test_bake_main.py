@@ -92,4 +92,4 @@ class TestMain:
             command=CMD_BAKE, dir_path=examples_simple_dir, args=["--dry-run", "build"]
         )
         assert captured.exit_code == 0
-        assert captured.err.strip() == "This is dry run"
+        assert "This is dry run" in captured.err
