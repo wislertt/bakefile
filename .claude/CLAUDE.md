@@ -33,10 +33,15 @@ make lint   # Run linters and formatters
 
 **IMPORTANT:** Read `.claude/BEST_PRACTICES.md` before adding/editing code.
 
+**Key Policies:**
+
+- **Docstrings**: Do NOT add docstrings by default. The developer adds them manually when needed. See BEST_PRACTICES.md → "Docstring Policy"
+- **No automatic commits**: Do NOT make git commits automatically. The developer will commit when ready.
+
 ## Project Structure
 
 ```
-src/bakefile/    # Main package
+src/bake/    # Main package
 tests/           # Tests
 bakefile.py      # Example bakefile
 ```
