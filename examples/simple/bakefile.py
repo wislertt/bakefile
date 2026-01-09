@@ -13,8 +13,7 @@ import logging
 
 import typer
 
-from bake import Bakebook, command
-from bake.cli.common.context import Context
+from bake import Bakebook, Context, command
 from bake.ui import console
 
 logger = logging.getLogger(__name__)

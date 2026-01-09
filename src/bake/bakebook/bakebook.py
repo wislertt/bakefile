@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typer.core import TyperCommand
 from typer.models import CommandFunctionType, Default
 
+from bake.cli.common.context import BakeCommand
 from bake.utils.constants import BAKE_COMMAND_KWARGS
 
 
@@ -48,6 +49,9 @@ class Bakebook(BaseSettings):
         deprecated: bool = False,
         rich_help_panel: str | None = Default(None),
     ) -> Callable[[CommandFunctionType], CommandFunctionType]:
+        if cls is None:
+            cls = BakeCommand
+
         return self._app.command(
             name=name,
             cls=cls,

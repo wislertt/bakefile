@@ -577,4 +577,3 @@ $RECYCLE.BIN/
 ### Claude Code ###
 # Internal tracking cache
 .claude/tsc-cache/
-_*.py

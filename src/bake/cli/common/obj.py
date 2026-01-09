@@ -4,6 +4,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 import typer
@@ -12,7 +13,6 @@ from rich.traceback import Traceback
 from typer.core import MarkupMode
 from typer.main import get_command_from_info
 
-from bake import Bakebook
 from bake.bakebook.get import (
     get_bakebook_from_target_dir_path,
     resolve_bakefile_path,
@@ -38,6 +38,9 @@ from .params import (
     verbosity_option,
 )
 
+if TYPE_CHECKING:
+    from bake import Bakebook
+
 logger = logging.Logger(__name__)
 
 
@@ -47,7 +50,7 @@ class BakefileObject:
     file_name: str
     bakebook_name: str
     bakefile_path: Path | None = None
-    bakebook: Bakebook | None = None
+    bakebook: "Bakebook | None" = None
     verbosity: int = 0
     dry_run: bool = False
     remaining_args: list[str] | None = None

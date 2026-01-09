@@ -1,7 +1,16 @@
-import typer
+from typing import TYPE_CHECKING
 
-from .obj import BakefileObject
+import click
+import typer
+from typer.core import TyperCommand
+
+if TYPE_CHECKING:
+    from .obj import BakefileObject
 
 
 class Context(typer.Context):
-    obj: BakefileObject
+    obj: "BakefileObject"
+
+
+class BakeCommand(TyperCommand):
+    context_class: type[click.Context] = Context

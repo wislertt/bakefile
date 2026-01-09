@@ -4,6 +4,7 @@ from typing import Any
 from typer.core import TyperCommand
 from typer.models import CommandFunctionType, Default
 
+from bake.cli.common.context import BakeCommand
 from bake.utils.constants import BAKE_COMMAND_KWARGS
 
 
@@ -22,6 +23,9 @@ def command(
     deprecated: bool = False,
     rich_help_panel: str | None = Default(None),
 ) -> Callable[[CommandFunctionType], CommandFunctionType]:
+    if cls is None:
+        cls = BakeCommand
+
     def decorator(func: CommandFunctionType) -> CommandFunctionType:
         object.__setattr__(
             func,
