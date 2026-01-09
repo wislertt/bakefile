@@ -21,7 +21,8 @@ class Bakebook(BaseSettings):
         self._register_marked_methods()
 
     def _register_marked_methods(self) -> None:
-        for name in set(dir(self)) - set(dir(BaseSettings())):
+        method_names = set(dir(self)) - set(dir(BaseSettings()))
+        for name in method_names:
             if name.startswith("_"):
                 continue
 

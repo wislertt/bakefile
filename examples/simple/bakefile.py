@@ -35,7 +35,7 @@ class MyBakebook(Bakebook):
             console.echo("Deploying...")
 
 
-bakebook = Bakebook()
+bakebook = MyBakebook()
 
 
 @bakebook.command(name="hello")

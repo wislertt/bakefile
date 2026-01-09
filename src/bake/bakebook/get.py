@@ -5,10 +5,12 @@ import types
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from bake import Bakebook
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
+
+if TYPE_CHECKING:
+    from bake.bakebook.bakebook import Bakebook
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,9 @@ def load_module(target_dir_path: Path) -> types.ModuleType:
         return module
 
 
-def validate_bakebook(bakebook: Any, bakebook_name: str) -> Bakebook:
+def validate_bakebook(bakebook: Any, bakebook_name: str) -> "Bakebook":
+    from bake.bakebook.bakebook import Bakebook
+
     if not isinstance(bakebook, Bakebook):
         logger.debug(
             f"Invalid bakebook type for '{bakebook_name}': "
@@ -90,7 +94,7 @@ def validate_bakebook(bakebook: Any, bakebook_name: str) -> Bakebook:
 
 def get_bakebook_from_module(
     module: types.ModuleType, bakebook_name: str, target_dir_path: Path
-) -> Bakebook:
+) -> "Bakebook":
     if not hasattr(module, bakebook_name):
         logger.debug(f"Bakebook '{bakebook_name}' not found in {target_dir_path}")
         raise BakebookError(f"No '{bakebook_name}' found in {target_dir_path}")
@@ -102,7 +106,7 @@ def get_bakebook_from_module(
 def get_bakebook_from_target_dir_path(
     target_dir_path: Path,
     bakebook_name: str,
-) -> Bakebook:
+) -> "Bakebook":
     module = load_module(target_dir_path=target_dir_path)
     bakebook = get_bakebook_from_module(
         module=module, bakebook_name=bakebook_name, target_dir_path=target_dir_path

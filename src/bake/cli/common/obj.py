@@ -39,7 +39,7 @@ from .params import (
 )
 
 if TYPE_CHECKING:
-    from bake import Bakebook
+    from bake.bakebook.bakebook import Bakebook
 
 logger = logging.Logger(__name__)
 

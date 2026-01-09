@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 import typer
 
-from bake import Context
+from bake.cli.common.context import Context
 from bake.manage.run_uv import run_uv_add, run_uv_lock, run_uv_pip, run_uv_sync
 from bake.ui import console
 from bake.utils.exceptions import BakebookError, PythonNotFoundError

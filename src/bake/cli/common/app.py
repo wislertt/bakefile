@@ -3,7 +3,7 @@ from collections.abc import Callable
 import typer
 from typer.core import MarkupMode
 
-from bake import Context
+from bake.cli.common.context import Context
 from bake.cli.common.params import (
     bakebook_name_option,
     chdir_option,
