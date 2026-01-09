@@ -214,3 +214,20 @@ def test_inheritance_without_decorator() -> None:
     function_2 = registered_commands[0].callback
     assert isinstance(function_2, types.FunctionType)
     assert function_2.__name__ == "test_cmd"
+
+
+def test_command_with_name_and_help() -> None:
+    class MyBakebook(Bakebook):
+        @command(name="build-release", help="Build the release package")
+        def build(self):
+            pass
+
+    bakebook = MyBakebook()
+    registered_commands = bakebook._app.registered_commands
+    assert len(registered_commands) == 1
+
+    command_info = registered_commands[0]
+    assert command_info.name == "build-release"
+    assert command_info.help == "Build the release package"
+    assert isinstance(command_info.callback, types.MethodType)
+    assert command_info.callback.__name__ == "build"
