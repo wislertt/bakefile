@@ -4,7 +4,6 @@ from .base import BaseSpace
 
 
 class PythonSpace(BaseSpace):
-    @command(help="Run Python linters and formatters (prettier, toml-sort, ruff, ty, deptry)")
     def lint(self, ctx: Context) -> None:
         super().lint(ctx=ctx)
 
@@ -24,7 +23,7 @@ class PythonSpace(BaseSpace):
         ctx.run(["uv", "run", "ty", "check", "--error-on-warning", "."])
         ctx.run(["uv", "run", "deptry", "."])
 
-    @command(help="Run pytest with coverage")
+    # @command(help="Run pytest with coverage")
     def test(self, ctx: Context) -> None:
         ctx.run(
             [

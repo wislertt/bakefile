@@ -108,6 +108,11 @@ def test_concrete_implementations() -> None:
     assert_commands(
         bakebook=bakebook_b,
         expected_commands={
+            "action1": ExpectedCommand(
+                name="action1",
+                command_type=types.MethodType,
+                output="concrete1b override: concrete1b",
+            ),
             "action2": ExpectedCommand(
                 name="action2", command_type=types.MethodType, output="action2: value2"
             ),
@@ -287,7 +292,9 @@ def test_skip_intermediate_parent() -> None:
     assert bakebook.action() == "level3"
 
 
-def test_method_override_without_command_no_registration() -> None:
+def test_method_override_without_command_inherits_registration() -> None:
+    """Test that method override without @command inherits parent's command registration."""
+
     class ParentBakebook(Bakebook):
         @command()
         def run(self) -> str:
@@ -303,7 +310,8 @@ def test_method_override_without_command_no_registration() -> None:
 
     bakebook = GrandChildBakebook()
     assert bakebook.run() == "grandchild"
-    assert len(bakebook._app.registered_commands) == 0
+    # run command is inherited from ParentBakebook
+    assert len(bakebook._app.registered_commands) == 1
 
 
 def test_method_override_with_command_replaces_registration() -> None:

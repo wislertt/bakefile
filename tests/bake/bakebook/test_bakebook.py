@@ -206,7 +206,7 @@ def test_inheritance_without_decorator() -> None:
             return "parent"
 
     class ChildBakebook(ParentBakebook):
-        # child method override parent without decorator - does not get registered
+        # child method override parent without decorator - inherits parent's command registration
         def parent_method(self):
             return "child"
 
@@ -216,16 +216,19 @@ def test_inheritance_without_decorator() -> None:
     def test_cmd(name: str = "default"):
         """Test command."""
 
-    # Only test_cmd is registered - parent_method override without @command
-    # does not inherit the parent's command registration
+    # Both test_cmd and parent_method are registered - parent_method override
+    # without @command now inherits the parent's command registration
     assert_commands(
         child,
         {
+            "parent_method": ExpectedCommand(
+                name="parent_method", command_type=types.MethodType, output="child"
+            ),
             "test_cmd": ExpectedCommand(
                 name="test_cmd", command_type=types.FunctionType, output=None
             ),
         },
-        msg="ChildBakebook without decorator - only has explicitly registered commands",
+        msg="ChildBakebook inherits parent's command registration",
     )
 
 

@@ -1,6 +1,6 @@
 import types
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 import typer
 from pydantic import PrivateAttr
@@ -20,18 +20,34 @@ class Bakebook(BaseSettings):
         super().__init__(**kwargs)
         self._register_marked_methods()
 
+    def _get_command_kwargs(self, method: types.MethodType) -> dict[str, Any] | None:
+        func = method.__func__
+
+        if hasattr(func, BAKE_COMMAND_KWARGS):
+            return object.__getattribute__(func, BAKE_COMMAND_KWARGS)
+
+        method_name = method.__name__
+        for base in self.__class__.__mro__[1:]:
+            if not hasattr(base, method_name):
+                continue
+            parent_func = getattr(base, method_name)
+            if hasattr(parent_func, BAKE_COMMAND_KWARGS):
+                return object.__getattribute__(parent_func, BAKE_COMMAND_KWARGS)
+
+        return None
+
     def _register_marked_methods(self) -> None:
         method_names = set(dir(self)) - set(dir(BaseSettings()))
         for name in method_names:
             if name.startswith("_"):
                 continue
 
-            attr = getattr(self, name)
+            bound_method = getattr(self, name)
+            if not isinstance(bound_method, types.MethodType):
+                continue
 
-            if hasattr(attr, BAKE_COMMAND_KWARGS):
-                bound_method = getattr(self, name)
-                attr = cast(types.MethodType, attr)
-                cmd_kwargs = object.__getattribute__(attr.__func__, BAKE_COMMAND_KWARGS)
+            cmd_kwargs = self._get_command_kwargs(bound_method)
+            if cmd_kwargs:
                 self._app.command(**cmd_kwargs)(bound_method)
 
     def command(
