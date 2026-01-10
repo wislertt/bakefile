@@ -1,4 +1,4 @@
-from bake import Context, command
+from bake import Context
 
 from .base import BaseSpace
 
@@ -23,7 +23,6 @@ class PythonSpace(BaseSpace):
         ctx.run(["uv", "run", "ty", "check", "--error-on-warning", "."])
         ctx.run(["uv", "run", "deptry", "."])
 
-    # @command(help="Run pytest with coverage")
     def test(self, ctx: Context) -> None:
         ctx.run(
             [
@@ -38,11 +37,6 @@ class PythonSpace(BaseSpace):
             ]
         )
 
-    @command(help="Clean gitignored files and sync dependencies with all extras")
     def setup_dev(self, ctx: Context) -> None:
-        # git clean -fdX
-        # uv sync --all-extras
-        # results = ctx.run("git clean -fdX -n", stream=False)
-        # print(results.stdout)
         super().clean(ctx=ctx)
-        ctx.run("uv sync --all-extras")
+        ctx.run("uv sync --all-extras --all-groups --frozen")

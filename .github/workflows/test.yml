@@ -56,7 +56,7 @@ jobs:
                       uv-${{ runner.os }}-
 
             - name: install-dependencies
-              run: uv sync --all-groups --frozen --all-extras
+              run: uv sync --all-extras --all-groups --frozen
 
             - name: run-tests
               run: make test

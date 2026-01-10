@@ -7,6 +7,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from bake.manage.find_python import _has_inline_metadata
+from bake.manage.run_uv import run_uv_sync
+from bake.ui.run import run_uv
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
 
 if TYPE_CHECKING:
@@ -65,8 +68,46 @@ def load_module(target_dir_path: Path) -> types.ModuleType:
 
         module: types.ModuleType = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
+
         try:
             spec.loader.exec_module(module)
+        except ImportError as e:
+            # TODO: make the code cleaner here
+            # Try to sync and retry
+            logger.debug(f"Missing dependency: {e.name}. Running sync...")
+
+            sync_args = ["--all-groups", "--frozen", "--all-extras"]
+
+            if _has_inline_metadata(target_dir_path):
+                # Standalone bakefile: use --script flag
+                run_uv_sync(
+                    bakefile_path=target_dir_path,
+                    cmd=sync_args,
+                    dry_run=False,
+                )
+            else:
+                # Project-level: use uv sync directly
+                run_uv(
+                    ("sync", *sync_args),
+                    cwd=parent_dir,
+                    capture_output=True,
+                    stream=True,
+                    check=True,
+                    echo=True,
+                    dry_run=False,
+                )
+
+            # Invalidate caches and retry
+            importlib.invalidate_caches()
+            try:
+                spec.loader.exec_module(module)
+            except Exception as retry_error:
+                error_message = (
+                    f"Failed get bakebook from: {target_dir_path} even after sync.\n"
+                    f"{retry_error.__class__.__name__}: {retry_error}"
+                )
+                logger.debug(error_message)
+                raise BakebookError(error_message) from e
         except Exception as e:
             error_message = (
                 f"Failed get bakebook from: {target_dir_path}.\n{e.__class__.__name__}: {e}"

@@ -20,7 +20,6 @@ dependencies = [
     { name = "click" },
     { name = "loguru" },
     { name = "orjson" },
-    { name = "pathspec" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "rich" },
@@ -29,6 +28,11 @@ dependencies = [
     { name = "ty" },
     { name = "typer" },
     { name = "uv" },
+]
+
+[package.optional-dependencies]
+lib = [
+    { name = "pathspec" },
 ]
 
 [package.dev-dependencies]
@@ -46,7 +50,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.3.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "orjson", specifier = ">=3.11.5" },
-    { name = "pathspec", specifier = ">=1.0.3" },
+    { name = "pathspec", marker = "extra == 'lib'", specifier = ">=1.0.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "rich", specifier = ">=14.2.0" },

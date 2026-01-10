@@ -13,7 +13,7 @@ class BaseSpace(Bakebook):
     def lint(self, ctx: Context) -> None:
         ctx.run(["bunx", "prettier@latest", "--write", "**/*.{js,jsx,ts,tsx,css,json,yaml,yml,md}"])
 
-    @command(help="Run tests (must be implemented by subclass)")
+    @command(help="Run unit tests")
     def test(self) -> None:
         console.error("No implementation")
         raise typer.Exit(1)
@@ -54,6 +54,11 @@ class BaseSpace(Bakebook):
             dry_run=ctx.dry_run,
         )
 
-    @command(help="Clean all gitignored files without exclusions")
+    @command(help="Clean all gitignored files")
     def clean_all(self, ctx: Context) -> None:
         ctx.run("git clean -fdX")
+
+    @command(help="Setup development environment")
+    def setup_dev(self) -> None:
+        console.error("No implementation")
+        raise typer.Exit(1)

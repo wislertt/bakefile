@@ -37,11 +37,11 @@ class Bakebook(BaseSettings):
         return None
 
     def _register_marked_methods(self) -> None:
-        method_names = set(dir(self)) - set(dir(BaseSettings()))
+        base_names = set(dir(BaseSettings()))
+        method_names = [
+            name for name in dir(self) if not name.startswith("_") and name not in base_names
+        ]
         for name in method_names:
-            if name.startswith("_"):
-                continue
-
             bound_method = getattr(self, name)
             if not isinstance(bound_method, types.MethodType):
                 continue
