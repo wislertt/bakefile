@@ -8,12 +8,16 @@ from pydantic_settings import SettingsConfigDict
 
 from bake import Bakebook, command
 from bake.utils.constants import BAKE_COMMAND_KWARGS
-from tests.bake.bakebook.utils import _assert_signature_matches_typer
+from tests.bake.bakebook.utils import (
+    ExpectedCommand,
+    assert_commands,
+    assert_signature_matches_typer,
+)
 
 
 def test_bakebook_command_signature_matches_typer() -> None:
     """Ensure Bakebook.command() signature matches Typer's Typer.command()."""
-    _assert_signature_matches_typer(inspect.signature(Bakebook.command), "Bakebook.command")
+    assert_signature_matches_typer(inspect.signature(Bakebook.command), "Bakebook.command")
 
 
 def test_create_empty_subclass() -> None:
@@ -150,15 +154,18 @@ def test_method_command_registration() -> None:
     assert kwargs["name"] is None
     assert kwargs["help"] is None
 
-    registered_commands = bakebook._app.registered_commands
-    assert len(registered_commands) == 2
-    method_1 = registered_commands[0].callback
-    assert isinstance(method_1, types.MethodType)
-    assert method_1.__name__ == "test_method"
-
-    function_2 = registered_commands[1].callback
-    assert isinstance(function_2, types.FunctionType)
-    assert function_2.__name__ == "test_cmd"
+    assert_commands(
+        bakebook,
+        {
+            "test_method": ExpectedCommand(
+                name="test_method", command_type=types.MethodType, output="test"
+            ),
+            "test_cmd": ExpectedCommand(
+                name="test_cmd", command_type=types.FunctionType, output=None
+            ),
+        },
+        msg="MyBakebook with method and function commands",
+    )
 
 
 def test_inheritance() -> None:
@@ -168,7 +175,6 @@ def test_inheritance() -> None:
             return "parent"
 
     class ChildBakebook(ParentBakebook):
-        # child method override parent method
         @command()
         def parent_method(self):
             return "child"
@@ -179,16 +185,18 @@ def test_inheritance() -> None:
     def test_cmd(name: str = "default"):
         """Test command."""
 
-    registered_commands = child._app.registered_commands
-    assert len(registered_commands) == 2
-    method_1 = registered_commands[0].callback
-    assert isinstance(method_1, types.MethodType)
-    assert method_1.__name__ == "parent_method"
-    assert method_1() == "child"
-
-    function_2 = registered_commands[1].callback
-    assert isinstance(function_2, types.FunctionType)
-    assert function_2.__name__ == "test_cmd"
+    assert_commands(
+        child,
+        {
+            "parent_method": ExpectedCommand(
+                name="parent_method", command_type=types.MethodType, output="child"
+            ),
+            "test_cmd": ExpectedCommand(
+                name="test_cmd", command_type=types.FunctionType, output=None
+            ),
+        },
+        msg="ChildBakebook with overridden parent method",
+    )
 
 
 def test_inheritance_without_decorator() -> None:
@@ -198,7 +206,7 @@ def test_inheritance_without_decorator() -> None:
             return "parent"
 
     class ChildBakebook(ParentBakebook):
-        # child method override parent without decorator and do not get registered
+        # child method override parent without decorator - does not get registered
         def parent_method(self):
             return "child"
 
@@ -208,12 +216,17 @@ def test_inheritance_without_decorator() -> None:
     def test_cmd(name: str = "default"):
         """Test command."""
 
-    registered_commands = child._app.registered_commands
-    assert len(registered_commands) == 1
-
-    function_2 = registered_commands[0].callback
-    assert isinstance(function_2, types.FunctionType)
-    assert function_2.__name__ == "test_cmd"
+    # Only test_cmd is registered - parent_method override without @command
+    # does not inherit the parent's command registration
+    assert_commands(
+        child,
+        {
+            "test_cmd": ExpectedCommand(
+                name="test_cmd", command_type=types.FunctionType, output=None
+            ),
+        },
+        msg="ChildBakebook without decorator - only has explicitly registered commands",
+    )
 
 
 def test_command_with_name_and_help() -> None:
