@@ -24,7 +24,6 @@ dependencies = [
 
 [project.optional-dependencies]
 lib = [
-  "requests>=2.32.5"
 ]
 
 [project.scripts]

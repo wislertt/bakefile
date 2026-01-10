@@ -2,6 +2,7 @@ from pathlib import Path
 
 from bake.manage.add_inline import read_inline
 from bake.ui import run_uv
+from bake.ui.logger import strip_ansi
 from bake.utils.constants import CMD_BAKEFILE, DEFAULT_FILE_NAME
 from tests.conftest import RunCli
 
@@ -25,6 +26,7 @@ def test_find_python_cli_success_with_inline_metadata(
     assert result.exit_code == 0
     # The output should be a path to python
     uv_cache_dir_result = run_uv(["cache", "dir"])
+    python_path = strip_ansi(python_path)
     assert uv_cache_dir_result.stdout.strip() in python_path
     assert "python" in python_path
 

@@ -42,9 +42,7 @@ def pip(
         raise typer.Exit(code=1) from None
 
 
-def add(
-    ctx: Context,
-) -> None:
+def add(ctx: Context) -> None:
     """
     This runs `[bold cyan]uv add --script bakefile.py <args>[/bold cyan]`
 

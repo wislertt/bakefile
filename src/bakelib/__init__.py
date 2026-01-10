@@ -1,3 +1,4 @@
-from bakelib.hello import hello_world
+from bakelib.space.base import BaseSpace
+from bakelib.space.python import PythonSpace
 
-__all__ = ["hello_world"]
+__all__ = ["BaseSpace", "PythonSpace"]
