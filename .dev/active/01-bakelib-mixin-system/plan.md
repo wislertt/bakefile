@@ -2,241 +2,244 @@
 
 ## Overview
 
-Design and implement an extension system (`src/bakelib/`) that provides recipes for `Bakebook`. These recipes add pre-built commands and functionality to bakefiles.
+Design and implement `src/bakelib/` - a collection of reusable `Bakebook` subclasses that provide pre-built commands and functionality.
 
-**Naming Convention:**
+**Key Insight:** No "Recipe" or "Mixin" concept needed. Everything is a Bakebook. Multiple inheritance provides composition.
 
-- `*BaseRecipe` = ABC (e.g., `SpaceBaseRecipe`)
-- `*Recipe` = Implementation (e.g., `PythonSpaceRecipe`)
-- `*Bakebook` = Precomposed (e.g., `PythonSpaceBakebook`)
+**Naming:**
+
+- `PythonSpace`, `RustSpace`, `PreCommit`, `Docker` (simple, descriptive)
+- `PythonProject` for precomposed classes
+
+---
 
 ## High-Level Requirements
 
-### 1. Core Recipe ABC
+### 1. Language-Specific Space Classes
 
-Define an ABC that establishes a contract for "project space" functionality:
+Bakebook subclasses for different languages:
 
 ```python
-from abc import ABC, abstractmethod
+from bake import Bakebook, command
 
-class SpaceBaseRecipe(ABC):
-    """ABC defining standard bake commands for a project type."""
+class PythonSpace(Bakebook):
+    """Python project with lint, test, and uv commands."""
 
-    @abstractmethod
-    def bake_lint(self) -> None: ...
+    @command()
+    def lint(self) -> None:
+        """Run ruff."""
+        ...
 
-    @abstractmethod
-    def bake_test(self) -> None: ...
+    @command()
+    def test(self) -> None:
+        """Run pytest."""
+        ...
+
+    @command()
+    def install(self) -> None:
+        """Run uv install."""
+        ...
+
+    @command()
+    def lock(self) -> None:
+        """Run uv lock."""
+        ...
 ```
 
-**Purpose:** Any class implementing this ABC gains standardized `bake lint` and `bake test` commands.
+Other language implementations:
 
-### 2. Language-Specific Space Implementations
+- **RustSpace**: `cargo clippy`, `cargo test`
+- **JavaScriptSpace**: `eslint`, `vitest/jest`
 
-Concrete implementations of the Space ABC for different languages:
+### 2. Tool Classes
 
-- **PythonSpaceRecipe**: `ruff` for lint, `pytest` for test, includes uv commands
-- **RustSpaceRecipe**: `cargo clippy` for lint, `cargo test` for test
-- **JavaScriptSpaceRecipe**: `eslint` for lint, `vitest/jest` for test
+Composable Bakebook subclasses for specific tools:
 
-### 3. Tool Recipes
+```python
+class PreCommit(Bakebook):
+    """Pre-commit hooks management."""
 
-Composable recipes for specific tools/workflows:
+    @command()
+    def setup_precommit(self) -> None:
+        """Install pre-commit hooks."""
+        ...
 
-- **PreCommitRecipe**: Adds `bake setup-precommit`, `bake run-precommit`
-- **DockerRecipe**: Adds docker commands
+    @command()
+    def run_precommit(self) -> None:
+        """Run pre-commit on all files."""
+        ...
+```
 
-### 4. Usage Pattern
+- **Docker**: docker build, push, etc.
 
-Users compose recipes with their `Bakebook`:
+### 3. Usage Pattern
+
+Users compose via multiple inheritance:
 
 ```python
 from bake import Bakebook
-from bakelib.space import PythonSpaceRecipe, PreCommitRecipe
+from bakelib.space import PythonSpace
+from bakelib.tools import PreCommit
 
-class MyBakebook(PreCommitRecipe, PythonSpaceRecipe, Bakebook):
-    # Bakebook last (top parent), recipes before
+class MyBakebook(PreCommit, PythonSpace, Bakebook):
+    """My project with Python tools + pre-commit."""
     pass
 ```
 
 This automatically provides:
 
-- `bake lint` (from PythonSpaceRecipe → ruff)
-- `bake test` (from PythonSpaceRecipe → pytest)
-- `bake install` (from PythonSpaceRecipe → uv)
-- `bake setup-precommit` (from PreCommitRecipe)
-- `bake run-precommit` (from PreCommitRecipe)
+- `bake lint` (ruff)
+- `bake test` (pytest)
+- `bake install` (uv)
+- `bake setup-precommit`
+- `bake run-precommit`
+
+### 4. Precomposed Classes
+
+Optional convenience classes for common setups:
+
+```python
+class PythonProject(PythonSpace, Bakebook):
+    """Ready-to-use Python project Bakebook."""
+    pass
+```
 
 ---
 
 ## Decisions
 
-### Q1: Protocol vs ABC
+### Q1: ABC or Not?
 
-**Decision: ABC**
+**Decision: Optional, use if needed**
 
-Use `ABC` with `@abstractmethod` for explicit inheritance and clearer intent. Can provide base implementations where needed.
+ABC is not required. Use `ABC` with `@abstractmethod` only if you want to enforce a contract. Simple inheritance works fine.
 
 ---
 
 ### Q2: Command Merging Strategy
 
-**Decision: Normal OOP (MRO-based)**
+**Decision: Normal Python MRO**
 
-Standard Python Method Resolution Order. Leftmost in inheritance list wins (most derived). Rightmost is top parent (most base). Child class can call `super()` to access parent implementations.
+Standard Method Resolution Order. Leftmost in inheritance list wins.
 
 ```python
-class MyBakebook(PreCommitRecipe, PythonSpaceRecipe, Bakebook):
+class MyBakebook(PreCommit, PythonSpace, Bakebook):
     pass
-# MRO: MyBakebook → PreCommitRecipe → PythonSpaceRecipe → Bakebook
+# MRO: MyBakebook → PreCommit → PythonSpace → Bakebook
 ```
+
+If both `PreCommit` and `PythonSpace` define `lint()`, `PreCommit` wins (leftmost).
 
 ---
 
 ### Q3: Conflict Resolution
 
-**Decision: Later recipe wins, user calls super() if needed**
+**Decision: Leftmost wins, user calls super() if needed**
 
-If two recipes define the same command, the later one in MRO wins. Users who want both behaviors explicitly call `super()`.
+If two classes define the same command, the leftmost wins. Users who want both behaviors explicitly call `super()`.
 
 ```python
-def bake_install(self):
-    super().bake_install()  # Call PreCommitRecipe's version
-    # Add custom behavior
+class MyBakebook(PythonSpace, Bakebook):
+    @command()
+    def test(self):
+        """Run pytest with coverage."""
+        super().test()  # Call PythonSpace.test()
+        # Add coverage report
 ```
+
+**Important:**
+
+- Method override **without** `@command` loses command registration
+- Method override **with** `@command` replaces parent registration
 
 ---
 
-### Q4: Recipe Dependencies
+### Q4: Dependencies Between Classes
 
-**Decision: Explicit requirements with validation**
+**Decision: Multiple inheritance handles it**
 
-Recipes declare `__requires__` and validation happens at class creation time.
-
-```python
-class PreCommitRecipe:
-    __requires__ = [PythonSpaceRecipe]  # Must be in inheritance chain
-```
-
-Validation on class creation:
+No `__requires__` needed. Use multiple inheritance:
 
 ```python
-class MyBakebook(Bakebook, PreCommitRecipe):  # Missing PythonSpaceRecipe!
-    pass
-# Error: PreCommitRecipe requires PythonSpaceRecipe but it's not in the inheritance chain
+class MyBakebook(Docker, PythonSpace, Bakebook):
+    pass  # Gets both Docker and PythonSpace commands
 ```
+
+If one class "depends" on another, just include both in the inheritance list.
 
 ---
 
 ### Q5: Discovery API
 
-**Decision: Registry pattern with CLI command**
+**Decision: Direct import, optional CLI**
 
-#### Registry Design
+#### Primary: Direct Import
 
 ```python
-# bakelib/registry.py
-from collections.abc import Callable
-from typing import Any
-
-class RecipeRegistry:
-    _recipes: dict[str, type] = {}
-
-    @classmethod
-    def register(cls, name: str, description: str = "") -> Callable[[type], type]:
-        """Decorator to register a recipe."""
-        def decorator(recipe_cls: type) -> type:
-            cls._recipes[name] = {
-                "class": recipe_cls,
-                "description": description,
-            }
-            return recipe_cls
-        return decorator
-
-    @classmethod
-    def list_all(cls) -> dict[str, dict]:
-        """Return all registered recipes."""
-        return cls._recipes.copy()
-
-# Usage in recipes:
-@register_recipe("python-space", description="Python project with ruff + pytest + uv")
-class PythonSpaceRecipe(SpaceBaseRecipe): ...
+from bakelib.space import PythonSpace, RustSpace
+from bakelib.tools import PreCommit, Docker
 ```
 
-#### CLI Command
+#### Optional: CLI Command
 
 ```bash
 $ bake recipes
-Available recipes:
-  python-space    Python project with ruff + pytest + uv
-  rust-space      Rust project with cargo clippy + test
-  precommit       Pre-commit hooks setup
+Available bakelib classes:
+  PythonSpace    Python project with ruff + pytest + uv
+  RustSpace      Rust project with cargo clippy + test
+  PreCommit      Pre-commit hooks management
+  Docker         Docker build and push commands
 ```
+
+Simple introspection - no decorator registration needed.
 
 ---
 
-### Q6: Bakebook Property Requirements
+### Q6: Type Checking
 
-**Decision: Intersection types from `ty`**
+**Decision: Use protocols or intersections if needed**
 
-Use `Intersection` for type checking to ensure combined types have all required properties.
+For type checking composed Bakebooks:
 
 ```python
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ty_extensions import Intersection
+    from ty import Intersection
 
-    type PythonSpaceBakebook = Intersection[Bakebook, PythonSpaceRecipe]
+    type PythonProjectBakebook = Intersection[Bakebook, PythonSpace]
 
-def takes_python_bakebook(bb: PythonSpaceBakebook) -> None:
-    bb.bake_lint()  # Type checker knows this exists
-    bb.bake_test()  # And this
+def takes_python_bakebook(bb: PythonProjectBakebook) -> None:
+    bb.lint()  # Type checker knows this exists
+    bb.test()  # And this
 ```
+
+Or use a Protocol if you prefer.
 
 ---
 
-### Q7: Precomposed Bakebook Inheritance Order
+### Q7: Naming Convention (FINAL)
 
-**Decision: Bakebook last (top parent), recipes before**
+**Decision: Simple, descriptive names**
 
-```python
-class PythonSpaceBakebook(PythonSpaceRecipe, Bakebook):
-    pass
-```
-
-Bakebook is the rightmost (top parent). Recipes come before Bakebook so their methods take precedence. User can override in their own class.
-
----
-
-### Q8: Naming Convention (FINAL)
-
-**Decision: Food/kitchen theme with Recipe**
-
-| Concept        | Naming Pattern             | Examples                               |
-| -------------- | -------------------------- | -------------------------------------- |
-| ABC            | `[Purpose]BaseRecipe`      | `SpaceBaseRecipe`, `ToolBaseRecipe`    |
-| Implementation | `[Scope][Purpose]Recipe`   | `PythonSpaceRecipe`, `PreCommitRecipe` |
-| Precomposed    | `[Scope][Purpose]Bakebook` | `PythonSpaceBakebook`                  |
+| Concept     | Naming Pattern     | Examples                   |
+| ----------- | ------------------ | -------------------------- |
+| Base class  | `[Purpose]`        | `PythonSpace`, `PreCommit` |
+| Precomposed | `[Scope][Purpose]` | `PythonProject`            |
 
 **Rationale:**
 
-- Fits "Bakebook" theme (cookbook contains recipes)
-- Analogous to Justfile (recipes are tasks)
-- `Base` prefix follows Pydantic/Python stdlib convention (`BaseModel`, `BaseException`)
+- No "Recipe", "Mixin", or "BaseRecipe" terminology
+- Everything is a Bakebook subclass
+- Simple and clear
 
 ```python
-# ABC
-class SpaceBaseRecipe:
-    @abstractmethod
-    def bake_lint(self): ...
-
-# Implementation
-class PythonSpaceRecipe(SpaceBaseRecipe):
-    def bake_lint(self): ...  # ruff
+# Base class
+class PythonSpace(Bakebook):
+    def lint(self): ...
 
 # Precomposed
-class PythonSpaceBakebook(PythonSpaceRecipe, Bakebook):
+class PythonProject(PythonSpace, Bakebook):
     pass
 ```
 
@@ -247,32 +250,30 @@ class PythonSpaceBakebook(PythonSpaceRecipe, Bakebook):
 ```
 src/bakelib/
 ├── __init__.py
-├── registry.py       # RecipeRegistry for discovery (later)
 └── space/
     ├── __init__.py
-    ├── base.py          # SpaceBaseRecipe ABC
-    ├── python.py        # PythonSpaceRecipe (includes uv)
-    ├── rust.py          # RustSpaceRecipe
-    ├── javascript.py    # JavaScriptSpaceRecipe
+    ├── python.py      # PythonSpace
+    ├── rust.py        # RustSpace
+    ├── javascript.py  # JavaScriptSpace
     └── tools/
         ├── __init__.py
-        ├── precommit.py     # PreCommitRecipe (space tool)
-        └── docker.py        # DockerRecipe (space tool)
+        ├── precommit.py  # PreCommit
+        └── docker.py     # Docker
 ```
 
 **Notes:**
 
-- `python.py` includes uv functionality (opinionated choice)
-- `space/tools/` contains tools that extend space recipes
-- No pre-composed bundles - users compose recipes themselves
+- `python.py` includes uv functionality (opinionated but convenient)
+- `space/tools/` contains tool Bakebooks
+- Precomposed classes optional - users compose themselves
 
 ---
 
 ## Next Steps
 
 1. [x] Resolve naming convention
-2. [ ] Implement `RecipeRegistry`
-3. [ ] Implement `SpaceBaseRecipe` ABC
-4. [ ] Implement `PythonSpaceRecipe` as proof of concept
-5. [ ] Implement `__requires__` validation
-6. [ ] Test composition with multiple recipes
+2. [x] Test multiple inheritance behaviors (comprehensive tests in `test_inheritance.py`)
+3. [ ] Implement `PythonSpace` as proof of concept
+4. [ ] Implement `PreCommit` tool class
+5. [ ] Implement optional `bake recipes` CLI command
+6. [ ] Add more language implementations (Rust, JavaScript)

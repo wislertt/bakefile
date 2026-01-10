@@ -1,97 +1,152 @@
 # Bakelib Mixin System - Context
 
+## Key Insight
+
+**No separate "Recipe" or "Mixin" concept needed.** Everything inherits from `Bakebook` directly. Multiple inheritance provides composition.
+
+---
+
 ## Naming Convention (FINAL)
 
-| Concept        | Naming Pattern             | Examples                               |
-| -------------- | -------------------------- | -------------------------------------- |
-| ABC            | `[Purpose]BaseRecipe`      | `SpaceBaseRecipe`, `ToolBaseRecipe`    |
-| Implementation | `[Scope][Purpose]Recipe`   | `PythonSpaceRecipe`, `PreCommitRecipe` |
-| Precomposed    | `[Scope][Purpose]Bakebook` | `PythonSpaceBakebook`                  |
+| Concept     | Naming Pattern     | Examples                             |
+| ----------- | ------------------ | ------------------------------------ |
+| Base class  | `[Purpose]`        | `PythonSpace`, `PreCommit`, `Docker` |
+| Precomposed | `[Scope][Purpose]` | `PythonProject`                      |
 
 **Rationale:**
 
-- Fits "Bakebook" theme (cookbook contains recipes)
-- Analogous to Justfile (recipes are tasks)
-- `Base` prefix follows Pydantic/Python stdlib convention
+- Simple: no "Recipe", "Mixin", "BaseRecipe" terminology
+- Everything is a Bakebook subclass
+- Composition via standard Python multiple inheritance
+- MRO determines behavior (leftmost parent wins for conflicts)
 
 ---
 
 ## Key Files
 
-| File                            | Purpose                         |
-| ------------------------------- | ------------------------------- |
-| `src/bake/bakebook/__init__.py` | Base `Bakebook` class           |
-| `src/bake/cli.py`               | CLI entry point                 |
-| `src/bake/decorators.py`        | `@command` decorator            |
-| `src/bakelib/`                  | Recipe implementations (new)    |
-| `src/bakelib/space/base.py`     | SpaceBaseRecipe ABC             |
-| `src/bakelib/space/python.py`   | PythonSpaceRecipe (includes uv) |
-| `src/bakelib/space/tools/`      | Space tool recipes              |
-| `examples/simple/bakefile.py`   | Example usage                   |
+| File                            | Purpose                        |
+| ------------------------------- | ------------------------------ |
+| `src/bake/bakebook/__init__.py` | Base `Bakebook` class          |
+| `src/bake/cli.py`               | CLI entry point                |
+| `src/bake/decorators.py`        | `@command` decorator           |
+| `src/bakelib/`                  | Bakebook implementations (new) |
+| `src/bakelib/space/python.py`   | PythonSpace (lint, test, uv)   |
+| `src/bakelib/space/rust.py`     | RustSpace (cargo clippy, test) |
+| `src/bakelib/tools/`            | Tool Bakebooks                 |
+| `examples/simple/bakefile.py`   | Example usage                  |
+
+---
 
 ## Key Decisions
 
 ### Design Approach
 
-- **Normal OOP**: Standard Python MRO, `super()` for parent access
-- **ABC-based**: Use `ABC` with `@abstractmethod` for contracts
-- **Explicit requirements**: `__requires__` for recipe dependencies
-- **Registry pattern**: Decorator-based registration for discovery
-- **Intersection types**: Use `ty.Intersection` for type checking
+- **Standard Python OOP**: Normal MRO, `super()` for parent access
+- **No ABC required**: Optional, use if contract needed
+- **No `__requires__`**: Multiple inheritance handles dependencies
+- **No registry**: Direct import, simpler discovery
 
 ### Command Merging
 
-- Last recipe in MRO wins
+- Leftmost parent in inheritance list wins (MRO)
 - Users call `super()` to compose behaviors
 - No automatic merging or namespacing
 
-### Dependency Validation
+### Conflict Resolution
 
-- Recipes declare `__requires__ = [OtherRecipe]`
-- Validation at class creation time
-- Fail fast with clear error messages
+- **Field conflicts**: Leftmost parent wins (Pydantic field merging)
+- **Command conflicts**: Leftmost parent wins (Python MRO)
+- Method override without `@command` loses registration
+- Method override with `@command` replaces parent registration
 
 ### Discovery
 
-- `@register_recipe(name, description)` decorator
-- `bake recipes` CLI command to list available recipes
-- Registry stores metadata for CLI display
+- Direct import: `from bakelib.space import PythonSpace`
+- Optional: `bake recipes` CLI command for listing available classes
 
 ---
 
 ## Architecture Notes
 
-### Recipe Integration Points
+### Bakebook Composition
 
-1. **Command registration** - How recipes add commands to Bakebook
-    - `@command` decorator on recipe methods
+1. **Command registration** - How Bakebook subclasses add commands
+    - `@command` decorator on methods
     - MRO determines which version wins
 
-2. **Property sharing** - How recipes access Bakebook properties
+2. **Property sharing** - How subclasses access Bakebook properties
     - Direct access via `self`
-    - Recipes can define abstract properties that Bakebook must provide
+    - Pydantic field merging via multiple inheritance
 
-3. **Context access** - How recipes access `Context` in commands
+3. **Context access** - How commands access `Context`
     - Same as Bakebook: `ctx: Context` parameter
 
 ### Class Creation Flow
 
 ```python
-class MyBakebook(PreCommitRecipe, PythonSpaceRecipe, Bakebook):
+class MyBakebook(PreCommit, PythonSpace, Bakebook):
     pass
 ```
 
-Bakebook is the rightmost (top parent), recipes come before.
+MRO: `MyBakebook → PreCommit → PythonSpace → Bakebook`
 
-1. Python builds MRO: `MyBakebook → PreCommitRecipe → PythonSpaceRecipe → Bakebook`
-2. Metaclass (if any) validates `__requires__`
-3. `@command` decorator registers commands
+1. Python builds MRO using C3 linearization
+2. Pydantic merges fields (leftmost wins for conflicts)
+3. `@command` decorator registers commands (leftmost wins for conflicts)
 4. Result: ready-to-use Bakebook with all commands
+
+---
+
+## Multiple Inheritance Behaviors (Tested)
+
+See `tests/bake/bakebook/test_inheritance.py` for comprehensive tests.
+
+### MRO Order Effects
+
+```python
+class LeftFirst(LeftBakebook, RightBakebook, Bakebook):
+    pass  # Left wins
+
+class RightFirst(RightBakebook, LeftBakebook, Bakebook):
+    pass  # Right wins
+```
+
+### Field/Command Conflicts
+
+- Same field name: leftmost parent's value wins
+- Same command name: leftmost parent's command wins
+- Only one command registered (not both)
+
+### Deep Inheritance Chains
+
+```python
+class Level1(Bakebook): ...
+class Level2(Level1): ...
+class Level3(Level2): ...
+class FinalBakebook(Level3): pass  # Gets all fields/commands
+```
+
+### Method Override Behavior
+
+- **Override without `@command`**: Loses parent's command registration
+- **Override with `@command`**: Replaces parent's command registration
+
+### Diamond Inheritance
+
+```python
+    A
+   / \
+  B   C
+   \ /
+    D
+```
+
+Base class `A` appears only once in MRO (C3 linearization).
 
 ---
 
 ## Constraints
 
 - Must be backward compatible with existing Bakebook usage
-- Recipes should be optional - Bakebook works fine without them
+- Bakelib classes should be optional - Bakebook works fine without them
 - No breaking changes to `@command` decorator or Context API
