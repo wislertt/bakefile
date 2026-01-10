@@ -18,16 +18,16 @@
 
 ## Key Files
 
-| File                            | Purpose                          |
-| ------------------------------- | -------------------------------- |
-| `src/bake/bakebook/__init__.py` | Base `Bakebook` class            |
-| `src/bake/cli.py`               | CLI entry point                  |
-| `src/bake/decorators.py`        | `@command` decorator             |
-| `src/bakelib/`                  | Recipe implementations (new)     |
-| `src/bakelib/registry.py`       | RecipeRegistry for discovery     |
-| `src/bakelib/space/base.py`     | SpaceBaseRecipe ABC              |
-| `src/bakelib/space/python.py`   | PythonSpaceRecipe implementation |
-| `examples/simple/bakefile.py`   | Example usage                    |
+| File                            | Purpose                         |
+| ------------------------------- | ------------------------------- |
+| `src/bake/bakebook/__init__.py` | Base `Bakebook` class           |
+| `src/bake/cli.py`               | CLI entry point                 |
+| `src/bake/decorators.py`        | `@command` decorator            |
+| `src/bakelib/`                  | Recipe implementations (new)    |
+| `src/bakelib/space/base.py`     | SpaceBaseRecipe ABC             |
+| `src/bakelib/space/python.py`   | PythonSpaceRecipe (includes uv) |
+| `src/bakelib/space/tools/`      | Space tool recipes              |
+| `examples/simple/bakefile.py`   | Example usage                   |
 
 ## Key Decisions
 

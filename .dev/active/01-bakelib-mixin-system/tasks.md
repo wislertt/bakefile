@@ -4,9 +4,6 @@
 
 - [x] Resolve naming convention
 - [ ] Create `src/bakelib/` package structure
-- [ ] Implement `RecipeRegistry` class
-    - [ ] `register()` decorator
-    - [ ] `list_all()` method
 - [ ] Implement `SpaceBaseRecipe` ABC
 
 ## Phase 2: Proof of Concept
@@ -14,26 +11,33 @@
 - [ ] Implement `PythonSpaceRecipe`
     - [ ] `bake_lint` → ruff
     - [ ] `bake_test` → pytest
-    - [ ] Register with `@register_recipe()`
+    - [ ] uv commands (install, lock, etc.)
+- [ ] Create `PythonSpaceBakebook` precomposed class
+- [ ] Add tests for PythonSpaceRecipe
+- [ ] Update example bakefile to use recipe
+- [ ] Test composition with multiple recipes
+
+## Phase 3: Advanced Features
+
 - [ ] Implement `__requires__` validation
     - [ ] Metaclass or `__init_subclass__` hook
     - [ ] Clear error messages
-- [ ] Add tests for PythonSpaceRecipe
-- [ ] Update example bakefile to use recipe
+- [ ] Implement `RecipeRegistry` class
+    - [ ] `register()` decorator
+    - [ ] `list_all()` method
 
-## Phase 3: Tool Recipes
+## Phase 4: Tool Recipes
 
-- [ ] Implement `PreCommitRecipe`
-- [ ] Implement `UVRecipe`
-- [ ] Test composition of multiple recipes
+- [ ] Implement `PreCommitRecipe` (in space/tools/)
+- [ ] Implement `DockerRecipe` (in space/tools/)
 - [ ] Test `super()` for command composition
 
-## Phase 4: Additional Languages
+## Phase 5: Additional Languages
 
 - [ ] Implement `RustSpaceRecipe`
 - [ ] Implement `JavaScriptSpaceRecipe`
 
-## Phase 5: Polish
+## Phase 6: Polish
 
 - [ ] Implement `bake recipes` CLI command
 - [ ] Documentation

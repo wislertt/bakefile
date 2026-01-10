@@ -35,7 +35,7 @@ class SpaceBaseRecipe(ABC):
 
 Concrete implementations of the Space ABC for different languages:
 
-- **PythonSpaceRecipe**: `ruff` for lint, `pytest` for test
+- **PythonSpaceRecipe**: `ruff` for lint, `pytest` for test, includes uv commands
 - **RustSpaceRecipe**: `cargo clippy` for lint, `cargo test` for test
 - **JavaScriptSpaceRecipe**: `eslint` for lint, `vitest/jest` for test
 
@@ -44,9 +44,7 @@ Concrete implementations of the Space ABC for different languages:
 Composable recipes for specific tools/workflows:
 
 - **PreCommitRecipe**: Adds `bake setup-precommit`, `bake run-precommit`
-- **UVRecipe**: Adds uv-based commands (`bake install`, `bake lock`)
 - **DockerRecipe**: Adds docker commands
-- **CIRecipe**: Adds CI pipeline commands
 
 ### 4. Usage Pattern
 
@@ -54,7 +52,7 @@ Users compose recipes with their `Bakebook`:
 
 ```python
 from bake import Bakebook
-from bakelib import PythonSpaceRecipe, PreCommitRecipe
+from bakelib.space import PythonSpaceRecipe, PreCommitRecipe
 
 class MyBakebook(PreCommitRecipe, PythonSpaceRecipe, Bakebook):
     # Bakebook last (top parent), recipes before
@@ -65,6 +63,7 @@ This automatically provides:
 
 - `bake lint` (from PythonSpaceRecipe → ruff)
 - `bake test` (from PythonSpaceRecipe → pytest)
+- `bake install` (from PythonSpaceRecipe → uv)
 - `bake setup-precommit` (from PreCommitRecipe)
 - `bake run-precommit` (from PreCommitRecipe)
 
@@ -103,7 +102,7 @@ If two recipes define the same command, the later one in MRO wins. Users who wan
 ```python
 def bake_install(self):
     super().bake_install()  # Call PreCommitRecipe's version
-    # Add UVRecipe's behavior
+    # Add custom behavior
 ```
 
 ---
@@ -115,16 +114,16 @@ def bake_install(self):
 Recipes declare `__requires__` and validation happens at class creation time.
 
 ```python
-class PythonSpaceRecipe:
-    __requires__ = [UVRecipe]  # Must be in inheritance chain
+class PreCommitRecipe:
+    __requires__ = [PythonSpaceRecipe]  # Must be in inheritance chain
 ```
 
 Validation on class creation:
 
 ```python
-class MyBakebook(Bakebook, PythonSpaceRecipe):  # Missing UVRecipe!
+class MyBakebook(Bakebook, PreCommitRecipe):  # Missing PythonSpaceRecipe!
     pass
-# Error: PythonSpaceRecipe requires UVRecipe but it's not in the inheritance chain
+# Error: PreCommitRecipe requires PythonSpaceRecipe but it's not in the inheritance chain
 ```
 
 ---
@@ -160,7 +159,7 @@ class RecipeRegistry:
         return cls._recipes.copy()
 
 # Usage in recipes:
-@register_recipe("python-space", description="Python project with ruff + pytest")
+@register_recipe("python-space", description="Python project with ruff + pytest + uv")
 class PythonSpaceRecipe(SpaceBaseRecipe): ...
 ```
 
@@ -169,10 +168,9 @@ class PythonSpaceRecipe(SpaceBaseRecipe): ...
 ```bash
 $ bake recipes
 Available recipes:
-  python-space    Python project with ruff + pytest
+  python-space    Python project with ruff + pytest + uv
   rust-space      Rust project with cargo clippy + test
   precommit       Pre-commit hooks setup
-  uv              UV package manager commands
 ```
 
 ---
@@ -249,22 +247,24 @@ class PythonSpaceBakebook(PythonSpaceRecipe, Bakebook):
 ```
 src/bakelib/
 ├── __init__.py
-├── registry.py       # RecipeRegistry for discovery
-├── space/
-│   ├── __init__.py
-│   ├── base.py          # SpaceBaseRecipe ABC
-│   ├── python.py        # PythonSpaceRecipe
-│   ├── rust.py          # RustSpaceRecipe
-│   └── javascript.py    # JavaScriptSpaceRecipe
-├── tools/
-│   ├── __init__.py
-│   ├── precommit.py     # PreCommitRecipe
-│   ├── uv.py            # UVRecipe
-│   └── docker.py        # DockerRecipe
-└── bundles/
+├── registry.py       # RecipeRegistry for discovery (later)
+└── space/
     ├── __init__.py
-    └── python_uv.py     # PythonSpaceRecipe + UVRecipe
+    ├── base.py          # SpaceBaseRecipe ABC
+    ├── python.py        # PythonSpaceRecipe (includes uv)
+    ├── rust.py          # RustSpaceRecipe
+    ├── javascript.py    # JavaScriptSpaceRecipe
+    └── tools/
+        ├── __init__.py
+        ├── precommit.py     # PreCommitRecipe (space tool)
+        └── docker.py        # DockerRecipe (space tool)
 ```
+
+**Notes:**
+
+- `python.py` includes uv functionality (opinionated choice)
+- `space/tools/` contains tools that extend space recipes
+- No pre-composed bundles - users compose recipes themselves
 
 ---
 
