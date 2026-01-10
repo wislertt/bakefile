@@ -54,7 +54,9 @@ def assert_commands(
 
     for cmd_info in registered:
         callback = cmd_info.callback
-        assert isinstance(callback, (types.MethodType, types.FunctionType))
+        assert isinstance(callback, (types.MethodType, types.FunctionType)), (
+            f"{msg}: Callback {callback!r} is not a function or method"
+        )
         callback_name = callback.__name__
         assert callback_name in expected_commands, f"{msg}: Unexpected callback {callback_name}"
         expected = expected_commands[callback_name]
