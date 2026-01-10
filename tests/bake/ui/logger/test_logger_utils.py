@@ -57,7 +57,7 @@ class TestGetGlobalMinLogLevel:
 
     def test_raises_on_non_int_values(self) -> None:
         """Test that function raises ValueError on non-int values."""
-        level_per_module = {"": logging.WARNING, "test": "INFO"}  # type: ignore[assignment]
+        level_per_module = {"": logging.WARNING, "test": "INFO"}
         with pytest.raises(ValueError, match=r"All values.*must be of type 'int'"):
             get_global_min_log_level(level_per_module)
 

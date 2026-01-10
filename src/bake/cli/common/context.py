@@ -41,6 +41,7 @@ class Context(typer.Context):
         stream: bool = True,
         shell: bool | None = None,
         echo: bool = True,
+        dry_run: bool | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[str]: ...
 
@@ -55,6 +56,7 @@ class Context(typer.Context):
         stream: bool = True,
         shell: bool | None = None,
         echo: bool = True,
+        dry_run: bool | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[None]: ...
 
@@ -69,6 +71,7 @@ class Context(typer.Context):
         stream: bool = True,
         shell: bool | None = None,
         echo: bool = True,
+        dry_run: bool | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[str]: ...
 
@@ -83,6 +86,7 @@ class Context(typer.Context):
         stream: bool = True,
         shell: bool | None = None,
         echo: bool = True,
+        dry_run: bool | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[None]: ...
 
@@ -96,6 +100,7 @@ class Context(typer.Context):
         stream: bool = True,
         shell: bool | None = None,
         echo: bool = True,
+        dry_run: bool | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
         return _run(
@@ -106,7 +111,7 @@ class Context(typer.Context):
             stream=stream,
             shell=shell,
             echo=echo,
-            dry_run=self.obj.dry_run,
+            dry_run=self.obj.dry_run if dry_run is None else dry_run,
             **kwargs,
         )
 
@@ -120,6 +125,7 @@ class Context(typer.Context):
         cwd: Path | str | None = None,
         stream: bool = True,
         echo: bool = True,
+        dry_run: bool | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
         return _run_script(
@@ -130,7 +136,7 @@ class Context(typer.Context):
             cwd=cwd,
             stream=stream,
             echo=echo,
-            dry_run=self.obj.dry_run,
+            dry_run=self.obj.dry_run if dry_run is None else dry_run,
             **kwargs,
         )
 
