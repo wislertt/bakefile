@@ -6,7 +6,7 @@ import pytest
 
 from bake.ui import run, run_uv
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
-from tests.conftest_utils.cli import RunCli
+from tests.utils.cli import RunCli
 
 
 def _create_bakefile(
