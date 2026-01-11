@@ -36,6 +36,8 @@ def main():
 
     bake_app.callback(invoke_without_command=True)(bake_app_callback_with_obj(obj=bakefile_obj))
 
+    prog_name = "bake"
+
     if bakefile_obj.bakebook is not None:
         bake_app.add_typer(bakefile_obj.bakebook._app)
 
@@ -43,10 +45,10 @@ def main():
         exit_code = 0
         original_argv = sys.argv.copy()
         for cmd in bakefile_obj.remaining_args:
-            sys.argv = ["bake", cmd]
+            sys.argv = [prog_name, cmd]
             console.cmd(" ".join(sys.argv))
             try:
-                bake_app()
+                bake_app(prog_name=prog_name)
             except SystemExit as e:
                 if e.code != 0:
                     exit_code = e.code
@@ -54,4 +56,4 @@ def main():
         sys.argv = original_argv
         raise SystemExit(exit_code)
     else:
-        bake_app()
+        bake_app(prog_name=prog_name)
