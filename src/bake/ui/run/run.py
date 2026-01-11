@@ -240,6 +240,20 @@ def _process_stream_output(
     )
 
 
+def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    if env is None:
+        env = os.environ.copy()
+    env.setdefault("FORCE_COLOR", "1")
+    env.setdefault("CLICOLOR_FORCE", "1")
+    try:
+        terminal_size = os.get_terminal_size()
+        env.setdefault("COLUMNS", str(terminal_size.columns))
+        env.setdefault("LINES", str(terminal_size.lines))
+    except OSError:
+        pass
+    return env
+
+
 def _setup_pty_stream(
     cmd: str | list[str] | tuple[str, ...],
     shell: bool,
@@ -248,11 +262,7 @@ def _setup_pty_stream(
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
     stdout_fd, slave_fd = pty.openpty()
-
-    env = os.environ.copy()
-    env.setdefault("FORCE_COLOR", "1")
-    env.setdefault("CLICOLOR_FORCE", "1")
-
+    env = _prepare_subprocess_env()
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
@@ -275,10 +285,7 @@ def _setup_pipe_stream(
     capture_output: bool,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
-    env = kwargs.pop("env", os.environ.copy())
-    env.setdefault("FORCE_COLOR", "1")
-    env.setdefault("CLICOLOR_FORCE", "1")
-
+    env = _prepare_subprocess_env(kwargs.pop("env", None))
     splitter = OutputSplitter(stream=True, capture=capture_output)
     proc = subprocess.Popen(
         cmd,
