@@ -60,6 +60,7 @@ def retry_load_module_with_uv_sync(
     parent_dir: str,
     loader: Loader,
     module: types.ModuleType,
+    dry_run: bool = False,
 ):
     logger.debug(f"Missing dependency: {error.name}. Running sync...")
 
@@ -70,7 +71,7 @@ def retry_load_module_with_uv_sync(
         run_uv_sync(
             bakefile_path=target_dir_path,
             cmd=sync_args,
-            dry_run=False,
+            dry_run=dry_run,
         )
     else:
         # Project-level: use uv sync directly
@@ -81,7 +82,7 @@ def retry_load_module_with_uv_sync(
             stream=True,
             check=True,
             echo=True,
-            dry_run=False,
+            dry_run=dry_run,
         )
 
     try:
