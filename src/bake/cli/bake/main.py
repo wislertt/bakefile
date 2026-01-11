@@ -1,3 +1,5 @@
+import sys
+
 import typer
 
 from bake.cli.bake.reinvocation import _reinvoke_with_detected_python
@@ -7,6 +9,7 @@ from bake.cli.common.app import (
     rich_markup_mode,
 )
 from bake.cli.common.obj import get_bakefile_object, is_bakebook_optional
+from bake.ui import console
 from bake.utils import env
 
 
@@ -36,4 +39,19 @@ def main():
     if bakefile_obj.bakebook is not None:
         bake_app.add_typer(bakefile_obj.bakebook._app)
 
-    bake_app()
+    if bakefile_obj.is_chain_commands and bakefile_obj.remaining_args:
+        exit_code = 0
+        original_argv = sys.argv.copy()
+        for cmd in bakefile_obj.remaining_args:
+            sys.argv = ["bake", cmd]
+            console.cmd(" ".join(sys.argv))
+            try:
+                bake_app()
+            except SystemExit as e:
+                if e.code != 0:
+                    exit_code = e.code
+                    break
+        sys.argv = original_argv
+        raise SystemExit(exit_code)
+    else:
+        bake_app()
