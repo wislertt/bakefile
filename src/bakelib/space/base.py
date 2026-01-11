@@ -49,7 +49,7 @@ class BaseSpace(Bakebook):
         console.err.print(f"Exclude pattens: {exclude_patterns}")
 
         remove_git_clean_candidates(
-            git_clean_dry_ruu_output=results.stdout,
+            git_clean_dry_run_output=results.stdout,
             exclude_patterns=exclude_patterns,
             dry_run=ctx.dry_run,
         )

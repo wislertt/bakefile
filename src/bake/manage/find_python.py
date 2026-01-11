@@ -10,7 +10,7 @@ from bake.utils.exceptions import PythonNotFoundError
 logger = logging.getLogger(__name__)
 
 
-def _has_inline_metadata(bakefile_path: Path) -> bool:
+def is_standalone_bakefile(bakefile_path: Path) -> bool:
     inline_metadata = read_inline(bakefile_path)
     if inline_metadata is None:
         return False
@@ -176,9 +176,9 @@ def find_python_path(bakefile_path: Path | None) -> Path:
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 
-    has_inline = _has_inline_metadata(bakefile_path)
+    is_standalone = is_standalone_bakefile(bakefile_path)
 
-    if has_inline:
+    if is_standalone:
         logger.debug("Bakefile has inline metadata -> bakefile-level Python")
 
         # Step 1: Try to find existing bakefile-level Python

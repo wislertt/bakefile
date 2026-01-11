@@ -2,7 +2,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from bake.manage.find_python import _has_inline_metadata, find_python_path
+from bake.manage.find_python import find_python_path, is_standalone_bakefile
 from bake.ui import console, style
 from bake.ui.run import run, run_uv
 from bake.utils import BakebookError
@@ -17,7 +17,7 @@ def _run_uv(
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 
-    if not _has_inline_metadata(bakefile_path):
+    if not is_standalone_bakefile(bakefile_path):
         error_msg = (
             f"`{command_name}` command requires PEP 723 inline metadata in the bakefile. "
             f"Run {style.code('bakefile add-inline')} to add metadata, "
@@ -62,8 +62,8 @@ def run_uv_pip(
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 
-    has_inline = _has_inline_metadata(bakefile_path)
-    if not has_inline:
+    is_standalone = is_standalone_bakefile(bakefile_path)
+    if not is_standalone:
         console.warning(
             "No PEP 723 inline metadata found. Using project-level Python.\n"
             f"For project-level dependencies, consider using {style.code('uv pip')} directly.\n"

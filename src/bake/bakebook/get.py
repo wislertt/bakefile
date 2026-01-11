@@ -4,11 +4,13 @@ import sys
 import types
 from collections.abc import Generator
 from contextlib import contextmanager
+from importlib.abc import Loader
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from bake.manage.find_python import _has_inline_metadata
+from bake.manage.find_python import is_standalone_bakefile
 from bake.manage.run_uv import run_uv_sync
+from bake.ui import console, style
 from bake.ui.run import run_uv
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
 
@@ -52,6 +54,51 @@ def resolve_bakefile_path(chdir: Path, file_name: str) -> Path:
     return bakefile_path
 
 
+def retry_load_module_with_uv_sync(
+    target_dir_path: Path,
+    error: ImportError,
+    parent_dir: str,
+    loader: Loader,
+    module: types.ModuleType,
+):
+    logger.debug(f"Missing dependency: {error.name}. Running sync...")
+
+    sync_args = ["--all-groups", "--frozen", "--all-extras"]
+
+    if is_standalone_bakefile(target_dir_path):
+        # Standalone bakefile: use --script flag
+        run_uv_sync(
+            bakefile_path=target_dir_path,
+            cmd=sync_args,
+            dry_run=False,
+        )
+    else:
+        # Project-level: use uv sync directly
+        run_uv(
+            ("sync", *sync_args),
+            cwd=parent_dir,
+            capture_output=True,
+            stream=True,
+            check=True,
+            echo=True,
+            dry_run=False,
+        )
+
+    try:
+        loader.exec_module(module)
+    except Exception as e:
+        error_message = (
+            f"Failed get bakebook from: {target_dir_path} even after sync.\n"
+            f"{e.__class__.__name__}: {e}"
+        )
+        logger.debug(error_message)
+        console.error(
+            "Failed to load bakebook after dependency sync. "
+            f"Try running {style.code('uv cache clean')} to resolve potential caching issues."
+        )
+        raise BakebookError(error_message) from e
+
+
 def load_module(target_dir_path: Path) -> types.ModuleType:
     if not target_dir_path.exists():
         logger.debug(f"Directory not found: {target_dir_path}")
@@ -72,42 +119,13 @@ def load_module(target_dir_path: Path) -> types.ModuleType:
         try:
             spec.loader.exec_module(module)
         except ImportError as e:
-            # TODO: make the code cleaner here
-            # Try to sync and retry
-            logger.debug(f"Missing dependency: {e.name}. Running sync...")
-
-            sync_args = ["--all-groups", "--frozen", "--all-extras"]
-
-            if _has_inline_metadata(target_dir_path):
-                # Standalone bakefile: use --script flag
-                run_uv_sync(
-                    bakefile_path=target_dir_path,
-                    cmd=sync_args,
-                    dry_run=False,
-                )
-            else:
-                # Project-level: use uv sync directly
-                run_uv(
-                    ("sync", *sync_args),
-                    cwd=parent_dir,
-                    capture_output=True,
-                    stream=True,
-                    check=True,
-                    echo=True,
-                    dry_run=False,
-                )
-
-            # Invalidate caches and retry
-            importlib.invalidate_caches()
-            try:
-                spec.loader.exec_module(module)
-            except Exception as retry_error:
-                error_message = (
-                    f"Failed get bakebook from: {target_dir_path} even after sync.\n"
-                    f"{retry_error.__class__.__name__}: {retry_error}"
-                )
-                logger.debug(error_message)
-                raise BakebookError(error_message) from e
+            retry_load_module_with_uv_sync(
+                target_dir_path=target_dir_path,
+                error=e,
+                parent_dir=parent_dir,
+                loader=spec.loader,
+                module=module,
+            )
         except Exception as e:
             error_message = (
                 f"Failed get bakebook from: {target_dir_path}.\n{e.__class__.__name__}: {e}"
