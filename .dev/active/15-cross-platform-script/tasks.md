@@ -100,7 +100,7 @@
 - [x] **Fix**: Added immediate non-blocking read in main thread before starting reader thread
 - [x] **Fix**: Added immediate non-blocking read in reader thread to catch fast-exiting processes
 - [x] **Note**: Load test shows ~99% success rate (496-499/500), remaining failures are due to
-  fundamental timing issue where echo exits before thread can read PTY buffer
+      fundamental timing issue where echo exits before thread can read PTY buffer
 
 ### Task 3.4: Add Debugging Support (Keep Temp File Option)
 

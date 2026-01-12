@@ -6,7 +6,6 @@ and catch any flaky failures related to race conditions.
 """
 
 import concurrent.futures
-import subprocess
 import sys
 
 
@@ -45,7 +44,7 @@ def run_concurrent_test():
             missing.append(expected)
 
     if missing:
-        return False, f"Missing outputs: {missing}, got: {repr(all_stdout)}"
+        return False, f"Missing outputs: {missing}, got: {all_stdout!r}"
 
     return True, all_stdout
 

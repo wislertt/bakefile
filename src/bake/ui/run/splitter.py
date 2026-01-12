@@ -67,6 +67,7 @@ class OutputSplitter:
                         if not self._handle_data(data, target, output_list):
                             break
 
+                # Check if process exited after reading data
                 if proc.poll() is not None:
                     self._drain_pty(pty_fd, target, output_list)
                     break
@@ -127,9 +128,10 @@ class OutputSplitter:
 
                     timeout = min(timeout * 1.5, 0.2)  # Max 200ms
 
-                    # After 2 consecutive timeouts (or immediately in direct-only mode), try direct read
-                    # This handles cases where select doesn't detect readiness properly
-                    # (e.g., mocked os.read in tests, or certain PTY states, or Windows with non-socket fds)
+                    # After 2 consecutive timeouts (or immediately in direct-only mode),
+                    # try direct read. This handles cases where select doesn't detect
+                    # readiness properly (e.g., mocked os.read in tests, or certain PTY
+                    # states, or Windows with non-socket fds)
                     if not select_works or consecutive_timeouts >= 2:
                         data = os.read(pty_fd, 4096)
                         if not self._handle_data(data, target, output_list):
@@ -148,27 +150,6 @@ class OutputSplitter:
         # Handle PTY stdout (for color-preserving output on Unix)
         if self._pty_fd is not None:
             stdout_list = []
-            # Immediate read from PTY before starting thread (catches fast-exiting processes)
-            # This is the main thread, so it runs immediately before the process can exit
-            try:
-                import fcntl
-                flags = fcntl.fcntl(self._pty_fd, fcntl.F_GETFL)
-                fcntl.fcntl(self._pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-                try:
-                    data = os.read(self._pty_fd, 4096)
-                    if data:
-                        if self._stream:
-                            sys.stdout.buffer.write(data)
-                            sys.stdout.buffer.flush()
-                        if self._capture:
-                            stdout_list.append(data)
-                except BlockingIOError:
-                    pass  # No data available yet, thread will handle it
-                finally:
-                    fcntl.fcntl(self._pty_fd, fcntl.F_SETFL, flags)
-            except Exception:
-                pass  # Fall through to thread-based reading
-
             t = threading.Thread(
                 target=self._read_pty, args=(self._pty_fd, sys.stdout, stdout_list, proc)
             )

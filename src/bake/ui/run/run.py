@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Literal, overload
@@ -18,6 +19,10 @@ if sys.platform != "win32":
     import pty
 
 logger = logging.getLogger(__name__)
+
+# Lock for subprocess.Popen calls - subprocess is not thread-safe by design
+# See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
+_subprocess_create_lock = threading.Lock()
 
 
 def _parse_shebang(script: str) -> str | None:
@@ -383,18 +388,21 @@ def _setup_pty_stream(
     capture_output: bool,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
-    stdout_fd, slave_fd = pty.openpty()
-    env = _prepare_subprocess_env()
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdout=slave_fd,
-        stderr=subprocess.PIPE if capture_output else None,
-        shell=shell,
-        env=env,
-        **kwargs,
-    )
-    os.close(slave_fd)
+    # subprocess.Popen is not thread-safe, protect with lock
+    # See: https://bugs.python.org/issue2320
+    with _subprocess_create_lock:
+        stdout_fd, slave_fd = pty.openpty()
+        env = _prepare_subprocess_env()
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=slave_fd,
+            stderr=subprocess.PIPE if capture_output else None,
+            shell=shell,
+            env=env,
+            **kwargs,
+        )
+        os.close(slave_fd)
 
     splitter = OutputSplitter(stream=True, capture=capture_output, pty_fd=stdout_fd)
     return proc, splitter
@@ -407,19 +415,21 @@ def _setup_pipe_stream(
     capture_output: bool,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
-    env = _prepare_subprocess_env(kwargs.pop("env", None))
+    # subprocess.Popen is not thread-safe, protect with lock
+    # See: https://bugs.python.org/issue2320
+    with _subprocess_create_lock:
+        env = _prepare_subprocess_env(kwargs.pop("env", None))
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=shell,
+            env=env,
+            **kwargs,
+        )
+
     splitter = OutputSplitter(stream=True, capture=capture_output)
-    # Always use PIPE for stdout/stderr so OutputSplitter can write to sys.stdout/stderr
-    # This ensures capsys can capture the output in tests
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=shell,
-        env=env,
-        **kwargs,
-    )
     return proc, splitter
 
 
