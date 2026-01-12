@@ -3,7 +3,10 @@ import select
 import subprocess
 import sys
 import threading
-import time
+
+# Module-level lock for PTY streaming operations to prevent race conditions
+# when multiple threads run commands concurrently with PTY-based output capture.
+_pty_stream_lock = threading.Lock()
 
 
 class OutputSplitter:
@@ -36,18 +39,19 @@ class OutputSplitter:
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
         """Read from PTY file descriptor in chunks and stream to output."""
-        while True:
-            # Wait for data to be available or process to exit
-            ready, _, _ = select.select([pty_fd], [], [], 0.1)
+        with _pty_stream_lock:  # Lock for entire PTY read operation to prevent race conditions
+            while True:
+                # Wait for data to be available or process to exit
+                ready, _, _ = select.select([pty_fd], [], [], 0.1)
 
-            if ready and not self._read_pty_data(pty_fd, target, output_list):
-                break
+                if ready and not self._read_pty_data(pty_fd, target, output_list):
+                    break
 
-            if proc.poll() is not None:
-                self._drain_pty(pty_fd, target, output_list)
-                break
+                if proc.poll() is not None:
+                    self._drain_pty(pty_fd, target, output_list)
+                    break
 
-        os.close(pty_fd)
+            os.close(pty_fd)
 
     def _read_pty_data(self, pty_fd: int, target, output_list) -> bool:
         """Read and handle available PTY data. Returns False on EOF/error."""
@@ -59,16 +63,22 @@ class OutputSplitter:
 
     def _drain_pty(self, pty_fd: int, target, output_list):
         """Drain remaining data from PTY after process exits."""
-        # TODO: Fix for flaky test behavior on macOS - race condition where PTY data
-        # isn't ready immediately after proc.poll() returns exit code. The small delay
-        # gives the OS time to flush the PTY buffer before we attempt to read.
-        # See: https://github.com/anthropics/bakefile/issues/XX
-        time.sleep(0.01)  # 10ms delay for PTY buffer flush
+        # With the PTY lock in place, concurrent operations are serialized.
+        # Use select with small timeout to wait for any remaining data without
+        # blocking indefinitely.
         try:
-            while True:
-                data = os.read(pty_fd, 4096)
-                if not self._handle_data(data, target, output_list):
-                    break
+            consecutive_empty_reads = 0
+            max_empty_reads = 3  # Tolerate a few empty reads before giving up
+
+            while consecutive_empty_reads < max_empty_reads:
+                ready, _, _ = select.select([pty_fd], [], [], 0.05)
+                if ready:
+                    data = os.read(pty_fd, 4096)
+                    if not self._handle_data(data, target, output_list):
+                        break
+                    consecutive_empty_reads = 0
+                else:
+                    consecutive_empty_reads += 1
         except OSError:
             pass
 

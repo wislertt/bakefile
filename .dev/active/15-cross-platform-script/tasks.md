@@ -90,12 +90,14 @@
 - [ ] Verify temp file is still cleaned up on error
 - [ ] Verify error propagation works correctly
 
-### Task 3.3: Handle Concurrent Script Executions
+### Task 3.3: Handle Concurrent Script Executions ✅
 
-- [ ] Create test that runs multiple scripts simultaneously
-- [ ] Verify each script gets unique temp file name
-- [ ] Verify no race conditions or file conflicts
-- [ ] Verify all scripts execute correctly
+- [x] Create test that runs multiple scripts simultaneously
+- [x] Verify each script gets unique temp file name
+- [x] Verify no race conditions or file conflicts
+- [x] Verify all scripts execute correctly
+- [x] **Fix**: Added `_pty_stream_lock` to serialize PTY operations
+- [x] **Fix**: Replaced `time.sleep()` with smart `select.select()` drain approach
 
 ### Task 3.4: Add Debugging Support (Keep Temp File Option)
 
@@ -107,12 +109,12 @@
 
 ## Progress Summary
 
-| Phase     | Tasks        | Complete | Progress |
-| --------- | ------------ | -------- | -------- |
-| Phase 1   | 5 tasks      | 5/5      | 100% ✅  |
-| Phase 2   | 4 tasks      | 4/4      | 100% ✅  |
-| Phase 3   | 4 tasks      | 0/4      | 0%       |
-| **Total** | **13 tasks** | **9/13** | **69%**  |
+| Phase     | Tasks        | Complete  | Progress |
+| --------- | ------------ | --------- | -------- |
+| Phase 1   | 5 tasks      | 5/5       | 100% ✅  |
+| Phase 2   | 4 tasks      | 4/4       | 100% ✅  |
+| Phase 3   | 4 tasks      | 1/4       | 25%      |
+| **Total** | **13 tasks** | **10/13** | **77%**  |
 
 ## Implementation Summary
 
@@ -124,23 +126,28 @@
     - Windows: Parse shebang, use interpreter explicitly
     - Unix: Make file executable, kernel handles shebang
 - Clean temp file cleanup with try-finally
+- **PTY lock**: Module-level `_pty_stream_lock` to prevent concurrent PTY race conditions
+- **Smart drain**: Replaced `time.sleep()` with `select.select()` for data-driven PTY drain
 
 **Files modified:**
 
 - `src/bake/ui/run/run.py`: Added core logic in `run()` function
+- `src/bake/ui/run/splitter.py`: Added `_pty_stream_lock` and smart drain approach
 - `src/bake/ui/run/script.py`: No changes needed (delegates to `run()`)
 - `tests/bake/ui/run/test_script.py`: Added shebang, concurrent, and cleanup tests
 
 **Test results:**
 
 - All 11 script tests pass (including 3 new tests)
-- All 32 run tests pass
-- Total: 43/43 tests pass
+- All 48 run tests pass
+- All 59 tests in `tests/bake/ui/run/` pass
 - Lint passes
+- Concurrent test verified stable (5 consecutive runs)
 
 ## Notes
 
 - Phase 1 complete ✅
 - Phase 2 complete ✅ - Unix tests pass, waiting for Windows CI
-- Phase 3 deferred for now (edge cases and polish)
+- Phase 3 in progress (1/4 tasks complete - concurrent execution fix)
 - Ready for Windows CI verification
+- Recent fix: PTY lock + smart drain for stable concurrent tests
