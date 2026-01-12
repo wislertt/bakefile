@@ -11,7 +11,14 @@ from .utils import remove_git_clean_candidates
 class BaseSpace(Bakebook):
     @command(help="Run linters and formatters")
     def lint(self, ctx: Context) -> None:
-        ctx.run(["bunx", "prettier@latest", "--write", "**/*.{js,jsx,ts,tsx,css,json,yaml,yml,md}"])
+        ctx.run(
+            [
+                "bunx",
+                "prettier@latest",
+                "--write",
+                "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}",
+            ]
+        )
 
     @command(help="Run unit tests")
     def test(self) -> None:
