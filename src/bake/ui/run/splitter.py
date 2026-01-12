@@ -73,6 +73,7 @@ class OutputSplitter:
         """
         # DEBUG: Track entry
         import sys as _sys
+        import traceback as _tb
 
         print(
             f"[_drain_pty] ENTRY: pty_fd={pty_fd}, target={target}, output_list={output_list}",
@@ -160,6 +161,9 @@ class OutputSplitter:
             )
         except OSError as e:
             print(f"[_drain_pty] OSError caught: {e}", file=_sys.stderr)
+            print("[_drain_pty] Traceback:", file=_sys.stderr)
+            _tb.print_exc()
+            print()
 
         print(f"[_drain_pty] EXIT: output_list={output_list}", file=_sys.stderr)
 
