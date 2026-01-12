@@ -107,6 +107,34 @@ class OutputSplitter:
         except OSError:
             return False
 
+    def _handle_data_ready(self, pty_fd: int, target, output_list) -> bool:
+        """Handle data ready from select.
+
+        Returns:
+            True if should continue draining, False if done
+        """
+        return self._read_and_handle(pty_fd, target, output_list)
+
+    def _handle_timeout(
+        self,
+        pty_fd: int,
+        target,
+        output_list,
+        select_works: bool,
+        consecutive_timeouts: int,
+    ) -> tuple[bool, int]:
+        """Handle timeout when no data ready.
+
+        Returns:
+            (should_continue, new_timeout_count)
+        """
+        # Try direct read after 2 consecutive timeouts or if select doesn't work
+        if not select_works or consecutive_timeouts >= 2:
+            if not self._read_and_handle(pty_fd, target, output_list):
+                return False, 0
+            return True, 0  # Got data, reset timeout counter
+        return True, consecutive_timeouts + 1
+
     def _drain_pty(self, pty_fd: int, target, output_list):
         """Drain remaining data from PTY after process exits.
 
@@ -125,29 +153,28 @@ class OutputSplitter:
 
         try:
             while consecutive_timeouts < max_timeouts:
-                # Try select if available
+                # Check if data is ready via select
                 if select_works:
                     select_works, ready = self._try_select_read(pty_fd, timeout)
                 else:
                     ready = False
 
                 if ready:
-                    if not self._read_and_handle(pty_fd, target, output_list):
+                    # Data ready - read and handle
+                    if not self._handle_data_ready(pty_fd, target, output_list):
                         return
                     consecutive_timeouts = 0
                     timeout = 0.02
                     continue
 
-                # No data ready - increment timeout counter and try direct read
-                if select_works:
-                    consecutive_timeouts += 1
-
+                # No data ready - increment timeout and try direct read
                 timeout = min(timeout * 1.5, 0.2)
 
-                if not select_works or consecutive_timeouts >= 2:
-                    if not self._read_and_handle(pty_fd, target, output_list):
-                        return
-                    consecutive_timeouts = 0
+                should_continue, consecutive_timeouts = self._handle_timeout(
+                    pty_fd, target, output_list, select_works, consecutive_timeouts
+                )
+                if not should_continue:
+                    return
         except OSError:
             pass
 

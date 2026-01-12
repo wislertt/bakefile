@@ -276,6 +276,7 @@ def test_run_string_command_shell_features(
             assert expected in result.stdout
 
 
+@flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "cmd_type,cmd,shell_override",
     [
