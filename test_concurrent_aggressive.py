@@ -50,7 +50,7 @@ def test_concurrent_execution_once(num_scripts: int = 3):
 def main():
     """Run aggressive load test."""
     iterations = 1000
-    num_scripts = 3  # Match the pytest test
+    num_scripts = 10  # Stress test with more concurrent scripts
     failures = []
 
     print(

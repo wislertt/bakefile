@@ -414,7 +414,7 @@ def _setup_pipe_stream(
     cwd: Path | str | None,
     capture_output: bool,
     **kwargs,
-) -> tuple[subprocess.Popen, OutputSplitter]:
+) -> tuple[subprocess.Popen, OutputSplitter, list]:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
@@ -428,9 +428,12 @@ def _setup_pipe_stream(
             env=env,
             **kwargs,
         )
+        # Attach threads BEFORE releasing lock to ensure reader is ready
+        # when fast-exiting processes complete
+        splitter = OutputSplitter(stream=True, capture=capture_output)
+        threads = splitter.attach(proc)
 
-    splitter = OutputSplitter(stream=True, capture=capture_output)
-    return proc, splitter
+    return proc, splitter, threads
 
 
 def _run_with_stream(
@@ -444,10 +447,10 @@ def _run_with_stream(
 
     if use_pty:
         proc, splitter = _setup_pty_stream(cmd, shell, cwd, capture_output, **kwargs)
+        threads = splitter.attach(proc)
     else:
-        proc, splitter = _setup_pipe_stream(cmd, shell, cwd, capture_output, **kwargs)
+        proc, splitter, threads = _setup_pipe_stream(cmd, shell, cwd, capture_output, **kwargs)
 
-    threads = splitter.attach(proc)
     proc.wait()
     splitter.finalize(threads)
 
