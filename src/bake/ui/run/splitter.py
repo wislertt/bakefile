@@ -40,26 +40,37 @@ class OutputSplitter:
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
         """Read from PTY file descriptor in chunks and stream to output."""
-        try:
-            while True:
-                # Wait for data to be available (without lock - allows concurrent waiting)
-                ready, _, _ = select.select([pty_fd], [], [], 0.1)
+        # DEBUG
+        import sys as _sys
+        print(f"[_read_pty] ENTRY: pty_fd={pty_fd}, thread_name={threading.current_thread().name}", file=_sys.stderr)
 
-                if ready:
-                    # Lock only protects the actual read operation
-                    with _pty_stream_lock:
-                        if not self._read_pty_data(pty_fd, target, output_list):
+        # Lock entire operation to prevent race conditions with fd closure
+        with _pty_stream_lock:
+            try:
+                iteration = 0
+                while True:
+                    iteration += 1
+                    # Wait for data to be available
+                    ready, _, _ = select.select([pty_fd], [], [], 0.1)
+                    print(f"[_read_pty] Iteration {iteration}: ready={ready}, pty_fd={pty_fd}", file=_sys.stderr)
+
+                    if ready:
+                        data = os.read(pty_fd, 4096)
+                        print(f"[_read_pty] Read {len(data)} bytes from PTY", file=_sys.stderr)
+                        if not self._handle_data(data, target, output_list):
+                            print(f"[_read_pty] _handle_data returned False (EOF), breaking", file=_sys.stderr)
                             break
+                        print(f"[_read_pty] output_list size: {len(output_list)}", file=_sys.stderr)
 
-                if proc.poll() is not None:
-                    # Process exited, drain remaining data with lock protection
-                    with _pty_stream_lock:
+                    if proc.poll() is not None:
+                        print(f"[_read_pty] Process exited, calling _drain_pty", file=_sys.stderr)
                         self._drain_pty(pty_fd, target, output_list)
-                    break
-        finally:
-            # Close PTY fd with lock protection
-            with _pty_stream_lock:
+                        break
+            finally:
+                print(f"[_read_pty] Closing PTY fd {pty_fd}", file=_sys.stderr)
                 os.close(pty_fd)
+
+        print(f"[_read_pty] EXIT: pty_fd={pty_fd}, output_list size={len(output_list)}", file=_sys.stderr)
 
     def _read_pty_data(self, pty_fd: int, target, output_list) -> bool:
         """Read and handle available PTY data. Returns False on EOF/error."""
