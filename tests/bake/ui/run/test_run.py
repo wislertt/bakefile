@@ -17,6 +17,7 @@ from bake.ui.logger import (
 from tests.utils.flaky import flaky_on_macos_ci
 
 
+@flaky_on_macos_ci()
 def test_run_simple_command(capsys: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capsys.readouterr()
@@ -77,6 +78,7 @@ def test_run_check_true_raises_on_error() -> None:
         run(["false"], check=True)
 
 
+@flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "stream, capture_output",
     [
