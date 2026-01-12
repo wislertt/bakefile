@@ -16,17 +16,21 @@ class TestBaseSpace:
         captured = capsys.readouterr()
         assert "bunx prettier@latest" in captured.err
 
-    def test_shows_no_implementation_error(self, capsys: pytest.CaptureFixture) -> None:
+    def test_shows_no_implementation_error(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
         base_space = BaseSpace()
         with pytest.raises(typer.Exit):
-            base_space.test()
+            base_space.test(mock_ctx)
         captured = capsys.readouterr()
         assert "No implementation" in captured.err
 
-    def test_setup_dev_shows_no_implementation_error(self, capsys: pytest.CaptureFixture) -> None:
+    def test_setup_dev_shows_no_implementation_error(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
         base_space = BaseSpace()
         with pytest.raises(typer.Exit):
-            base_space.setup_dev()
+            base_space.setup_dev(mock_ctx)
         captured = capsys.readouterr()
         assert "No implementation" in captured.err
 

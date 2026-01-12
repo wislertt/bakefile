@@ -21,7 +21,8 @@ class BaseSpace(Bakebook):
         )
 
     @command(help="Run unit tests")
-    def test(self) -> None:
+    def test(self, ctx: Context) -> None:
+        _ = ctx
         console.error("No implementation")
         raise typer.Exit(1)
 
@@ -66,6 +67,7 @@ class BaseSpace(Bakebook):
         ctx.run("git clean -fdX")
 
     @command(help="Setup development environment")
-    def setup_dev(self) -> None:
+    def setup_dev(self, ctx: Context) -> None:
+        _ = ctx
         console.error("No implementation")
         raise typer.Exit(1)

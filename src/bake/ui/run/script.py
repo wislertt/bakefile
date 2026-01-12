@@ -20,6 +20,8 @@ def run_script(
     dry_run: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+    script = script.strip()
+
     if echo:
         console.script_block(title, script)
 

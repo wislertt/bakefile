@@ -287,11 +287,13 @@ def _setup_pipe_stream(
 ) -> tuple[subprocess.Popen, OutputSplitter]:
     env = _prepare_subprocess_env(kwargs.pop("env", None))
     splitter = OutputSplitter(stream=True, capture=capture_output)
+    # Always use PIPE for stdout/stderr so OutputSplitter can write to sys.stdout/stderr
+    # This ensures capsys can capture the output in tests
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.PIPE if capture_output else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         shell=shell,
         env=env,
         **kwargs,
