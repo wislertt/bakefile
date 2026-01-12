@@ -52,7 +52,7 @@ def run_concurrent_test():
 
 def main():
     """Run load test."""
-    iterations = 100
+    iterations = 500
     failures = []
 
     print(f"Running concurrent execution test {iterations} times...")

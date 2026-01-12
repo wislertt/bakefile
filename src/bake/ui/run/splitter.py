@@ -5,9 +5,8 @@ import sys
 import threading
 import time
 
-# Module-level lock for PTY streaming operations to prevent race conditions
-# when multiple threads run commands concurrently with PTY-based output capture.
-_pty_stream_lock = threading.Lock()
+# No PTY locks needed - each thread reads from its own PTY fd independently
+# Locks were causing race conditions where threads waited while their process exited
 
 
 class OutputSplitter:
@@ -40,37 +39,39 @@ class OutputSplitter:
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
         """Read from PTY file descriptor in chunks and stream to output."""
-        # DEBUG
-        import sys as _sys
-        print(f"[_read_pty] ENTRY: pty_fd={pty_fd}, thread_name={threading.current_thread().name}", file=_sys.stderr)
+        import fcntl
 
-        # Lock entire operation to prevent race conditions with fd closure
-        with _pty_stream_lock:
-            try:
-                iteration = 0
-                while True:
-                    iteration += 1
+        try:
+            while True:
+                # Try immediate non-blocking read first (catches fast-exiting processes)
+                try:
+                    # Set non-blocking mode
+                    flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
+                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+                    data = os.read(pty_fd, 4096)
+                    if not self._handle_data(data, target, output_list):
+                        break
+
+                    # Restore blocking mode
+                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+                except BlockingIOError:
+                    # No data available yet, restore blocking mode and wait with select
+                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+
                     # Wait for data to be available
                     ready, _, _ = select.select([pty_fd], [], [], 0.1)
-                    print(f"[_read_pty] Iteration {iteration}: ready={ready}, pty_fd={pty_fd}", file=_sys.stderr)
 
                     if ready:
                         data = os.read(pty_fd, 4096)
-                        print(f"[_read_pty] Read {len(data)} bytes from PTY", file=_sys.stderr)
                         if not self._handle_data(data, target, output_list):
-                            print(f"[_read_pty] _handle_data returned False (EOF), breaking", file=_sys.stderr)
                             break
-                        print(f"[_read_pty] output_list size: {len(output_list)}", file=_sys.stderr)
 
-                    if proc.poll() is not None:
-                        print(f"[_read_pty] Process exited, calling _drain_pty", file=_sys.stderr)
-                        self._drain_pty(pty_fd, target, output_list)
-                        break
-            finally:
-                print(f"[_read_pty] Closing PTY fd {pty_fd}", file=_sys.stderr)
-                os.close(pty_fd)
-
-        print(f"[_read_pty] EXIT: pty_fd={pty_fd}, output_list size={len(output_list)}", file=_sys.stderr)
+                if proc.poll() is not None:
+                    self._drain_pty(pty_fd, target, output_list)
+                    break
+        finally:
+            os.close(pty_fd)
 
     def _read_pty_data(self, pty_fd: int, target, output_list) -> bool:
         """Read and handle available PTY data. Returns False on EOF/error."""
@@ -83,51 +84,28 @@ class OutputSplitter:
     def _drain_pty(self, pty_fd: int, target, output_list):
         """Drain remaining data from PTY after process exits.
 
-        With the PTY lock preventing concurrent thread interference, we still need
-        to handle OS timing: proc.poll() may return exit code before the PTY buffer
-        is fully flushed. We use select to wait for data with increasing timeouts,
-        and also try direct reads as a fallback in case select doesn't detect
-        readiness (e.g., in tests with mocked os.read).
+        We need to handle OS timing: proc.poll() may return exit code before the
+        PTY buffer is fully flushed. We use select to wait for data with increasing
+        timeouts, and also try direct reads as a fallback in case select doesn't
+        detect readiness (e.g., in tests with mocked os.read or on Windows with
+        non-socket file descriptors).
         """
-        # DEBUG: Track entry
-        import sys as _sys
-        import traceback as _tb
-
-        print(
-            f"[_drain_pty] ENTRY: pty_fd={pty_fd}, target={target}, output_list={output_list}",
-            file=_sys.stderr,
-        )
-
         # Give OS a moment to flush the PTY buffer
         time.sleep(0.005)
 
         timeout = 0.05  # Start at 50ms
         consecutive_timeouts = 0
         max_timeouts = 4  # Allow up to 4 consecutive timeouts
-        iteration = 0
         select_works = True  # Track if select.select() works (fails on Windows with non-socket fds)
 
         try:
             while consecutive_timeouts < max_timeouts:
-                iteration += 1
-                print(
-                    f"[_drain_pty] Iteration {iteration}: consecutive_timeouts={consecutive_timeouts}, timeout={timeout}",
-                    file=_sys.stderr,
-                )
-
                 # Try to use select.select() if it worked before
                 if select_works:
                     try:
                         ready, _, _ = select.select([pty_fd], [], [], timeout)
-                        print(
-                            f"[_drain_pty] select.select returned: ready={ready}", file=_sys.stderr
-                        )
-                    except OSError as e:
+                    except OSError:
                         # On Windows, select.select() raises OSError for non-socket file descriptors
-                        print(
-                            f"[_drain_pty] select.select() failed with OSError: {e}, falling back to direct-only mode",
-                            file=_sys.stderr,
-                        )
                         select_works = False
                         ready = False
                 else:
@@ -135,22 +113,9 @@ class OutputSplitter:
 
                 if ready:
                     # select says data is ready, read it
-                    print(
-                        f"[_drain_pty] Data ready, calling os.read({pty_fd}, 4096)",
-                        file=_sys.stderr,
-                    )
                     data = os.read(pty_fd, 4096)
-                    print(f"[_drain_pty] os.read returned: {data!r}", file=_sys.stderr)
-
-                    handled = self._handle_data(data, target, output_list)
-                    print(
-                        f"[_drain_pty] _handle_data returned: {handled}, output_list now: {output_list}",
-                        file=_sys.stderr,
-                    )
-
-                    if not handled:
+                    if not self._handle_data(data, target, output_list):
                         # EOF or error, done draining
-                        print("[_drain_pty] EOF detected, returning", file=_sys.stderr)
                         return
                     # Got data, reset counters and reduce timeout
                     consecutive_timeouts = 0
@@ -158,13 +123,7 @@ class OutputSplitter:
                 else:
                     # select timed out or select doesn't work
                     if select_works:
-                        print("[_drain_pty] select timed out", file=_sys.stderr)
                         consecutive_timeouts += 1
-                    else:
-                        print(
-                            "[_drain_pty] In direct-only mode (select doesn't work)",
-                            file=_sys.stderr,
-                        )
 
                     timeout = min(timeout * 1.5, 0.2)  # Max 200ms
 
@@ -172,42 +131,16 @@ class OutputSplitter:
                     # This handles cases where select doesn't detect readiness properly
                     # (e.g., mocked os.read in tests, or certain PTY states, or Windows with non-socket fds)
                     if not select_works or consecutive_timeouts >= 2:
-                        print("[_drain_pty] Trying direct read (fallback)", file=_sys.stderr)
                         data = os.read(pty_fd, 4096)
-                        print(f"[_drain_pty] Direct os.read returned: {data!r}", file=_sys.stderr)
-
-                        handled = self._handle_data(data, target, output_list)
-                        print(
-                            f"[_drain_pty] _handle_data returned: {handled}, output_list now: {output_list}",
-                            file=_sys.stderr,
-                        )
-
-                        if not handled:
+                        if not self._handle_data(data, target, output_list):
                             # EOF or error
-                            print("[_drain_pty] EOF from direct read, returning", file=_sys.stderr)
                             return
                         # If we got data, reset timeout counter and continue
                         if data:
-                            print(
-                                "[_drain_pty] Got data from direct read, resetting consecutive_timeouts",
-                                file=_sys.stderr,
-                            )
                             consecutive_timeouts = 0
-                        else:
-                            print("[_drain_pty] Direct read returned empty data", file=_sys.stderr)
-                        # else: empty read but not EOF, keep trying (incremented above)
-            print(
-                f"[_drain_pty] Loop ended: consecutive_timeouts={consecutive_timeouts} >= max_timeouts={max_timeouts}",
-                file=_sys.stderr,
-            )
-        except OSError as e:
+        except OSError:
             # Catch any other OSErrors (e.g., from os.read)
-            print(f"[_drain_pty] OSError caught: {e}", file=_sys.stderr)
-            print("[_drain_pty] Traceback:", file=_sys.stderr)
-            _tb.print_exc()
-            print()
-
-        print(f"[_drain_pty] EXIT: output_list={output_list}", file=_sys.stderr)
+            pass
 
     def attach(self, proc: subprocess.Popen):
         threads = []
@@ -215,6 +148,27 @@ class OutputSplitter:
         # Handle PTY stdout (for color-preserving output on Unix)
         if self._pty_fd is not None:
             stdout_list = []
+            # Immediate read from PTY before starting thread (catches fast-exiting processes)
+            # This is the main thread, so it runs immediately before the process can exit
+            try:
+                import fcntl
+                flags = fcntl.fcntl(self._pty_fd, fcntl.F_GETFL)
+                fcntl.fcntl(self._pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+                try:
+                    data = os.read(self._pty_fd, 4096)
+                    if data:
+                        if self._stream:
+                            sys.stdout.buffer.write(data)
+                            sys.stdout.buffer.flush()
+                        if self._capture:
+                            stdout_list.append(data)
+                except BlockingIOError:
+                    pass  # No data available yet, thread will handle it
+                finally:
+                    fcntl.fcntl(self._pty_fd, fcntl.F_SETFL, flags)
+            except Exception:
+                pass  # Fall through to thread-based reading
+
             t = threading.Thread(
                 target=self._read_pty, args=(self._pty_fd, sys.stdout, stdout_list, proc)
             )
