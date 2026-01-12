@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -52,4 +53,11 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None) -> None:
     )
     env = os.environ.copy()
     env[_BAKE_REINVOKED] = "1"
-    os.execve(str(target_python), [str(target_python), "-m", "bake.cli.bake", *sys.argv[1:]], env)
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    result = subprocess.run(
+        [str(target_python), "-m", "bake.cli.bake", *sys.argv[1:]],
+        env=env,
+    )
+    raise SystemExit(result.returncode)

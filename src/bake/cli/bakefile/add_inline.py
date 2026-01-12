@@ -1,6 +1,6 @@
 import typer
 
-from bake import Context
+from bake.cli.common.context import Context
 from bake.manage.add_inline import add_inline_metadata
 from bake.ui import console, style
 from bake.utils.exceptions import BakebookError

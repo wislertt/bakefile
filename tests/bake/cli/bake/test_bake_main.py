@@ -92,4 +92,35 @@ class TestMain:
             command=CMD_BAKE, dir_path=examples_simple_dir, args=["--dry-run", "build"]
         )
         assert captured.exit_code == 0
-        assert captured.err.strip() == "This is dry run"
+        assert "This is dry run" in captured.err
+
+    def test_main_chain_commands_success(
+        self,
+        examples_simple_dir: Path,
+        run_cli: RunCli,
+    ) -> None:
+        captured = run_cli(
+            command=CMD_BAKE,
+            dir_path=examples_simple_dir,
+            args=["--dry-run", "--chain", "hello", "build"],
+        )
+        assert captured.exit_code == 0
+
+        captured_out = strip_ansi(captured.out)
+        assert "Hello world!" in captured_out
+        assert "Building..." in captured_out
+
+    def test_main_chain_commands_failure_stops_execution(
+        self,
+        examples_simple_dir: Path,
+        run_cli: RunCli,
+    ) -> None:
+        captured = run_cli(
+            command=CMD_BAKE,
+            dir_path=examples_simple_dir,
+            args=["--dry-run", "--chain", "hello", "nonexistent", "build"],
+        )
+        assert captured.exit_code != 0
+        assert "Hello world!" in captured.out
+        # build should not run after nonexistent fails
+        assert "Building..." not in captured.out

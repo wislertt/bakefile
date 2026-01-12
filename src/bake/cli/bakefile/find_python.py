@@ -1,6 +1,6 @@
 import typer
 
-from bake import Context
+from bake.cli.common.context import Context
 from bake.manage.find_python import find_python_path
 from bake.ui import console
 from bake.utils.exceptions import PythonNotFoundError

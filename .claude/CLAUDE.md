@@ -31,6 +31,23 @@ make lint   # Run linters and formatters
 3. Run `make test` to verify tests pass
 4. Commit when both pass
 
+**Development workflow:**
+
+During development, run specific tests instead of the full suite for faster feedback:
+
+```bash
+# Run specific test file
+uv run pytest tests/bakelib/space/test_space_base.py -v
+
+# Run specific test
+uv run pytest tests/bakelib/space/test_space_base.py::test_recipe_with_bakebook_succeeds -v
+
+# Run all tests in a directory
+uv run pytest tests/bakelib/ -v
+```
+
+**IMPORTANT:** The developer will run `make test` before committing. During development, only run targeted tests for speed.
+
 **IMPORTANT:** Read `.claude/BEST_PRACTICES.md` before adding/editing code.
 
 **Key Policies:**

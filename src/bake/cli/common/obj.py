@@ -4,6 +4,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 import typer
@@ -12,7 +13,6 @@ from rich.traceback import Traceback
 from typer.core import MarkupMode
 from typer.main import get_command_from_info
 
-from bake import Bakebook
 from bake.bakebook.get import (
     get_bakebook_from_target_dir_path,
     resolve_bakefile_path,
@@ -22,6 +22,7 @@ from bake.utils.constants import (
     DEFAULT_BAKEBOOK_NAME,
     DEFAULT_CHDIR,
     DEFAULT_FILE_NAME,
+    DEFAULT_IS_CHAIN_COMMAND,
     GET_BAKEFILE_OBJECT,
 )
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
@@ -38,6 +39,9 @@ from .params import (
     verbosity_option,
 )
 
+if TYPE_CHECKING:
+    from bake.bakebook.bakebook import Bakebook
+
 logger = logging.Logger(__name__)
 
 
@@ -47,10 +51,11 @@ class BakefileObject:
     file_name: str
     bakebook_name: str
     bakefile_path: Path | None = None
-    bakebook: Bakebook | None = None
+    bakebook: "Bakebook | None" = None
     verbosity: int = 0
     dry_run: bool = False
     remaining_args: list[str] | None = None
+    is_chain_commands: bool = False
 
     def __post_init__(self):
         validate_file_name(self.file_name)
@@ -162,14 +167,12 @@ def _get_bakefile_object(
     chdir: chdir_option = DEFAULT_CHDIR,
     file_name: file_name_option = DEFAULT_FILE_NAME,
     bakebook_name: bakebook_name_option = DEFAULT_BAKEBOOK_NAME,
-    is_chain_commands: is_chain_commands_option = None,
+    is_chain_commands: is_chain_commands_option = DEFAULT_IS_CHAIN_COMMAND,
     remaining_args: remaining_args_argument = None,
     verbosity: verbosity_option = 0,
     dry_run: dry_run_option = False,
 ):
     _ = ctx
-    _ = is_chain_commands
-    _ = remaining_args
     return BakefileObject(
         chdir=chdir,
         file_name=file_name,
@@ -177,6 +180,7 @@ def _get_bakefile_object(
         verbosity=verbosity,
         dry_run=dry_run,
         remaining_args=remaining_args,
+        is_chain_commands=is_chain_commands,
     )
 
 

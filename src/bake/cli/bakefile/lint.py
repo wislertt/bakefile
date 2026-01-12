@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from bake import Context
+from bake.cli.common.context import Context
 from bake.manage.find_python import find_python_path
 from bake.manage.lint import run_ruff_check, run_ruff_format, run_ty_check
 from bake.ui import console

@@ -13,8 +13,7 @@ import logging
 
 import typer
 
-from bake import Bakebook, command
-from bake.cli.common.context import Context
+from bake import Bakebook, Context, command
 from bake.ui import console
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ class MyBakebook(Bakebook):
             console.echo("Deploying...")
 
 
-bakebook = Bakebook()
+bakebook = MyBakebook()
 
 
 @bakebook.command(name="hello")
@@ -53,7 +52,7 @@ def build(
     ctx: Context,
     prod: bool = typer.Option(False, "--prod", help="Production build"),
 ) -> None:
-    if ctx.obj.dry_run:
+    if ctx.dry_run:
         console.err.print("This is dry run")
 
     console.success(f"Building{' (prod)' if prod else ''}...")

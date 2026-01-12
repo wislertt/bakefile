@@ -2,10 +2,10 @@ from typing import Annotated
 
 import typer
 
-from bake import Context
 from bake.bakebook.get import (
     resolve_bakefile_path,
 )
+from bake.cli.common.context import Context
 from bake.cli.common.params import force_option
 from bake.manage.add_inline import add_inline_metadata
 from bake.manage.write_bakefile import write_bakefile
