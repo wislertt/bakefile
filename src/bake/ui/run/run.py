@@ -29,8 +29,8 @@ def _parse_shebang(script: str) -> str | None:
     shebang = lines[0][2:].strip()
 
     # Handle /usr/bin/env XXX
-    if shebang.startswith("/usr/bin/env/"):
-        interpreter = shebang.split()[-1]
+    if shebang.startswith("/usr/bin/env "):
+        interpreter = shebang.split()[1]  # Get "python3" from "/usr/bin/env python3"
         return _resolve_interpreter(interpreter)
 
     # Direct path like /usr/bin/python3
