@@ -82,6 +82,31 @@ class OutputSplitter:
         except OSError:
             return False
 
+    def _try_select_read(self, pty_fd: int, timeout: float) -> tuple[bool, bool]:
+        """Try to read using select.select().
+
+        Returns:
+            (success, has_data): success if select worked, has_data if ready
+        """
+        try:
+            ready, _, _ = select.select([pty_fd], [], [], timeout)
+            return True, bool(ready)
+        except OSError:
+            # On Windows, select.select() raises OSError for non-socket file descriptors
+            return False, False
+
+    def _read_and_handle(self, pty_fd: int, target, output_list) -> bool:
+        """Read from PTY and handle data.
+
+        Returns:
+            True if data was handled, False if EOF/error
+        """
+        try:
+            data = os.read(pty_fd, 4096)
+            return self._handle_data(data, target, output_list)
+        except OSError:
+            return False
+
     def _drain_pty(self, pty_fd: int, target, output_list):
         """Drain remaining data from PTY after process exits.
 
@@ -91,57 +116,39 @@ class OutputSplitter:
         detect readiness (e.g., in tests with mocked os.read or on Windows with
         non-socket file descriptors).
         """
-        # Give OS a moment to flush the PTY buffer
         time.sleep(0.005)
 
-        timeout = 0.05  # Start at 50ms
+        timeout = 0.05
         consecutive_timeouts = 0
-        max_timeouts = 4  # Allow up to 4 consecutive timeouts
-        select_works = True  # Track if select.select() works (fails on Windows with non-socket fds)
+        max_timeouts = 4
+        select_works = True
 
         try:
             while consecutive_timeouts < max_timeouts:
-                # Try to use select.select() if it worked before
+                # Try select if available
                 if select_works:
-                    try:
-                        ready, _, _ = select.select([pty_fd], [], [], timeout)
-                    except OSError:
-                        # On Windows, select.select() raises OSError for non-socket file descriptors
-                        select_works = False
-                        ready = False
+                    select_works, ready = self._try_select_read(pty_fd, timeout)
                 else:
                     ready = False
 
                 if ready:
-                    # select says data is ready, read it
-                    data = os.read(pty_fd, 4096)
-                    if not self._handle_data(data, target, output_list):
-                        # EOF or error, done draining
+                    if not self._read_and_handle(pty_fd, target, output_list):
                         return
-                    # Got data, reset counters and reduce timeout
                     consecutive_timeouts = 0
                     timeout = 0.02
-                else:
-                    # select timed out or select doesn't work
-                    if select_works:
-                        consecutive_timeouts += 1
+                    continue
 
-                    timeout = min(timeout * 1.5, 0.2)  # Max 200ms
+                # No data ready - increment timeout counter and try direct read
+                if select_works:
+                    consecutive_timeouts += 1
 
-                    # After 2 consecutive timeouts (or immediately in direct-only mode),
-                    # try direct read. This handles cases where select doesn't detect
-                    # readiness properly (e.g., mocked os.read in tests, or certain PTY
-                    # states, or Windows with non-socket fds)
-                    if not select_works or consecutive_timeouts >= 2:
-                        data = os.read(pty_fd, 4096)
-                        if not self._handle_data(data, target, output_list):
-                            # EOF or error
-                            return
-                        # If we got data, reset timeout counter and continue
-                        if data:
-                            consecutive_timeouts = 0
+                timeout = min(timeout * 1.5, 0.2)
+
+                if not select_works or consecutive_timeouts >= 2:
+                    if not self._read_and_handle(pty_fd, target, output_list):
+                        return
+                    consecutive_timeouts = 0
         except OSError:
-            # Catch any other OSErrors (e.g., from os.read)
             pass
 
     def attach(self, proc: subprocess.Popen):
