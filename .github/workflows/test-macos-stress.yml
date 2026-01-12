@@ -1,0 +1,46 @@
+name: macOS Stress Test (100 runs)
+
+on:
+    pull_request:
+        types: [labeled, unlabeled, opened, synchronize, reopened]
+
+jobs:
+    stress-test:
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+                run: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        runs-on: macos-latest
+
+        steps:
+            - name: checkout
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+              with:
+                  fetch-depth: 0
+
+            - name: setup-python
+              uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: setup-uv
+              uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+              with:
+                  version: "latest"
+                  enable-cache: true
+
+            - name: cache-uv
+              uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+              with:
+                  path: ${{ github.workspace }}/.venv
+                  key: uv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+                  restore-keys: |
+                      uv-${{ runner.os }}-py${{ matrix.python-version }}-
+                      uv-${{ runner.os }}-
+
+            - name: install-dependencies
+              run: uv sync --all-extras --all-groups --frozen
+
+            - name: run-stress-test-run-${{ matrix.run }}
+              run: make test
