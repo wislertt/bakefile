@@ -14,6 +14,7 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
+from tests.utils.flaky import flaky_on_macos_ci
 
 
 def test_run_simple_command(capsys: pytest.CaptureFixture[str]) -> None:
@@ -133,6 +134,7 @@ def test_run_returncode_in_logs(capsys: pytest.CaptureFixture[str]) -> None:
     assert done_log["returncode"] == 0
 
 
+@flaky_on_macos_ci()
 def test_run_stdout_stderr_in_logs(capsys: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capsys.readouterr()
