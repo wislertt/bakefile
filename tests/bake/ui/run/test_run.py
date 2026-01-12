@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -209,22 +210,22 @@ def test_capture_to_logs_pretty_with_extra_parses_correctly(
     log = logs[0]
     assert log["level"] == "INFO"
     assert log["message"] == "test with extra"
-    assert log["bakefile_path"] == "/tmp/test/bakefile.py"
+    assert Path(log["bakefile_path"]) == Path("/tmp/test/bakefile.py")
     assert log["count"] == 42
 
 
 def test_run_stream_preserves_colors_with_pty(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    script = """
-    printf '\\033[32mGreen text\\033[0m\\n'
-    printf '\\033[1;34mBlue bold text\\033[0m\\n'
-    printf '\\033[33mYellow text\\033[0m\\n'
-    printf '%s\\n' '--- end ---'
-    """
+    """Cross-platform version of ANSI color preservation test using Python."""
+    # Use Python to generate colored output (works on all platforms)
+    python_code = """print('\\033[32mGreen text\\033[0m')
+print('\\033[1;34mBlue bold text\\033[0m')
+print('\\033[33mYellow text\\033[0m')"""
+    script = [sys.executable, "-c", python_code]
 
     # With stream=True, PTY should preserve ANSI codes
-    result = run(("bash", "-c", script), stream=True, capture_output=True)
+    result = run(script, stream=True, capture_output=True)
 
     # Should contain ANSI color codes
     assert "[32m" in result.stdout
