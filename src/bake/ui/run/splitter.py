@@ -108,10 +108,15 @@ class OutputSplitter:
                 if select_works:
                     try:
                         ready, _, _ = select.select([pty_fd], [], [], timeout)
-                        print(f"[_drain_pty] select.select returned: ready={ready}", file=_sys.stderr)
+                        print(
+                            f"[_drain_pty] select.select returned: ready={ready}", file=_sys.stderr
+                        )
                     except OSError as e:
                         # On Windows, select.select() raises OSError for non-socket file descriptors
-                        print(f"[_drain_pty] select.select() failed with OSError: {e}, falling back to direct-only mode", file=_sys.stderr)
+                        print(
+                            f"[_drain_pty] select.select() failed with OSError: {e}, falling back to direct-only mode",
+                            file=_sys.stderr,
+                        )
                         select_works = False
                         ready = False
                 else:
@@ -145,7 +150,10 @@ class OutputSplitter:
                         print("[_drain_pty] select timed out", file=_sys.stderr)
                         consecutive_timeouts += 1
                     else:
-                        print("[_drain_pty] In direct-only mode (select doesn't work)", file=_sys.stderr)
+                        print(
+                            "[_drain_pty] In direct-only mode (select doesn't work)",
+                            file=_sys.stderr,
+                        )
 
                     timeout = min(timeout * 1.5, 0.2)  # Max 200ms
 
