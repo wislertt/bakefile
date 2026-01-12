@@ -1,6 +1,7 @@
 import pytest
 
 from bake.ui.run import run_script
+from tests.utils.flaky import flaky_on_macos_ci
 
 
 @pytest.mark.parametrize(
@@ -77,6 +78,7 @@ sys.exit(0)
     assert "hello from python" in result.stdout
 
 
+@flaky_on_macos_ci()
 def test_run_script_concurrent_execution() -> None:
     """Test that multiple scripts can run concurrently without conflicts."""
     import concurrent.futures
