@@ -1,7 +1,10 @@
 import logging
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Literal, overload
@@ -16,6 +19,102 @@ if sys.platform != "win32":
     import pty
 
 logger = logging.getLogger(__name__)
+
+# Lock for subprocess.Popen calls - subprocess is not thread-safe by design
+# See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
+_subprocess_create_lock = threading.Lock()
+
+
+def _parse_shebang(script: str) -> str | None:
+    """Parse shebang line, return interpreter path or None."""
+    lines = script.strip().splitlines()
+    if not lines or not lines[0].startswith("#!"):
+        return None
+
+    shebang = lines[0][2:].strip()
+
+    # Handle /usr/bin/env XXX
+    if shebang.startswith("/usr/bin/env "):
+        interpreter = shebang.split()[1]  # Get "python3" from "/usr/bin/env python3"
+        return _resolve_interpreter(interpreter)
+
+    # Direct path like /usr/bin/python3
+    return shebang
+
+
+def _resolve_interpreter(interpreter: str) -> str | None:
+    """Resolve interpreter path, handling cross-platform differences."""
+    # If it's an absolute path, use as-is
+    if os.path.isabs(interpreter):
+        return interpreter if os.path.exists(interpreter) else None
+
+    # Search in PATH
+    return shutil.which(interpreter)
+
+
+def _run_with_temp_file(
+    cmd: str,
+    capture_output: bool,
+    check: bool,
+    cwd: Path | str | None,
+    stream: bool,
+    **kwargs,
+) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+    """Run multi-line script using temp file with shebang support.
+
+    On Windows: Parse shebang and use interpreter explicitly, or use cmd.exe /c.
+    On Unix: Make file executable and run directly (kernel handles shebang).
+    """
+    # Create temp file with appropriate extension
+    suffix = ".bat" if sys.platform == "win32" else ".sh"
+    fd, path = tempfile.mkstemp(suffix=suffix)
+
+    try:
+        # Write script to temp file
+        os.write(fd, cmd.encode("utf-8"))
+        os.close(fd)
+
+        # Check for shebang
+        interpreter = _parse_shebang(cmd)
+
+        if sys.platform == "win32":
+            # Windows: Parse shebang and use interpreter explicitly
+            if interpreter:
+                return run(
+                    [interpreter, path],
+                    capture_output=capture_output,
+                    check=check,
+                    cwd=cwd,
+                    stream=stream,
+                    echo=False,
+                    **kwargs,
+                )
+            else:
+                return run(
+                    ["cmd.exe", "/c", path],
+                    capture_output=capture_output,
+                    check=check,
+                    cwd=cwd,
+                    stream=stream,
+                    echo=False,
+                    **kwargs,
+                )
+        else:
+            # Unix: Make file executable and run directly (kernel handles shebang)
+            os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
+            return run(
+                [path],
+                capture_output=capture_output,
+                check=check,
+                cwd=cwd,
+                stream=stream,
+                echo=False,
+                **kwargs,
+            )
+    finally:
+        # Clean up temp file
+        if os.path.exists(path):
+            os.unlink(path)
 
 
 @overload
@@ -154,6 +253,34 @@ def run(
     if dry_run:
         return _dry_run_result(cmd=cmd, capture_output=capture_output, cwd=cwd)
 
+    # Handle multi-line scripts that require temp file approach:
+    # - Windows: Any multi-line script with shell=True (cmd.exe limitation)
+    # - Any platform: Scripts with shebang (need file for kernel/interpreter)
+    cmd_str_for_shebang = cmd if isinstance(cmd, str) else ""
+    has_shebang = cmd_str_for_shebang.strip().startswith("#!")
+
+    # Main condition: string command with shell=True
+    if isinstance(cmd, str) and shell:
+        # Type narrowing: string_cmd is now known to be str
+        string_cmd = cmd
+        # Sub-conditions that require temp file:
+        # 1. Windows with multi-line script
+        # 2. Any platform with shebang
+        needs_temp_file = (sys.platform == "win32" and "\n" in string_cmd) or has_shebang
+    else:
+        needs_temp_file = False
+        string_cmd = ""  # Placeholder, won't be used when needs_temp_file=False
+
+    if needs_temp_file:
+        return _run_with_temp_file(
+            cmd=string_cmd,
+            capture_output=capture_output,
+            check=check,
+            cwd=cwd,
+            stream=stream,
+            **kwargs,
+        )
+
     logger.debug(f"[run] {cmd_str}", extra={"cwd": cwd})
     start = time.perf_counter()
 
@@ -240,6 +367,20 @@ def _process_stream_output(
     )
 
 
+def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    if env is None:
+        env = os.environ.copy()
+    env.setdefault("FORCE_COLOR", "1")
+    env.setdefault("CLICOLOR_FORCE", "1")
+    try:
+        terminal_size = os.get_terminal_size()
+        env.setdefault("COLUMNS", str(terminal_size.columns))
+        env.setdefault("LINES", str(terminal_size.lines))
+    except OSError:
+        pass
+    return env
+
+
 def _setup_pty_stream(
     cmd: str | list[str] | tuple[str, ...],
     shell: bool,
@@ -247,22 +388,21 @@ def _setup_pty_stream(
     capture_output: bool,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
-    stdout_fd, slave_fd = pty.openpty()
-
-    env = os.environ.copy()
-    env.setdefault("FORCE_COLOR", "1")
-    env.setdefault("CLICOLOR_FORCE", "1")
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdout=slave_fd,
-        stderr=subprocess.PIPE if capture_output else None,
-        shell=shell,
-        env=env,
-        **kwargs,
-    )
-    os.close(slave_fd)
+    # subprocess.Popen is not thread-safe, protect with lock
+    # See: https://bugs.python.org/issue2320
+    with _subprocess_create_lock:
+        stdout_fd, slave_fd = pty.openpty()
+        env = _prepare_subprocess_env()
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=slave_fd,
+            stderr=subprocess.PIPE if capture_output else None,
+            shell=shell,
+            env=env,
+            **kwargs,
+        )
+        os.close(slave_fd)
 
     splitter = OutputSplitter(stream=True, capture=capture_output, pty_fd=stdout_fd)
     return proc, splitter
@@ -274,22 +414,26 @@ def _setup_pipe_stream(
     cwd: Path | str | None,
     capture_output: bool,
     **kwargs,
-) -> tuple[subprocess.Popen, OutputSplitter]:
-    env = kwargs.pop("env", os.environ.copy())
-    env.setdefault("FORCE_COLOR", "1")
-    env.setdefault("CLICOLOR_FORCE", "1")
+) -> tuple[subprocess.Popen, OutputSplitter, list]:
+    # subprocess.Popen is not thread-safe, protect with lock
+    # See: https://bugs.python.org/issue2320
+    with _subprocess_create_lock:
+        env = _prepare_subprocess_env(kwargs.pop("env", None))
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=shell,
+            env=env,
+            **kwargs,
+        )
+        # Attach threads BEFORE releasing lock to ensure reader is ready
+        # when fast-exiting processes complete
+        splitter = OutputSplitter(stream=True, capture=capture_output)
+        threads = splitter.attach(proc)
 
-    splitter = OutputSplitter(stream=True, capture=capture_output)
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.PIPE if capture_output else None,
-        shell=shell,
-        env=env,
-        **kwargs,
-    )
-    return proc, splitter
+    return proc, splitter, threads
 
 
 def _run_with_stream(
@@ -303,10 +447,10 @@ def _run_with_stream(
 
     if use_pty:
         proc, splitter = _setup_pty_stream(cmd, shell, cwd, capture_output, **kwargs)
+        threads = splitter.attach(proc)
     else:
-        proc, splitter = _setup_pipe_stream(cmd, shell, cwd, capture_output, **kwargs)
+        proc, splitter, threads = _setup_pipe_stream(cmd, shell, cwd, capture_output, **kwargs)
 
-    threads = splitter.attach(proc)
     proc.wait()
     splitter.finalize(threads)
 

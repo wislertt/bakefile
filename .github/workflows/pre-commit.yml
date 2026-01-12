@@ -35,7 +35,7 @@ jobs:
                       uv-${{ runner.os }}-
 
             - name: install-dependencies
-              run: uv sync --all-groups --frozen --all-extras
+              run: uv sync --all-extras --all-groups --frozen
 
             - name: setup-bun
               uses: oven-sh/setup-bun@b7a1c7ccf290d58743029c4f6903da283811b979 # v2.1.0

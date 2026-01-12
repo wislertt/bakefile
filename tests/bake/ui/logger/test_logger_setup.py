@@ -52,7 +52,7 @@ def inner_test_setup_logging(
     )
 
     # log by `module_b`
-    module_b_logger_func(extra)  # type: ignore[call-arg]
+    module_b_logger_func(extra)
 
     parsed_logs = capsys_to_logs_pretty(capsys) if is_pretty_log else capsys_to_logs(capsys)
 

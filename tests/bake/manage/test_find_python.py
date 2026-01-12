@@ -171,9 +171,7 @@ def test_find_python_with_uv_project_with_lock_and_venv(
         logs,
         [
             "No inline metadata -> project-level Python",
-            re.escape(
-                f"Found project Python at {python_path.as_posix()} (source: virtual environment)"
-            ),
+            re.escape(f"Found project Python at {python_path} (source: virtual environment)"),
         ],
     )
     assert assert_project_level_python_exe(python_path, uv_project_folder_without_dep)
@@ -210,9 +208,7 @@ def test_find_python_with_uv_project_without_lock_and_venv(
             "No project Python found",
             "No project lock found",
             "Creating project lock and syncing",
-            re.escape(
-                f"Found project Python at {python_path.as_posix()} (source: virtual environment)"
-            ),
+            re.escape(f"Found project Python at {python_path} (source: virtual environment)"),
         ],
     )
     assert assert_project_level_python_exe(python_path, uv_project_folder_without_dep)
@@ -247,9 +243,7 @@ def test_find_python_with_uv_project_with_lock_without_venv(
             "No project Python found",
             "Found project lock at",
             "Syncing project with frozen lock",
-            re.escape(
-                f"Found project Python at {python_path.as_posix()} (source: virtual environment)"
-            ),
+            re.escape(f"Found project Python at {python_path} (source: virtual environment)"),
         ],
     )
     assert assert_project_level_python_exe(python_path, uv_project_folder_without_dep)

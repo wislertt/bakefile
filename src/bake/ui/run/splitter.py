@@ -3,6 +3,10 @@ import select
 import subprocess
 import sys
 import threading
+import time
+
+# No PTY locks needed - each thread reads from its own PTY fd independently
+# Locks were causing race conditions where threads waited while their process exited
 
 
 class OutputSplitter:
@@ -35,18 +39,40 @@ class OutputSplitter:
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
         """Read from PTY file descriptor in chunks and stream to output."""
-        while True:
-            # Wait for data to be available or process to exit
-            ready, _, _ = select.select([pty_fd], [], [], 0.1)
+        import fcntl
 
-            if ready and not self._read_pty_data(pty_fd, target, output_list):
-                break
+        try:
+            while True:
+                # Try immediate non-blocking read first (catches fast-exiting processes)
+                try:
+                    # Set non-blocking mode
+                    flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
+                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-            if proc.poll() is not None:
-                self._drain_pty(pty_fd, target, output_list)
-                break
+                    data = os.read(pty_fd, 4096)
+                    if not self._handle_data(data, target, output_list):
+                        break
 
-        os.close(pty_fd)
+                    # Restore blocking mode
+                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+                except BlockingIOError:
+                    # No data available yet, restore blocking mode and wait with select
+                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+
+                    # Wait for data to be available
+                    ready, _, _ = select.select([pty_fd], [], [], 0.1)
+
+                    if ready:
+                        data = os.read(pty_fd, 4096)
+                        if not self._handle_data(data, target, output_list):
+                            break
+
+                # Check if process exited after reading data
+                if proc.poll() is not None:
+                    self._drain_pty(pty_fd, target, output_list)
+                    break
+        finally:
+            os.close(pty_fd)
 
     def _read_pty_data(self, pty_fd: int, target, output_list) -> bool:
         """Read and handle available PTY data. Returns False on EOF/error."""
@@ -56,13 +82,99 @@ class OutputSplitter:
         except OSError:
             return False
 
-    def _drain_pty(self, pty_fd: int, target, output_list):
-        """Drain remaining data from PTY after process exits."""
+    def _try_select_read(self, pty_fd: int, timeout: float) -> tuple[bool, bool]:
+        """Try to read using select.select().
+
+        Returns:
+            (success, has_data): success if select worked, has_data if ready
+        """
         try:
-            while True:
-                data = os.read(pty_fd, 4096)
-                if not self._handle_data(data, target, output_list):
-                    break
+            ready, _, _ = select.select([pty_fd], [], [], timeout)
+            return True, bool(ready)
+        except OSError:
+            # On Windows, select.select() raises OSError for non-socket file descriptors
+            return False, False
+
+    def _read_and_handle(self, pty_fd: int, target, output_list) -> bool:
+        """Read from PTY and handle data.
+
+        Returns:
+            True if data was handled, False if EOF/error
+        """
+        try:
+            data = os.read(pty_fd, 4096)
+            return self._handle_data(data, target, output_list)
+        except OSError:
+            return False
+
+    def _handle_data_ready(self, pty_fd: int, target, output_list) -> bool:
+        """Handle data ready from select.
+
+        Returns:
+            True if should continue draining, False if done
+        """
+        return self._read_and_handle(pty_fd, target, output_list)
+
+    def _handle_timeout(
+        self,
+        pty_fd: int,
+        target,
+        output_list,
+        select_works: bool,
+        consecutive_timeouts: int,
+    ) -> tuple[bool, int]:
+        """Handle timeout when no data ready.
+
+        Returns:
+            (should_continue, new_timeout_count)
+        """
+        # Try direct read after 2 consecutive timeouts or if select doesn't work
+        if not select_works or consecutive_timeouts >= 2:
+            if not self._read_and_handle(pty_fd, target, output_list):
+                return False, 0
+            return True, 0  # Got data, reset timeout counter
+        return True, consecutive_timeouts + 1
+
+    def _drain_pty(self, pty_fd: int, target, output_list):
+        """Drain remaining data from PTY after process exits.
+
+        We need to handle OS timing: proc.poll() may return exit code before the
+        PTY buffer is fully flushed. We use select to wait for data with increasing
+        timeouts, and also try direct reads as a fallback in case select doesn't
+        detect readiness (e.g., in tests with mocked os.read or on Windows with
+        non-socket file descriptors).
+        """
+        time.sleep(0.005)
+
+        timeout = 0.05
+        consecutive_timeouts = 0
+        max_timeouts = 4
+        select_works = True
+
+        try:
+            while consecutive_timeouts < max_timeouts:
+                # Check if data is ready via select
+                if select_works:
+                    select_works, ready = self._try_select_read(pty_fd, timeout)
+                else:
+                    ready = False
+
+                if ready:
+                    # Data ready - read and handle
+                    if not self._handle_data_ready(pty_fd, target, output_list):
+                        return
+                    consecutive_timeouts = 0
+                    timeout = 0.02
+                    continue
+
+                # No data ready - increment timeout and try direct read
+                timeout = min(timeout * 1.5, 0.2)
+
+                should_continue, consecutive_timeouts = self._handle_timeout(
+                    pty_fd, target, output_list, select_works, consecutive_timeouts
+                )
+                if not should_continue:
+                    return
         except OSError:
             pass
 

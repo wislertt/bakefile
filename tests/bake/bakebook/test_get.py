@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -10,6 +10,7 @@ from bake.bakebook.get import (
     get_target_dir_path,
     load_module,
     resolve_bakefile_path,
+    retry_load_module_with_uv_sync,
     validate_bakebook,
 )
 from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
@@ -76,6 +77,42 @@ class TestLoadModule:
             with pytest.raises(BakebookError):
                 load_module(fake_path)
 
+    def test_load_module_none_loader(self, tmp_path: Path) -> None:
+        module_path = tmp_path / "test_module.py"
+        module_path.write_text("value = 42")
+
+        mock_spec = MagicMock()
+        mock_spec.loader = None
+
+        with (
+            patch(
+                "bake.bakebook.get.importlib.util.spec_from_file_location",
+                return_value=mock_spec,
+            ),
+            pytest.raises(BakebookError, match="Failed to load"),
+        ):
+            load_module(module_path)
+
+    def test_load_module_import_error_calls_retry(self, tmp_path: Path) -> None:
+        module_path = tmp_path / "test_module.py"
+        module_path.write_text("import nonexistent_module")
+
+        with patch("bake.bakebook.get.retry_load_module_with_uv_sync") as mock_retry:
+            load_module(module_path)
+            mock_retry.assert_called_once()
+            args = mock_retry.call_args[1]
+            assert args["target_dir_path"] == module_path
+            assert isinstance(args["error"], ImportError)
+            assert args["parent_dir"] == str(tmp_path)
+            assert args["module"] is not None
+
+    def test_load_module_generic_exception_raises_bakebook_error(self, tmp_path: Path) -> None:
+        module_path = tmp_path / "test_module.py"
+        module_path.write_text("raise ValueError('test error')")
+
+        with pytest.raises(BakebookError, match="Failed get bakebook from"):
+            load_module(module_path)
+
 
 class TestValidateBakebook:
     def test_validate_bakebook_valid(self) -> None:
@@ -129,3 +166,110 @@ class TestGetBakebookFromTargetDirPath:
         # load_module will fail because the file doesn't exist
         with pytest.raises((BakebookError, FileNotFoundError)):
             get_bakebook_from_target_dir_path(fake_path, DEFAULT_BAKEBOOK_NAME)
+
+
+class TestRetryLoadModuleWithUvSyncDryRun:
+    def test_dry_run_standalone_bakefile(self, empty_project_folder: Path) -> None:
+        import importlib.util
+
+        bakefile_path = empty_project_folder / DEFAULT_FILE_NAME
+        parent_dir = str(empty_project_folder)
+
+        error = ImportError("No module named 'test_package'", name="test_package")
+
+        spec = importlib.util.spec_from_file_location("bakefile", bakefile_path)
+        assert spec is not None and spec.loader is not None
+
+        module = importlib.util.module_from_spec(spec)
+        loader_mock = MagicMock(spec=spec.loader)
+
+        with patch("bake.bakebook.get.run_uv_sync") as mock_run_uv_sync:
+            retry_load_module_with_uv_sync(
+                target_dir_path=bakefile_path,
+                error=error,
+                parent_dir=parent_dir,
+                loader=loader_mock,
+                module=module,
+                dry_run=True,
+            )
+
+            mock_run_uv_sync.assert_called_once_with(
+                bakefile_path=bakefile_path,
+                cmd=["--all-groups", "--frozen", "--all-extras"],
+                dry_run=True,
+            )
+            loader_mock.exec_module.assert_called_once_with(module)
+
+    def test_dry_run_project_level_bakefile(self, uv_project_folder_without_dep: Path) -> None:
+        import importlib.util
+
+        bakefile_path = uv_project_folder_without_dep / DEFAULT_FILE_NAME
+        parent_dir = str(uv_project_folder_without_dep)
+
+        error = ImportError("No module named 'test_package'", name="test_package")
+
+        spec = importlib.util.spec_from_file_location("bakefile", bakefile_path)
+        assert spec is not None and spec.loader is not None
+
+        module = importlib.util.module_from_spec(spec)
+        loader_mock = MagicMock(spec=spec.loader)
+
+        with patch("bake.bakebook.get.run_uv") as mock_run_uv:
+            retry_load_module_with_uv_sync(
+                target_dir_path=bakefile_path,
+                error=error,
+                parent_dir=parent_dir,
+                loader=loader_mock,
+                module=module,
+                dry_run=True,
+            )
+
+            mock_run_uv.assert_called_once_with(
+                ("sync", "--all-groups", "--frozen", "--all-extras"),
+                cwd=parent_dir,
+                capture_output=True,
+                stream=True,
+                check=True,
+                echo=True,
+                dry_run=True,
+            )
+            loader_mock.exec_module.assert_called_once_with(module)
+
+    def test_dry_run_standalone_bakefile_exec_module_fails(
+        self, empty_project_folder: Path
+    ) -> None:
+        import importlib.util
+
+        bakefile_path = empty_project_folder / DEFAULT_FILE_NAME
+        parent_dir = str(empty_project_folder)
+
+        error = ImportError("No module named 'missing_package'", name="missing_package")
+
+        spec = importlib.util.spec_from_file_location("bakefile", bakefile_path)
+        assert spec is not None and spec.loader is not None
+
+        module = importlib.util.module_from_spec(spec)
+        loader_mock = MagicMock(spec=spec.loader)
+        loader_mock.exec_module.side_effect = ImportError("Still missing dependency")
+
+        with (
+            patch("bake.bakebook.get.run_uv_sync") as mock_run_uv_sync,
+            patch("bake.ui.console.error") as mock_console_error,
+        ):
+            with pytest.raises(BakebookError, match="Failed get bakebook from"):
+                retry_load_module_with_uv_sync(
+                    target_dir_path=bakefile_path,
+                    error=error,
+                    parent_dir=parent_dir,
+                    loader=loader_mock,
+                    module=module,
+                    dry_run=True,
+                )
+
+            mock_run_uv_sync.assert_called_once_with(
+                bakefile_path=bakefile_path,
+                cmd=["--all-groups", "--frozen", "--all-extras"],
+                dry_run=True,
+            )
+            mock_console_error.assert_called_once()
+            assert "uv cache clean" in mock_console_error.call_args[0][0]

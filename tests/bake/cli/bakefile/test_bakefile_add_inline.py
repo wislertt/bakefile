@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from bake.manage.add_inline import read_inline
+from bake.ui.logger import strip_ansi
 from bake.utils.constants import CMD_ADD_INLINE, CMD_BAKEFILE, DEFAULT_FILE_NAME
 from tests.conftest import RunCli
 
@@ -19,7 +20,7 @@ def test_add_inline_cli(
     )
 
     assert result.exit_code == 0
-    assert "Successfully added PEP 723 inline metadata" in result.out
+    assert "Successfully added PEP 723 inline metadata" in strip_ansi(result.out)
 
     metadata = read_inline(bakefile_path)
     assert metadata is not None
@@ -37,7 +38,7 @@ def test_add_inline_cli_nonexistent_bakefile(
     result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["add-inline"])
 
     assert result.exit_code == 1
-    result_err = result.err.replace("\n", "")
+    result_err = strip_ansi(result.err.replace("\n", ""))
 
     assert "ERROR" in result_err
     assert "Bakefile not found at" in result_err

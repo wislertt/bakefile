@@ -4,6 +4,7 @@ from pathlib import Path
 DEFAULT_CHDIR = Path(".")
 DEFAULT_FILE_NAME = "bakefile.py"
 DEFAULT_BAKEBOOK_NAME = "bakebook"
+DEFAULT_IS_CHAIN_COMMAND = False
 
 # CLI command names
 CMD_BAKE = "bake"

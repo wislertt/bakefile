@@ -46,9 +46,7 @@ version_option = Annotated[
         is_eager=True,
     ),
 ]
-is_chain_commands_option = Annotated[
-    bool | None, typer.Option("--chain/--no-chain", "-c", help="Chain commands")
-]
+is_chain_commands_option = Annotated[bool, typer.Option("--chain", "-c", help="Chain commands")]
 remaining_args_argument = Annotated[list[str] | None, typer.Argument()]
 
 verbosity_option = Annotated[

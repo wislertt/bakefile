@@ -243,31 +243,31 @@ Core bakebook functionality is in `src/bake/bakebook/`:
 
 Bakefile management functionality is in `src/bake/manage/`:
 
-| Module / Function         | Purpose                                                  |
-| ------------------------- | -------------------------------------------------------- |
-| `add_inline.py`           | PEP 723 inline metadata functions                        |
-| `add_inline_metadata()`   | Add PEP 723 metadata to existing bakefile using uv       |
-| `read_inline()`           | Parse PEP 723 `# /// script` blocks (reference impl)     |
-| `find_python.py`          | Python discovery for bakefiles                           |
-| `find_python()`           | Main entry point - two-level detection strategy          |
-| `find_python_path()`      | Get Path to Python interpreter for bakefile              |
-| `_has_inline_metadata()`  | Check for PEP 723 metadata, validate bakefile dependency |
-| `_find_bakefile_lock()`   | Find `<bakefile.py.lock>`                                |
-| `_find_project_lock()`    | Find `uv.lock` by searching up directory tree            |
-| `_find_bakefile_python()` | Find existing bakefile-level Python via `uv python find` |
-| `_find_project_python()`  | Find existing project-level Python via `uv python find`  |
-| `_create_bakefile_venv()` | Create bakefile-level venv using `uv sync --script`      |
-| `_create_project_venv()`  | Create project-level venv using `uv sync`                |
-| `lint.py`                 | Linting wrapper functions for ruff and ty                |
-| `run_ruff()`              | Shared function for ruff commands                        |
-| `run_ruff_format()`       | Run ruff format with `only_bakefile` support             |
-| `run_ruff_check()`        | Run ruff check with `only_bakefile` support              |
-| `run_ty_check()`          | Run ty check with `only_bakefile` support                |
-| `run_uv.py`               | UV dependency management command wrappers                |
-| `run_uv_add()`            | Run `uv add --script bakefile.py <args>`                 |
-| `run_uv_lock()`           | Run `uv lock --script bakefile.py <args>`                |
-| `run_uv_sync()`           | Run `uv sync --script bakefile.py <args>`                |
-| `run_uv_pip()`            | Run `uv pip <command> <args> --python <path>`            |
+| Module / Function          | Purpose                                                             |
+| -------------------------- | ------------------------------------------------------------------- |
+| `add_inline.py`            | PEP 723 inline metadata functions                                   |
+| `add_inline_metadata()`    | Add PEP 723 metadata to existing bakefile using uv                  |
+| `read_inline()`            | Parse PEP 723 `# /// script` blocks (reference impl)                |
+| `find_python.py`           | Python discovery for bakefiles                                      |
+| `find_python()`            | Main entry point - two-level detection strategy                     |
+| `find_python_path()`       | Get Path to Python interpreter for bakefile                         |
+| `is_standalone_bakefile()` | Check if bakefile has PEP 723 metadata (standalone vs project mode) |
+| `_find_bakefile_lock()`    | Find `<bakefile.py.lock>`                                           |
+| `_find_project_lock()`     | Find `uv.lock` by searching up directory tree                       |
+| `_find_bakefile_python()`  | Find existing bakefile-level Python via `uv python find`            |
+| `_find_project_python()`   | Find existing project-level Python via `uv python find`             |
+| `_create_bakefile_venv()`  | Create bakefile-level venv using `uv sync --script`                 |
+| `_create_project_venv()`   | Create project-level venv using `uv sync`                           |
+| `lint.py`                  | Linting wrapper functions for ruff and ty                           |
+| `run_ruff()`               | Shared function for ruff commands                                   |
+| `run_ruff_format()`        | Run ruff format with `only_bakefile` support                        |
+| `run_ruff_check()`         | Run ruff check with `only_bakefile` support                         |
+| `run_ty_check()`           | Run ty check with `only_bakefile` support                           |
+| `run_uv.py`                | UV dependency management command wrappers                           |
+| `run_uv_add()`             | Run `uv add --script bakefile.py <args>`                            |
+| `run_uv_lock()`            | Run `uv lock --script bakefile.py <args>`                           |
+| `run_uv_sync()`            | Run `uv sync --script bakefile.py <args>`                           |
+| `run_uv_pip()`             | Run `uv pip <command> <args> --python <path>`                       |
 
 ### UV Dependency Management Commands
 

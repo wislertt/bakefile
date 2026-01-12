@@ -3,7 +3,7 @@ from pathlib import Path
 
 import orjson
 
-from bake.ui.logger import setup_logging
+from bake.ui.logger import setup_logging, strip_ansi
 from bake.utils.constants import CMD_BAKEFILE
 from tests.conftest import RunCli
 
@@ -70,9 +70,10 @@ class TestBakefileAdd:
         )
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
-        assert "requires PEP 723 inline metadata" in result.err
-        assert "add-inline" in result.err
+        result_err = strip_ansi(result.err)
+        assert "ERROR" in result_err
+        assert "requires PEP 723 inline metadata" in result_err
+        assert "add-inline" in result_err
 
     def test_error_no_bakefile(self, tmp_path: Path, run_cli: RunCli) -> None:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["add", "requests"])
@@ -102,9 +103,10 @@ class TestBakefileLock:
         )
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
-        assert "requires PEP 723 inline metadata" in result.err
-        assert "add-inline" in result.err
+        result_err = strip_ansi(result.err)
+        assert "ERROR" in result_err
+        assert "requires PEP 723 inline metadata" in result_err
+        assert "add-inline" in result_err
 
     def test_error_no_bakefile(self, tmp_path: Path, run_cli: RunCli) -> None:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["lock"])
@@ -137,9 +139,10 @@ class TestBakefileSync:
         )
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
-        assert "requires PEP 723 inline metadata" in result.err
-        assert "add-inline" in result.err
+        result_err = strip_ansi(result.err)
+        assert "ERROR" in result_err
+        assert "requires PEP 723 inline metadata" in result_err
+        assert "add-inline" in result_err
 
     def test_error_no_bakefile(self, tmp_path: Path, run_cli: RunCli) -> None:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["sync"])

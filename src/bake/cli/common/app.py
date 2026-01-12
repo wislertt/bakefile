@@ -3,7 +3,7 @@ from collections.abc import Callable
 import typer
 from typer.core import MarkupMode
 
-from bake import Context
+from bake.cli.common.context import Context
 from bake.cli.common.params import (
     bakebook_name_option,
     chdir_option,
@@ -14,7 +14,12 @@ from bake.cli.common.params import (
     version_option,
 )
 from bake.ui import console
-from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_CHDIR, DEFAULT_FILE_NAME
+from bake.utils.constants import (
+    DEFAULT_BAKEBOOK_NAME,
+    DEFAULT_CHDIR,
+    DEFAULT_FILE_NAME,
+    DEFAULT_IS_CHAIN_COMMAND,
+)
 
 from .obj import BakefileObject
 
@@ -39,7 +44,7 @@ def bake_app_callback_with_obj(obj: BakefileObject) -> Callable:
         _file_name: file_name_option = DEFAULT_FILE_NAME,
         _bakebook_name: bakebook_name_option = DEFAULT_BAKEBOOK_NAME,
         _version: version_option = False,
-        _is_chain_commands: is_chain_commands_option = None,
+        _is_chain_commands: is_chain_commands_option = DEFAULT_IS_CHAIN_COMMAND,
         _verbosity: verbosity_option = 0,
         _dry_run: dry_run_option = False,
     ):

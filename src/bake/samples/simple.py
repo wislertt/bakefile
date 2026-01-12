@@ -1,4 +1,4 @@
-from bake import Bakebook
+from bake.bakebook.bakebook import Bakebook
 from bake.ui import console
 
 __bakebook__ = Bakebook()
