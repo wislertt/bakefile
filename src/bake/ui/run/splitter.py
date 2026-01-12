@@ -67,17 +67,32 @@ class OutputSplitter:
 
         With the PTY lock preventing concurrent thread interference, we still need
         to handle OS timing: proc.poll() may return exit code before the PTY buffer
-        is fully flushed. We use a brief sleep to let the OS flush, then read
-        directly (not via select) to capture whatever data is available.
+        is fully flushed. We use select to wait for data with increasing timeouts
+        to handle this race condition robustly.
         """
-        # Brief sleep to let OS flush PTY buffer after process exit
-        time.sleep(0.01)
+        # Give OS a moment to flush the PTY buffer
+        time.sleep(0.005)
+
+        # Drain with select-based timeouts to avoid blocking indefinitely
+        # Start with short timeout, increase if we're still getting data
+        timeout = 0.05  # Start at 50ms
+        consecutive_timeouts = 0
+        max_timeouts = 4  # Allow up to 4 consecutive timeouts before giving up
 
         try:
-            while True:
-                data = os.read(pty_fd, 4096)
-                if not self._handle_data(data, target, output_list):
-                    break
+            while consecutive_timeouts < max_timeouts:
+                ready, _, _ = select.select([pty_fd], [], [], timeout)
+                if ready:
+                    data = os.read(pty_fd, 4096)
+                    if not self._handle_data(data, target, output_list):
+                        break
+                    # Got data, reset timeout counter and reduce timeout
+                    consecutive_timeouts = 0
+                    timeout = 0.02  # Reduce to 20ms once we know data is flowing
+                else:
+                    consecutive_timeouts += 1
+                    # Increase timeout to give OS more time
+                    timeout = min(timeout * 1.5, 0.2)  # Max 200ms
         except OSError:
             pass
 
