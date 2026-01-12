@@ -77,36 +77,37 @@ class OutputSplitter:
         timeout = 0.05  # Start at 50ms
         consecutive_timeouts = 0
         max_timeouts = 4  # Allow up to 4 consecutive timeouts
-        consecutive_empty_reads = 0
-        max_empty_reads = 2  # Allow up to 2 consecutive direct reads that return empty
 
         try:
-            while consecutive_timeouts < max_timeouts and consecutive_empty_reads < max_empty_reads:
+            while consecutive_timeouts < max_timeouts:
                 ready, _, _ = select.select([pty_fd], [], [], timeout)
+
                 if ready:
+                    # select says data is ready, read it
                     data = os.read(pty_fd, 4096)
                     if not self._handle_data(data, target, output_list):
-                        break
+                        # EOF or error, done draining
+                        return
                     # Got data, reset counters and reduce timeout
                     consecutive_timeouts = 0
-                    consecutive_empty_reads = 0
-                    timeout = 0.02  # Reduce to 20ms once we know data is flowing
+                    timeout = 0.02
                 else:
+                    # select timed out
                     consecutive_timeouts += 1
-                    # Increase timeout to give OS more time
                     timeout = min(timeout * 1.5, 0.2)  # Max 200ms
 
-                    # After some timeouts, try a direct read in case select isn't
-                    # detecting readiness properly (e.g., mocked os.read in tests)
+                    # After 2 consecutive timeouts, try a direct read as fallback
+                    # This handles cases where select doesn't detect readiness properly
+                    # (e.g., mocked os.read in tests, or certain PTY states)
                     if consecutive_timeouts >= 2:
                         data = os.read(pty_fd, 4096)
                         if not self._handle_data(data, target, output_list):
-                            break
-                            # If we got data, the direct read worked
+                            # EOF or error
+                            return
+                        # If we got data, reset timeout counter and continue
                         if data:
                             consecutive_timeouts = 0
-                        else:
-                            consecutive_empty_reads += 1
+                        # else: empty read but not EOF, keep trying (incremented above)
         except OSError:
             pass
 
