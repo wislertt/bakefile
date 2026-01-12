@@ -27,7 +27,9 @@ def test_find_python_cli_success_with_inline_metadata(
     # The output should be a path to python
     uv_cache_dir_result = run_uv(["cache", "dir"])
     python_path = strip_ansi(python_path)
-    assert uv_cache_dir_result.stdout.strip() in python_path
+    uv_cache_dir = Path(uv_cache_dir_result.stdout.strip())
+    python_path_normalized = str(Path(python_path))
+    assert str(uv_cache_dir) in python_path_normalized
     assert "python" in python_path
 
 
