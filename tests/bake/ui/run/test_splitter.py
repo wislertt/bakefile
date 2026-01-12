@@ -140,6 +140,41 @@ class TestDrainPty:
             # Should handle gracefully
             assert output_list == []
 
+    def test_drain_pty_handles_select_timeout(self):
+        """Test drain PTY when select.select() times out (covers consecutive_timeouts += 1)."""
+        splitter = OutputSplitter(stream=False, capture=True)
+        output_list = []
+
+        # Mock select to timeout (return empty ready list) twice, then have data
+        # This tests the line: if select_works: consecutive_timeouts += 1
+        select_call_count = [0]
+
+        def mock_select(rlist, _wlist, _xlist, _timeout):
+            select_call_count[0] += 1
+            # First two calls: timeout (no data ready)
+            if select_call_count[0] <= 2:
+                return ([], [], [])  # Timeout - covers consecutive_timeouts += 1
+            # Third call: data ready
+            return (rlist, [], [])
+
+        # Mock os.read to return data then EOF
+        read_call_count = [0]
+
+        def mock_read(_fd, _size):
+            read_call_count[0] += 1
+            if read_call_count[0] == 1:
+                return b"data"  # First read gets data
+            return b""  # Subsequent reads get EOF
+
+        with (
+            patch("select.select", side_effect=mock_select),
+            patch("os.read", side_effect=mock_read),
+        ):
+            splitter._drain_pty(0, Mock(), output_list)
+
+        # Should have captured the data after select timeout retries
+        assert output_list == [b"data"]
+
 
 class TestReadPty:
     @pytest.mark.skipif(os.name != "posix", reason="PTY only on Unix")

@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -369,3 +370,80 @@ def test_run_string_command_with_explicit_shell_false() -> None:
         result = run("echo hello", shell=True)
         with pytest.raises(FileNotFoundError):
             run("echo hello", shell=False)
+
+
+# Tests for internal helper functions
+class TestParseShebang:
+    """Tests for _parse_shebang internal function."""
+
+    @pytest.mark.parametrize(
+        "script,expected,is_partial_match",
+        [
+            # Direct path cases (covers line 42 in run.py)
+            ("#!/usr/bin/python3\nprint('hello')", "/usr/bin/python3", False),
+            ("#!  /usr/bin/python3  \nprint('hello')", "/usr/bin/python3", False),
+            # /usr/bin/env case (covers line 38-39 in run.py) - just check not None
+            ("#!/usr/bin/env python3\nprint('hello')", None, True),
+            # No shebang cases (covers line 31-32 in run.py)
+            ("print('hello')", None, False),
+            ("", None, False),
+            ("   \n  \n", None, False),
+        ],
+    )
+    def test_parse_shebang(self, script: str, expected: str | None, is_partial_match: bool) -> None:
+        """Test parsing various shebang formats."""
+        from bake.ui.run.run import _parse_shebang
+
+        result = _parse_shebang(script)
+
+        if is_partial_match:
+            # For env wrapper case, just check it found something
+            assert result is not None
+        else:
+            assert result == expected
+
+
+class TestResolveInterpreter:
+    """Tests for _resolve_interpreter internal function."""
+
+    @pytest.mark.parametrize(
+        "interpreter,check_func",
+        [
+            # Absolute path that exists (covers line 49 in run.py)
+            pytest.param(
+                "/bin/sh" if sys.platform != "win32" else "C:\\Windows\\System32\\cmd.exe",
+                lambda x: x is not None,
+                marks=pytest.mark.skipif(
+                    sys.platform == "win32",
+                    reason="Unix-specific path",
+                )
+                if sys.platform == "win32"
+                else [],
+                id="absolute_path_exists",
+            ),
+            # Absolute path that doesn't exist (covers line 49 -> None)
+            pytest.param(
+                "/nonexistent/path/to/python",
+                lambda x: x is None,
+                id="absolute_path_not_exists",
+            ),
+            # Relative path - searches PATH (covers line 52 in run.py)
+            pytest.param(
+                "python3",
+                lambda x: x is None or os.path.isabs(x),  # Either not found or absolute
+                id="relative_path_in_path",
+            ),
+            # Not in PATH (covers line 52 -> None)
+            pytest.param(
+                "nonexistent_python_xyz",
+                lambda x: x is None,
+                id="not_in_path",
+            ),
+        ],
+    )
+    def test_resolve_interpreter(self, interpreter: str, check_func) -> None:
+        """Test resolving interpreter paths."""
+        from bake.ui.run.run import _resolve_interpreter
+
+        result = _resolve_interpreter(interpreter)
+        assert check_func(result)
