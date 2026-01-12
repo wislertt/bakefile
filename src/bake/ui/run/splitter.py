@@ -3,6 +3,7 @@ import select
 import subprocess
 import sys
 import threading
+import time
 
 # Module-level lock for PTY streaming operations to prevent race conditions
 # when multiple threads run commands concurrently with PTY-based output capture.
@@ -62,23 +63,21 @@ class OutputSplitter:
             return False
 
     def _drain_pty(self, pty_fd: int, target, output_list):
-        """Drain remaining data from PTY after process exits."""
-        # With the PTY lock in place, concurrent operations are serialized.
-        # Use select with small timeout to wait for any remaining data without
-        # blocking indefinitely.
-        try:
-            consecutive_empty_reads = 0
-            max_empty_reads = 3  # Tolerate a few empty reads before giving up
+        """Drain remaining data from PTY after process exits.
 
-            while consecutive_empty_reads < max_empty_reads:
-                ready, _, _ = select.select([pty_fd], [], [], 0.05)
-                if ready:
-                    data = os.read(pty_fd, 4096)
-                    if not self._handle_data(data, target, output_list):
-                        break
-                    consecutive_empty_reads = 0
-                else:
-                    consecutive_empty_reads += 1
+        With the PTY lock preventing concurrent thread interference, we still need
+        to handle OS timing: proc.poll() may return exit code before the PTY buffer
+        is fully flushed. We use a brief sleep to let the OS flush, then read
+        directly (not via select) to capture whatever data is available.
+        """
+        # Brief sleep to let OS flush PTY buffer after process exit
+        time.sleep(0.01)
+
+        try:
+            while True:
+                data = os.read(pty_fd, 4096)
+                if not self._handle_data(data, target, output_list):
+                    break
         except OSError:
             pass
 
