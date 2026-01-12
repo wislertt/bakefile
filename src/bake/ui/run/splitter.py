@@ -3,6 +3,7 @@ import select
 import subprocess
 import sys
 import threading
+import time
 
 
 class OutputSplitter:
@@ -58,6 +59,11 @@ class OutputSplitter:
 
     def _drain_pty(self, pty_fd: int, target, output_list):
         """Drain remaining data from PTY after process exits."""
+        # TODO: Fix for flaky test behavior on macOS - race condition where PTY data
+        # isn't ready immediately after proc.poll() returns exit code. The small delay
+        # gives the OS time to flush the PTY buffer before we attempt to read.
+        # See: https://github.com/anthropics/bakefile/issues/XX
+        time.sleep(0.01)  # 10ms delay for PTY buffer flush
         try:
             while True:
                 data = os.read(pty_fd, 4096)
