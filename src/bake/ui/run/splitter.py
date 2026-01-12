@@ -40,19 +40,26 @@ class OutputSplitter:
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
         """Read from PTY file descriptor in chunks and stream to output."""
-        with _pty_stream_lock:  # Lock for entire PTY read operation to prevent race conditions
+        try:
             while True:
-                # Wait for data to be available or process to exit
+                # Wait for data to be available (without lock - allows concurrent waiting)
                 ready, _, _ = select.select([pty_fd], [], [], 0.1)
 
-                if ready and not self._read_pty_data(pty_fd, target, output_list):
-                    break
+                if ready:
+                    # Lock only protects the actual read operation
+                    with _pty_stream_lock:
+                        if not self._read_pty_data(pty_fd, target, output_list):
+                            break
 
                 if proc.poll() is not None:
-                    self._drain_pty(pty_fd, target, output_list)
+                    # Process exited, drain remaining data with lock protection
+                    with _pty_stream_lock:
+                        self._drain_pty(pty_fd, target, output_list)
                     break
-
-            os.close(pty_fd)
+        finally:
+            # Close PTY fd with lock protection
+            with _pty_stream_lock:
+                os.close(pty_fd)
 
     def _read_pty_data(self, pty_fd: int, target, output_list) -> bool:
         """Read and handle available PTY data. Returns False on EOF/error."""
