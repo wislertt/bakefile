@@ -71,28 +71,58 @@ class OutputSplitter:
         and also try direct reads as a fallback in case select doesn't detect
         readiness (e.g., in tests with mocked os.read).
         """
+        # DEBUG: Track entry
+        import sys as _sys
+
+        print(
+            f"[_drain_pty] ENTRY: pty_fd={pty_fd}, target={target}, output_list={output_list}",
+            file=_sys.stderr,
+        )
+
         # Give OS a moment to flush the PTY buffer
         time.sleep(0.005)
 
         timeout = 0.05  # Start at 50ms
         consecutive_timeouts = 0
         max_timeouts = 4  # Allow up to 4 consecutive timeouts
+        iteration = 0
 
         try:
             while consecutive_timeouts < max_timeouts:
+                iteration += 1
+                print(
+                    f"[_drain_pty] Iteration {iteration}: consecutive_timeouts={consecutive_timeouts}, timeout={timeout}",
+                    file=_sys.stderr,
+                )
+
                 ready, _, _ = select.select([pty_fd], [], [], timeout)
+                print(f"[_drain_pty] select.select returned: ready={ready}", file=_sys.stderr)
 
                 if ready:
                     # select says data is ready, read it
+                    print(
+                        f"[_drain_pty] Data ready, calling os.read({pty_fd}, 4096)",
+                        file=_sys.stderr,
+                    )
                     data = os.read(pty_fd, 4096)
-                    if not self._handle_data(data, target, output_list):
+                    print(f"[_drain_pty] os.read returned: {data!r}", file=_sys.stderr)
+
+                    handled = self._handle_data(data, target, output_list)
+                    print(
+                        f"[_drain_pty] _handle_data returned: {handled}, output_list now: {output_list}",
+                        file=_sys.stderr,
+                    )
+
+                    if not handled:
                         # EOF or error, done draining
+                        print("[_drain_pty] EOF detected, returning", file=_sys.stderr)
                         return
                     # Got data, reset counters and reduce timeout
                     consecutive_timeouts = 0
                     timeout = 0.02
                 else:
                     # select timed out
+                    print("[_drain_pty] select timed out", file=_sys.stderr)
                     consecutive_timeouts += 1
                     timeout = min(timeout * 1.5, 0.2)  # Max 200ms
 
@@ -100,16 +130,38 @@ class OutputSplitter:
                     # This handles cases where select doesn't detect readiness properly
                     # (e.g., mocked os.read in tests, or certain PTY states)
                     if consecutive_timeouts >= 2:
+                        print("[_drain_pty] Trying direct read (fallback)", file=_sys.stderr)
                         data = os.read(pty_fd, 4096)
-                        if not self._handle_data(data, target, output_list):
+                        print(f"[_drain_pty] Direct os.read returned: {data!r}", file=_sys.stderr)
+
+                        handled = self._handle_data(data, target, output_list)
+                        print(
+                            f"[_drain_pty] _handle_data returned: {handled}, output_list now: {output_list}",
+                            file=_sys.stderr,
+                        )
+
+                        if not handled:
                             # EOF or error
+                            print("[_drain_pty] EOF from direct read, returning", file=_sys.stderr)
                             return
                         # If we got data, reset timeout counter and continue
                         if data:
+                            print(
+                                "[_drain_pty] Got data from direct read, resetting consecutive_timeouts",
+                                file=_sys.stderr,
+                            )
                             consecutive_timeouts = 0
+                        else:
+                            print("[_drain_pty] Direct read returned empty data", file=_sys.stderr)
                         # else: empty read but not EOF, keep trying (incremented above)
-        except OSError:
-            pass
+            print(
+                f"[_drain_pty] Loop ended: consecutive_timeouts={consecutive_timeouts} >= max_timeouts={max_timeouts}",
+                file=_sys.stderr,
+            )
+        except OSError as e:
+            print(f"[_drain_pty] OSError caught: {e}", file=_sys.stderr)
+
+        print(f"[_drain_pty] EXIT: output_list={output_list}", file=_sys.stderr)
 
     def attach(self, proc: subprocess.Popen):
         threads = []
