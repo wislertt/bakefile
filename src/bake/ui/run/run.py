@@ -96,7 +96,7 @@ def _run_with_temp_file(
                 )
         else:
             # Unix: Make file executable and run directly (kernel handles shebang)
-            os.chmod(path, 0o755)  # rwxr-xr-x
+            os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
             return run(
                 [path],
                 capture_output=capture_output,
