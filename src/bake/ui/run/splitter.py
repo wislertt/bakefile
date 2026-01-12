@@ -87,6 +87,7 @@ class OutputSplitter:
         consecutive_timeouts = 0
         max_timeouts = 4  # Allow up to 4 consecutive timeouts
         iteration = 0
+        select_works = True  # Track if select.select() works (fails on Windows with non-socket fds)
 
         try:
             while consecutive_timeouts < max_timeouts:
@@ -96,8 +97,18 @@ class OutputSplitter:
                     file=_sys.stderr,
                 )
 
-                ready, _, _ = select.select([pty_fd], [], [], timeout)
-                print(f"[_drain_pty] select.select returned: ready={ready}", file=_sys.stderr)
+                # Try to use select.select() if it worked before
+                if select_works:
+                    try:
+                        ready, _, _ = select.select([pty_fd], [], [], timeout)
+                        print(f"[_drain_pty] select.select returned: ready={ready}", file=_sys.stderr)
+                    except OSError as e:
+                        # On Windows, select.select() raises OSError for non-socket file descriptors
+                        print(f"[_drain_pty] select.select() failed with OSError: {e}, falling back to direct-only mode", file=_sys.stderr)
+                        select_works = False
+                        ready = False
+                else:
+                    ready = False
 
                 if ready:
                     # select says data is ready, read it
@@ -122,15 +133,19 @@ class OutputSplitter:
                     consecutive_timeouts = 0
                     timeout = 0.02
                 else:
-                    # select timed out
-                    print("[_drain_pty] select timed out", file=_sys.stderr)
-                    consecutive_timeouts += 1
+                    # select timed out or select doesn't work
+                    if select_works:
+                        print("[_drain_pty] select timed out", file=_sys.stderr)
+                        consecutive_timeouts += 1
+                    else:
+                        print("[_drain_pty] In direct-only mode (select doesn't work)", file=_sys.stderr)
+
                     timeout = min(timeout * 1.5, 0.2)  # Max 200ms
 
-                    # After 2 consecutive timeouts, try a direct read as fallback
+                    # After 2 consecutive timeouts (or immediately in direct-only mode), try direct read
                     # This handles cases where select doesn't detect readiness properly
-                    # (e.g., mocked os.read in tests, or certain PTY states)
-                    if consecutive_timeouts >= 2:
+                    # (e.g., mocked os.read in tests, or certain PTY states, or Windows with non-socket fds)
+                    if not select_works or consecutive_timeouts >= 2:
                         print("[_drain_pty] Trying direct read (fallback)", file=_sys.stderr)
                         data = os.read(pty_fd, 4096)
                         print(f"[_drain_pty] Direct os.read returned: {data!r}", file=_sys.stderr)
@@ -160,6 +175,7 @@ class OutputSplitter:
                 file=_sys.stderr,
             )
         except OSError as e:
+            # Catch any other OSErrors (e.g., from os.read)
             print(f"[_drain_pty] OSError caught: {e}", file=_sys.stderr)
             print("[_drain_pty] Traceback:", file=_sys.stderr)
             _tb.print_exc()
