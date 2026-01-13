@@ -411,17 +411,20 @@ def _process_stream_output(
 
 
 def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]:
-    if env is None:
-        env = os.environ.copy()
-    env.setdefault("FORCE_COLOR", "1")
-    env.setdefault("CLICOLOR_FORCE", "1")
+    # Always start with system environment to preserve critical variables like
+    # SYSTEMROOT on Windows (required for Python initialization - see Prefect #4923)
+    merged_env = os.environ.copy()
+    if env:
+        merged_env.update(env)
+    merged_env.setdefault("FORCE_COLOR", "1")
+    merged_env.setdefault("CLICOLOR_FORCE", "1")
     try:
         terminal_size = os.get_terminal_size()
-        env.setdefault("COLUMNS", str(terminal_size.columns))
-        env.setdefault("LINES", str(terminal_size.lines))
+        merged_env.setdefault("COLUMNS", str(terminal_size.columns))
+        merged_env.setdefault("LINES", str(terminal_size.lines))
     except OSError:
         pass
-    return env
+    return merged_env
 
 
 def _setup_pty_stream(
