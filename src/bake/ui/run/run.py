@@ -58,12 +58,33 @@ def _run_with_temp_file(
     check: bool,
     cwd: Path | str | None,
     stream: bool,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str = "utf-8",
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run multi-line script using temp file with shebang support.
 
     On Windows: Parse shebang and use interpreter explicitly, or use cmd.exe /c.
     On Unix: Make file executable and run directly (kernel handles shebang).
+
+    Parameters
+    ----------
+    keep_temp_file : bool, optional
+        If True, skip deletion of temp file for debugging. Default is False.
+    _encoding : str, optional
+        Encoding to use for subprocess output. Defaults to "utf-8" to ensure
+        cross-platform UTF-8 support for temp file scripts.
+
+    Notes
+    -----
+    Cross-platform UTF-8 support: On Windows, console encoding defaults to cp1252.
+    For scripts that output UTF-8 characters (non-ASCII, emoji, etc.), users should
+    pass appropriate environment variables:
+
+    - Python: env={"PYTHONIOENCODING": "utf-8"}
+    - Node.js: env={"NODE_OPTIONS": "--input-type=module"} or similar
+    - Other interpreters: consult their documentation for UTF-8 environment variables
     """
     # Create temp file with appropriate extension
     suffix = ".bat" if sys.platform == "win32" else ".sh"
@@ -77,49 +98,40 @@ def _run_with_temp_file(
         # Check for shebang
         interpreter = _parse_shebang(cmd)
 
+        # Determine command based on platform
         if sys.platform == "win32":
             # Windows: Parse shebang and use interpreter explicitly
-            if interpreter:
-                return run(
-                    [interpreter, path],
-                    capture_output=capture_output,
-                    check=check,
-                    cwd=cwd,
-                    stream=stream,
-                    echo=False,
-                    **kwargs,
-                )
-            else:
-                return run(
-                    ["cmd.exe", "/c", path],
-                    capture_output=capture_output,
-                    check=check,
-                    cwd=cwd,
-                    stream=stream,
-                    echo=False,
-                    **kwargs,
-                )
+            cmd_to_run: list[str] = [interpreter, path] if interpreter else ["cmd.exe", "/c", path]
         else:
             # Unix: Make file executable and run directly (kernel handles shebang)
             os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
-            return run(
-                [path],
-                capture_output=capture_output,
-                check=check,
-                cwd=cwd,
-                stream=stream,
-                echo=False,
-                **kwargs,
-            )
+            cmd_to_run: list[str] = [path]
+
+        return run(
+            cmd=cmd_to_run,
+            capture_output=capture_output,
+            check=check,
+            cwd=cwd,
+            stream=stream,
+            echo=False,
+            env=env,
+            _encoding=_encoding,
+            **kwargs,
+        )
     finally:
-        # Clean up temp file
-        if os.path.exists(path):
+        # Clean up temp file unless keep_temp_file is True
+        if keep_temp_file:
+            logger.debug(f"Temp file kept for debugging: {path}")
+        elif os.path.exists(path):
             os.unlink(path)
 
 
+CmdType = str | list[str] | tuple[str, ...]
+
+
 @overload
 def run(
-    cmd: str,
+    cmd: CmdType,
     *,
     capture_output: Literal[True] = True,
     check: bool = True,
@@ -128,13 +140,16 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
 
 
 @overload
 def run(
-    cmd: str,
+    cmd: CmdType,
     *,
     capture_output: Literal[False],
     check: bool = True,
@@ -143,42 +158,15 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
-    **kwargs,
-) -> subprocess.CompletedProcess[None]: ...
-
-
-@overload
-def run(
-    cmd: list[str] | tuple[str, ...],
-    *,
-    capture_output: Literal[True] = True,
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    dry_run: bool = False,
-    **kwargs,
-) -> subprocess.CompletedProcess[str]: ...
-
-
-@overload
-def run(
-    cmd: list[str] | tuple[str, ...],
-    *,
-    capture_output: Literal[False],
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    dry_run: bool = False,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
 
 
 def run(
-    cmd: str | list[str] | tuple[str, ...],
+    cmd: CmdType,
     *,
     capture_output: bool = True,
     check: bool = True,
@@ -187,6 +175,9 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run a command with optional streaming and output capture.
@@ -220,6 +211,14 @@ def run(
         Display command without executing (dry-run mode).
         Default is False. Does NOT auto-echo; combine with echo=True
         to preview commands.
+    keep_temp_file : bool, optional
+        Keep temporary script files for debugging instead of deleting them.
+        Only applies when temp files are created (multi-line scripts on Windows
+        or scripts with shebang). Default is False. Logs temp file path when True.
+    env : dict[str, str] | None, optional
+        Environment variables for the subprocess. Merged with system environment
+        to preserve critical variables like SYSTEMROOT on Windows. User-provided
+        variables override defaults. Default is None (use system environment).
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -278,6 +277,8 @@ def run(
             check=check,
             cwd=cwd,
             stream=stream,
+            keep_temp_file=keep_temp_file,
+            env=env,
             **kwargs,
         )
 
@@ -290,6 +291,8 @@ def run(
             shell=shell,
             cwd=cwd,
             capture_output=capture_output,
+            env=env,
+            _encoding=_encoding,
             **kwargs,
         )
     else:
@@ -298,6 +301,8 @@ def run(
             shell=shell,
             cwd=cwd,
             capture_output=capture_output,
+            env=env,
+            _encoding=_encoding,
             **kwargs,
         )
 
@@ -353,8 +358,9 @@ def _process_stream_output(
     stderr: str | None
 
     if capture_output:
-        stdout = splitter.stdout.decode("utf-8", errors="replace")
-        stderr = splitter.stderr.decode("utf-8", errors="replace")
+        encoding = splitter._encoding or "utf-8"
+        stdout = splitter.stdout.decode(encoding, errors="replace")
+        stderr = splitter.stderr.decode(encoding, errors="replace")
         # Normalize PTY line endings (\r\n -> \n)
         stdout = stdout.replace("\r\n", "\n")
         stderr = stderr.replace("\r\n", "\n")
@@ -368,17 +374,20 @@ def _process_stream_output(
 
 
 def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]:
-    if env is None:
-        env = os.environ.copy()
-    env.setdefault("FORCE_COLOR", "1")
-    env.setdefault("CLICOLOR_FORCE", "1")
+    # Always start with system environment to preserve critical variables like
+    # SYSTEMROOT on Windows (required for Python initialization - see Prefect #4923)
+    merged_env = os.environ.copy()
+    if env:
+        merged_env.update(env)
+    merged_env.setdefault("FORCE_COLOR", "1")
+    merged_env.setdefault("CLICOLOR_FORCE", "1")
     try:
         terminal_size = os.get_terminal_size()
-        env.setdefault("COLUMNS", str(terminal_size.columns))
-        env.setdefault("LINES", str(terminal_size.lines))
+        merged_env.setdefault("COLUMNS", str(terminal_size.columns))
+        merged_env.setdefault("LINES", str(terminal_size.lines))
     except OSError:
         pass
-    return env
+    return merged_env
 
 
 def _setup_pty_stream(
@@ -386,13 +395,15 @@ def _setup_pty_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
         stdout_fd, slave_fd = pty.openpty()
-        env = _prepare_subprocess_env()
+        env = _prepare_subprocess_env(env)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
@@ -404,7 +415,9 @@ def _setup_pty_stream(
         )
         os.close(slave_fd)
 
-    splitter = OutputSplitter(stream=True, capture=capture_output, pty_fd=stdout_fd)
+    splitter = OutputSplitter(
+        stream=True, capture=capture_output, pty_fd=stdout_fd, encoding=_encoding
+    )
     return proc, splitter
 
 
@@ -413,12 +426,14 @@ def _setup_pipe_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter, list]:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
-        env = _prepare_subprocess_env(kwargs.pop("env", None))
+        env = _prepare_subprocess_env(env)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
@@ -430,7 +445,7 @@ def _setup_pipe_stream(
         )
         # Attach threads BEFORE releasing lock to ensure reader is ready
         # when fast-exiting processes complete
-        splitter = OutputSplitter(stream=True, capture=capture_output)
+        splitter = OutputSplitter(stream=True, capture=capture_output, encoding=_encoding)
         threads = splitter.attach(proc)
 
     return proc, splitter, threads
@@ -441,15 +456,33 @@ def _run_with_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     use_pty = sys.platform != "win32"
 
     if use_pty:
-        proc, splitter = _setup_pty_stream(cmd, shell, cwd, capture_output, **kwargs)
+        proc, splitter = _setup_pty_stream(
+            cmd=cmd,
+            shell=shell,
+            cwd=cwd,
+            capture_output=capture_output,
+            env=env,
+            _encoding=_encoding,
+            **kwargs,
+        )
         threads = splitter.attach(proc)
     else:
-        proc, splitter, threads = _setup_pipe_stream(cmd, shell, cwd, capture_output, **kwargs)
+        proc, splitter, threads = _setup_pipe_stream(
+            cmd=cmd,
+            shell=shell,
+            cwd=cwd,
+            capture_output=capture_output,
+            env=env,
+            _encoding=_encoding,
+            **kwargs,
+        )
 
     proc.wait()
     splitter.finalize(threads)
@@ -462,17 +495,37 @@ def _run_without_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
-    return subprocess.run(
-        cmd,
-        cwd=cwd,
-        capture_output=capture_output,
-        text=True,
-        check=False,
-        shell=shell,
-        **kwargs,
-    )
+    # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
+    env = _prepare_subprocess_env(env)
+
+    # Use specified encoding with errors="replace", or fall back to text=True (platform default)
+    if _encoding:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=capture_output,
+            check=False,
+            shell=shell,
+            env=env,
+            encoding=_encoding,
+            errors="replace",
+            **kwargs,
+        )
+    else:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=capture_output,
+            text=True,
+            check=False,
+            shell=shell,
+            env=env,
+            **kwargs,
+        )
 
 
 def _log_completion(cmd_str: str, result: subprocess.CompletedProcess, start: float) -> None:

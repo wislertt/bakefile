@@ -1,3 +1,5 @@
+from textwrap import dedent
+
 import pytest
 
 from bake.ui.run import run_script
@@ -52,10 +54,10 @@ def test_run_script_capture_false_returns_none() -> None:
 
 
 def test_run_script_multi_line_script() -> None:
-    script = """
-echo hello
-echo world
-"""
+    script = dedent("""
+        echo hello
+        echo world
+    """)
     result = run_script("Multi-line", script)
 
     assert result.returncode == 0
@@ -66,11 +68,12 @@ echo world
 
 def test_run_script_with_python_shebang() -> None:
     """Test that shebang scripts work cross-platform."""
-    script = """#!/usr/bin/env python3
-import sys
-print("hello from python")
-sys.exit(0)
-"""
+    script = dedent("""
+        #!/usr/bin/env python3
+        import sys
+        print("hello from python")
+        sys.exit(0)
+    """)
     result = run_script("Python Shebang", script)
 
     assert result.returncode == 0
@@ -111,17 +114,18 @@ def test_run_script_concurrent_execution() -> None:
 def test_run_script_temp_file_cleanup() -> None:
     """Test that temp files are cleaned up after execution."""
     # Run a multi-line script that creates a temp file (on Windows)
-    script = """
-echo hello
-echo world
-"""
+    script = dedent("""
+        echo hello
+        echo world
+    """)
     result = run_script("Temp Cleanup Test", script)
     assert result.returncode == 0
 
     # Run a shebang script that also creates a temp file
-    shebang_script = """#!/usr/bin/env python3
-print("python script")
-"""
+    shebang_script = dedent("""
+        #!/usr/bin/env python3
+        print("python script")
+    """)
     result2 = run_script("Shebang Temp Cleanup Test", shebang_script)
     assert result2.returncode == 0
 
@@ -130,3 +134,119 @@ print("python script")
     # The test verifies that temp files are cleaned up properly
     # (We can't easily count exact temp files due to OS variations,
     # but the fact that tests complete without errors is a good indicator)
+
+
+def test_run_script_utf8_characters() -> None:
+    """Test that scripts with non-ASCII UTF-8 characters work correctly."""
+    # On Windows, Python's stdout uses cp1252 by default. To support UTF-8
+    # characters (Chinese, emoji), users must pass PYTHONIOENCODING=utf-8.
+    # This test demonstrates the expected usage pattern.
+    script = dedent("""
+        #!/usr/bin/env python3
+        import sys
+
+        # Latin extended
+        print("café")
+        print("niño")
+
+        # Chinese characters
+        print("你好世界")
+
+        # Emoji
+        print("Hello 🌍")
+
+        sys.exit(0)
+    """)
+    result = run_script("UTF-8 Test", script, env={"PYTHONIOENCODING": "utf-8"})
+
+    assert result.returncode == 0
+    assert result.stdout is not None
+    assert "café" in result.stdout
+    assert "niño" in result.stdout
+    assert "你好世界" in result.stdout
+    assert "Hello 🌍" in result.stdout
+
+
+def test_run_script_syntax_error_propagates() -> None:
+    """Test that script syntax errors propagate correctly and temp files are cleaned up."""
+    script = dedent("""
+        #!/usr/bin/env python3
+        # This script has a syntax error
+        print("hello"
+        # Missing closing parenthesis
+    """)
+    result = run_script("Syntax Error Test", script, check=False)
+
+    assert result.returncode != 0
+    assert result.stderr is not None
+    assert "SyntaxError" in result.stderr or "error" in result.stderr.lower()
+
+
+def test_run_script_runtime_error_propagates() -> None:
+    """Test that script runtime errors propagate correctly and temp files are cleaned up."""
+    script = dedent("""
+        #!/usr/bin/env python3
+        # This script has a runtime error
+        raise ValueError("This is a test error")
+    """)
+    result = run_script("Runtime Error Test", script, check=False)
+
+    assert result.returncode != 0
+    assert result.stderr is not None
+    assert "ValueError" in result.stderr or "This is a test error" in result.stderr
+
+
+def test_run_script_nonzero_exit_propagates() -> None:
+    """Test that non-zero exit codes propagate correctly and temp files are cleaned up."""
+    script = dedent("""
+        #!/usr/bin/env python3
+        import sys
+        print("about to exit with error")
+        sys.exit(42)
+    """)
+    result = run_script("Non-Zero Exit Test", script, check=False)
+
+    assert result.returncode == 42
+    assert result.stdout is not None
+    assert "about to exit with error" in result.stdout
+
+
+def test_run_script_keep_temp_file() -> None:
+    """Test that keep_temp_file parameter works correctly."""
+    script = dedent("""
+        #!/usr/bin/env python3
+        print("temp file test")
+    """)
+
+    # Run with keep_temp_file=True
+    result = run_script("Keep Temp File Test", script, keep_temp_file=True)
+
+    assert result.returncode == 0
+    assert result.stdout is not None
+    assert "temp file test" in result.stdout
+
+    # Run again to verify temp files can be created multiple times
+    result2 = run_script("Keep Temp File Test 2", script, keep_temp_file=True, echo=False)
+
+    assert result2.returncode == 0
+    assert result2.stdout is not None
+    assert "temp file test" in result2.stdout
+
+    # Verify cleanup still happens when keep_temp_file=False (default behavior)
+    result3 = run_script("Clean Up Test", script, keep_temp_file=False)
+    assert result3.returncode == 0
+
+
+def test_run_script_keep_temp_file_with_error() -> None:
+    """Test that keep_temp_file keeps the file even when script fails."""
+    script = dedent("""
+        #!/usr/bin/env python3
+        raise ValueError("test error")
+    """)
+
+    # Run with keep_temp_file=True and check=False
+    result = run_script("Keep Temp File On Error", script, keep_temp_file=True, check=False)
+
+    assert result.returncode != 0
+    assert result.stderr is not None
+    assert "ValueError" in result.stderr or "test error" in result.stderr
