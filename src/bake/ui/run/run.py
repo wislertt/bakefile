@@ -98,46 +98,26 @@ def _run_with_temp_file(
         # Check for shebang
         interpreter = _parse_shebang(cmd)
 
+        # Determine command based on platform
         if sys.platform == "win32":
             # Windows: Parse shebang and use interpreter explicitly
-            if interpreter:
-                return run(
-                    [interpreter, path],
-                    capture_output=capture_output,
-                    check=check,
-                    cwd=cwd,
-                    stream=stream,
-                    echo=False,
-                    env=env,
-                    _encoding=_encoding,
-                    **kwargs,
-                )
-            else:
-                return run(
-                    ["cmd.exe", "/c", path],
-                    capture_output=capture_output,
-                    check=check,
-                    cwd=cwd,
-                    stream=stream,
-                    echo=False,
-                    env=env,
-                    _encoding=_encoding,
-                    **kwargs,
-                )
+            cmd_to_run: list[str] = [interpreter, path] if interpreter else ["cmd.exe", "/c", path]
         else:
             # Unix: Make file executable and run directly (kernel handles shebang)
             os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
-            return run(
-                [path],
-                capture_output=capture_output,
-                check=check,
-                cwd=cwd,
-                stream=stream,
-                echo=False,
-                env=env,
-                _encoding=_encoding,
-                **kwargs,
-            )
+            cmd_to_run: list[str] = [path]
+
+        return run(
+            cmd=cmd_to_run,
+            capture_output=capture_output,
+            check=check,
+            cwd=cwd,
+            stream=stream,
+            echo=False,
+            env=env,
+            _encoding=_encoding,
+            **kwargs,
+        )
     finally:
         # Clean up temp file unless keep_temp_file is True
         if keep_temp_file:
