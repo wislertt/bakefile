@@ -16,8 +16,12 @@ def run_uv(
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = False,
+    shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -32,6 +36,9 @@ def run_uv(
     stream: bool = False,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -45,6 +52,9 @@ def run_uv(
     stream: bool = False,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     uv_bin = find_uv_bin()
@@ -56,14 +66,18 @@ def run_uv(
     if echo:
         console.cmd(display_cmd)
 
-    # Call run with full uv binary path, echo=False (already displayed), pass through dry_run
+    # Call run with full uv binary path, echo=False (already displayed), pass through options
     return run(
         [uv_bin, *cmd],
         capture_output=capture_output,
         check=check,
         cwd=cwd,
         stream=stream,
+        shell=False,
         echo=False,
         dry_run=dry_run,
+        keep_temp_file=keep_temp_file,
+        env=env,
+        _encoding=_encoding,
         **kwargs,
     )
