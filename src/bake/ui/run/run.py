@@ -146,9 +146,12 @@ def _run_with_temp_file(
             os.unlink(path)
 
 
+CmdType = str | list[str] | tuple[str, ...]
+
+
 @overload
 def run(
-    cmd: str,
+    cmd: CmdType,
     *,
     capture_output: Literal[True] = True,
     check: bool = True,
@@ -166,43 +169,7 @@ def run(
 
 @overload
 def run(
-    cmd: str,
-    *,
-    capture_output: Literal[False],
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    _encoding: str | None = None,
-    **kwargs,
-) -> subprocess.CompletedProcess[None]: ...
-
-
-@overload
-def run(
-    cmd: list[str] | tuple[str, ...],
-    *,
-    capture_output: Literal[True] = True,
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    _encoding: str | None = None,
-    **kwargs,
-) -> subprocess.CompletedProcess[str]: ...
-
-
-@overload
-def run(
-    cmd: list[str] | tuple[str, ...],
+    cmd: CmdType,
     *,
     capture_output: Literal[False],
     check: bool = True,
@@ -219,7 +186,7 @@ def run(
 
 
 def run(
-    cmd: str | list[str] | tuple[str, ...],
+    cmd: CmdType,
     *,
     capture_output: bool = True,
     check: bool = True,
