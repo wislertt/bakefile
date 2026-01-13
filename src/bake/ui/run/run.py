@@ -59,6 +59,7 @@ def _run_with_temp_file(
     cwd: Path | str | None,
     stream: bool,
     keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
     _encoding: str = "utf-8",
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -107,6 +108,7 @@ def _run_with_temp_file(
                     cwd=cwd,
                     stream=stream,
                     echo=False,
+                    env=env,
                     _encoding=_encoding,
                     **kwargs,
                 )
@@ -118,6 +120,7 @@ def _run_with_temp_file(
                     cwd=cwd,
                     stream=stream,
                     echo=False,
+                    env=env,
                     _encoding=_encoding,
                     **kwargs,
                 )
@@ -131,6 +134,7 @@ def _run_with_temp_file(
                 cwd=cwd,
                 stream=stream,
                 echo=False,
+                env=env,
                 _encoding=_encoding,
                 **kwargs,
             )
@@ -154,6 +158,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
@@ -171,6 +176,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
@@ -188,6 +194,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
@@ -205,6 +212,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
@@ -221,6 +229,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -259,6 +268,10 @@ def run(
         Keep temporary script files for debugging instead of deleting them.
         Only applies when temp files are created (multi-line scripts on Windows
         or scripts with shebang). Default is False. Logs temp file path when True.
+    env : dict[str, str] | None, optional
+        Environment variables for the subprocess. Merged with system environment
+        to preserve critical variables like SYSTEMROOT on Windows. User-provided
+        variables override defaults. Default is None (use system environment).
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -318,6 +331,7 @@ def run(
             cwd=cwd,
             stream=stream,
             keep_temp_file=keep_temp_file,
+            env=env,
             **kwargs,
         )
 
@@ -330,6 +344,7 @@ def run(
             shell=shell,
             cwd=cwd,
             capture_output=capture_output,
+            env=env,
             _encoding=_encoding,
             **kwargs,
         )
@@ -339,6 +354,7 @@ def run(
             shell=shell,
             cwd=cwd,
             capture_output=capture_output,
+            env=env,
             _encoding=_encoding,
             **kwargs,
         )
@@ -432,6 +448,7 @@ def _setup_pty_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
@@ -439,8 +456,7 @@ def _setup_pty_stream(
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
         stdout_fd, slave_fd = pty.openpty()
-        user_env = kwargs.pop("env", None)
-        env = _prepare_subprocess_env(user_env)
+        env = _prepare_subprocess_env(env)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
@@ -463,13 +479,14 @@ def _setup_pipe_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter, list]:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
-        env = _prepare_subprocess_env(kwargs.pop("env", None))
+        env = _prepare_subprocess_env(env)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
@@ -492,6 +509,7 @@ def _run_with_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -499,12 +517,24 @@ def _run_with_stream(
 
     if use_pty:
         proc, splitter = _setup_pty_stream(
-            cmd, shell, cwd, capture_output, _encoding=_encoding, **kwargs
+            cmd=cmd,
+            shell=shell,
+            cwd=cwd,
+            capture_output=capture_output,
+            env=env,
+            _encoding=_encoding,
+            **kwargs,
         )
         threads = splitter.attach(proc)
     else:
         proc, splitter, threads = _setup_pipe_stream(
-            cmd, shell, cwd, capture_output, _encoding=_encoding, **kwargs
+            cmd=cmd,
+            shell=shell,
+            cwd=cwd,
+            capture_output=capture_output,
+            env=env,
+            _encoding=_encoding,
+            **kwargs,
         )
 
     proc.wait()
@@ -518,9 +548,13 @@ def _run_without_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+    # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
+    env = _prepare_subprocess_env(env)
+
     # Use specified encoding with errors="replace", or fall back to text=True (platform default)
     if _encoding:
         return subprocess.run(
@@ -529,6 +563,7 @@ def _run_without_stream(
             capture_output=capture_output,
             check=False,
             shell=shell,
+            env=env,
             encoding=_encoding,
             errors="replace",
             **kwargs,
@@ -541,6 +576,7 @@ def _run_without_stream(
             text=True,
             check=False,
             shell=shell,
+            env=env,
             **kwargs,
         )
 
