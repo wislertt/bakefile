@@ -18,6 +18,7 @@ def run_script(
     stream: bool = True,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     script = script.strip()
@@ -42,5 +43,6 @@ def run_script(
         stream=stream,
         echo=False,
         shell=True,
+        keep_temp_file=keep_temp_file,
         **kwargs,
     )

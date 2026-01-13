@@ -58,12 +58,18 @@ def _run_with_temp_file(
     check: bool,
     cwd: Path | str | None,
     stream: bool,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run multi-line script using temp file with shebang support.
 
     On Windows: Parse shebang and use interpreter explicitly, or use cmd.exe /c.
     On Unix: Make file executable and run directly (kernel handles shebang).
+
+    Parameters
+    ----------
+    keep_temp_file : bool, optional
+        If True, skip deletion of temp file for debugging. Default is False.
     """
     # Create temp file with appropriate extension
     suffix = ".bat" if sys.platform == "win32" else ".sh"
@@ -112,8 +118,10 @@ def _run_with_temp_file(
                 **kwargs,
             )
     finally:
-        # Clean up temp file
-        if os.path.exists(path):
+        # Clean up temp file unless keep_temp_file is True
+        if keep_temp_file:
+            logger.debug(f"Temp file kept for debugging: {path}")
+        elif os.path.exists(path):
             os.unlink(path)
 
 
@@ -128,6 +136,7 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -143,6 +152,7 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -158,6 +168,7 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -173,6 +184,7 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -187,6 +199,7 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     dry_run: bool = False,
+    keep_temp_file: bool = False,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run a command with optional streaming and output capture.
@@ -220,6 +233,10 @@ def run(
         Display command without executing (dry-run mode).
         Default is False. Does NOT auto-echo; combine with echo=True
         to preview commands.
+    keep_temp_file : bool, optional
+        Keep temporary script files for debugging instead of deleting them.
+        Only applies when temp files are created (multi-line scripts on Windows
+        or scripts with shebang). Default is False. Logs temp file path when True.
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -278,6 +295,7 @@ def run(
             check=check,
             cwd=cwd,
             stream=stream,
+            keep_temp_file=keep_temp_file,
             **kwargs,
         )
 
