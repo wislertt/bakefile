@@ -74,6 +74,16 @@ def _run_with_temp_file(
     _encoding : str, optional
         Encoding to use for subprocess output. Defaults to "utf-8" to ensure
         cross-platform UTF-8 support for temp file scripts.
+
+    Notes
+    -----
+    Cross-platform UTF-8 support: On Windows, console encoding defaults to cp1252.
+    For scripts that output UTF-8 characters (non-ASCII, emoji, etc.), users should
+    pass appropriate environment variables:
+
+    - Python: env={"PYTHONIOENCODING": "utf-8"}
+    - Node.js: env={"NODE_OPTIONS": "--input-type=module"} or similar
+    - Other interpreters: consult their documentation for UTF-8 environment variables
     """
     # Create temp file with appropriate extension
     suffix = ".bat" if sys.platform == "win32" else ".sh"
@@ -426,7 +436,8 @@ def _setup_pty_stream(
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
         stdout_fd, slave_fd = pty.openpty()
-        env = _prepare_subprocess_env()
+        user_env = kwargs.pop("env", None)
+        env = _prepare_subprocess_env(user_env)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,

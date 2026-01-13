@@ -138,8 +138,9 @@ def test_run_script_temp_file_cleanup() -> None:
 
 def test_run_script_utf8_characters() -> None:
     """Test that scripts with non-ASCII UTF-8 characters work correctly."""
-    # Temp files use UTF-8 encoding, so Chinese characters and emoji should work
-    # on all platforms now (previously failed on Windows with cp1252)
+    # On Windows, Python's stdout uses cp1252 by default. To support UTF-8
+    # characters (Chinese, emoji), users must pass PYTHONIOENCODING=utf-8.
+    # This test demonstrates the expected usage pattern.
     script = dedent("""
         #!/usr/bin/env python3
         import sys
@@ -156,7 +157,7 @@ def test_run_script_utf8_characters() -> None:
 
         sys.exit(0)
     """)
-    result = run_script("UTF-8 Test", script)
+    result = run_script("UTF-8 Test", script, env={"PYTHONIOENCODING": "utf-8"})
 
     assert result.returncode == 0
     assert result.stdout is not None
