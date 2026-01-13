@@ -138,6 +138,8 @@ def test_run_script_temp_file_cleanup() -> None:
 
 def test_run_script_utf8_characters() -> None:
     """Test that scripts with non-ASCII UTF-8 characters work correctly."""
+    # Temp files use UTF-8 encoding, so Chinese characters and emoji should work
+    # on all platforms now (previously failed on Windows with cp1252)
     script = dedent("""
         #!/usr/bin/env python3
         import sys

@@ -10,10 +10,17 @@ import time
 
 
 class OutputSplitter:
-    def __init__(self, stream: bool = True, capture: bool = True, pty_fd: int | None = None):
+    def __init__(
+        self,
+        stream: bool = True,
+        capture: bool = True,
+        pty_fd: int | None = None,
+        encoding: str | None = None,
+    ):
         self._stream = stream
         self._capture = capture
         self._pty_fd = pty_fd
+        self._encoding = encoding
         self._stdout_data = b""
         self._stderr_data = b""
 

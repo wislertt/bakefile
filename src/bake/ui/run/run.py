@@ -59,6 +59,7 @@ def _run_with_temp_file(
     cwd: Path | str | None,
     stream: bool,
     keep_temp_file: bool = False,
+    _encoding: str = "utf-8",
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run multi-line script using temp file with shebang support.
@@ -70,6 +71,9 @@ def _run_with_temp_file(
     ----------
     keep_temp_file : bool, optional
         If True, skip deletion of temp file for debugging. Default is False.
+    _encoding : str, optional
+        Encoding to use for subprocess output. Defaults to "utf-8" to ensure
+        cross-platform UTF-8 support for temp file scripts.
     """
     # Create temp file with appropriate extension
     suffix = ".bat" if sys.platform == "win32" else ".sh"
@@ -93,6 +97,7 @@ def _run_with_temp_file(
                     cwd=cwd,
                     stream=stream,
                     echo=False,
+                    _encoding=_encoding,
                     **kwargs,
                 )
             else:
@@ -103,6 +108,7 @@ def _run_with_temp_file(
                     cwd=cwd,
                     stream=stream,
                     echo=False,
+                    _encoding=_encoding,
                     **kwargs,
                 )
         else:
@@ -115,6 +121,7 @@ def _run_with_temp_file(
                 cwd=cwd,
                 stream=stream,
                 echo=False,
+                _encoding=_encoding,
                 **kwargs,
             )
     finally:
@@ -137,6 +144,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -153,6 +161,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -169,6 +178,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -185,6 +195,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -200,6 +211,7 @@ def run(
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run a command with optional streaming and output capture.
@@ -308,6 +320,7 @@ def run(
             shell=shell,
             cwd=cwd,
             capture_output=capture_output,
+            _encoding=_encoding,
             **kwargs,
         )
     else:
@@ -316,6 +329,7 @@ def run(
             shell=shell,
             cwd=cwd,
             capture_output=capture_output,
+            _encoding=_encoding,
             **kwargs,
         )
 
@@ -371,8 +385,9 @@ def _process_stream_output(
     stderr: str | None
 
     if capture_output:
-        stdout = splitter.stdout.decode("utf-8", errors="replace")
-        stderr = splitter.stderr.decode("utf-8", errors="replace")
+        encoding = splitter._encoding or "utf-8"
+        stdout = splitter.stdout.decode(encoding, errors="replace")
+        stderr = splitter.stderr.decode(encoding, errors="replace")
         # Normalize PTY line endings (\r\n -> \n)
         stdout = stdout.replace("\r\n", "\n")
         stderr = stderr.replace("\r\n", "\n")
@@ -404,6 +419,7 @@ def _setup_pty_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    _encoding: str | None = None,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter]:
     # subprocess.Popen is not thread-safe, protect with lock
@@ -422,7 +438,9 @@ def _setup_pty_stream(
         )
         os.close(slave_fd)
 
-    splitter = OutputSplitter(stream=True, capture=capture_output, pty_fd=stdout_fd)
+    splitter = OutputSplitter(
+        stream=True, capture=capture_output, pty_fd=stdout_fd, encoding=_encoding
+    )
     return proc, splitter
 
 
@@ -431,6 +449,7 @@ def _setup_pipe_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    _encoding: str | None = None,
     **kwargs,
 ) -> tuple[subprocess.Popen, OutputSplitter, list]:
     # subprocess.Popen is not thread-safe, protect with lock
@@ -448,7 +467,7 @@ def _setup_pipe_stream(
         )
         # Attach threads BEFORE releasing lock to ensure reader is ready
         # when fast-exiting processes complete
-        splitter = OutputSplitter(stream=True, capture=capture_output)
+        splitter = OutputSplitter(stream=True, capture=capture_output, encoding=_encoding)
         threads = splitter.attach(proc)
 
     return proc, splitter, threads
@@ -459,15 +478,20 @@ def _run_with_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     use_pty = sys.platform != "win32"
 
     if use_pty:
-        proc, splitter = _setup_pty_stream(cmd, shell, cwd, capture_output, **kwargs)
+        proc, splitter = _setup_pty_stream(
+            cmd, shell, cwd, capture_output, _encoding=_encoding, **kwargs
+        )
         threads = splitter.attach(proc)
     else:
-        proc, splitter, threads = _setup_pipe_stream(cmd, shell, cwd, capture_output, **kwargs)
+        proc, splitter, threads = _setup_pipe_stream(
+            cmd, shell, cwd, capture_output, _encoding=_encoding, **kwargs
+        )
 
     proc.wait()
     splitter.finalize(threads)
@@ -480,17 +504,31 @@ def _run_without_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
-    return subprocess.run(
-        cmd,
-        cwd=cwd,
-        capture_output=capture_output,
-        text=True,
-        check=False,
-        shell=shell,
-        **kwargs,
-    )
+    # Use specified encoding with errors="replace", or fall back to text=True (platform default)
+    if _encoding:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=capture_output,
+            check=False,
+            shell=shell,
+            encoding=_encoding,
+            errors="replace",
+            **kwargs,
+        )
+    else:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=capture_output,
+            text=True,
+            check=False,
+            shell=shell,
+            **kwargs,
+        )
 
 
 def _log_completion(cmd_str: str, result: subprocess.CompletedProcess, start: float) -> None:
