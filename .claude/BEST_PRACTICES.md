@@ -17,18 +17,63 @@ This applies consistently across:
 
 ```python
 # Good
-bakebook = typer.Typer()
+from bake import Bakebook
+
+bakebook = Bakebook()
 
 # Bad
-bakebook_app = typer.Typer()
-bakebook_cli = typer.Typer()
+bakebook_app = Bakebook()
+bakebook_cli = Bakebook()
+```
+
+### Variable Naming Patterns
+
+- Use trailing underscores for parameters that shadow built-ins or have naming conflicts
+- Use `_` prefix for intentionally unused variables
+
+```python
+# From app.py
+def bake_app_callback(
+    ctx: Context,
+    _chdir: chdir_option = DEFAULT_CHDIR,
+    _file_name: file_name_option = DEFAULT_FILE_NAME,
+    _bakebook_name: bakebook_name_option = DEFAULT_BAKEBOOK_NAME,
+    _version: version_option = False,
+    _is_chain_commands: is_chain_commands_option = None,
+):
+    ctx.obj = obj
+    show_help_if_no_command(ctx)
 ```
 
 ---
 
 ## Documentation
 
-### Docstring Format
+### Docstring Policy
+
+**DO NOT add docstrings by default. Docstrings are added manually by the developer when needed.**
+
+When implementing code or refactoring:
+
+- ❌ **Do NOT** add docstrings automatically
+- ❌ **Do NOT** add placeholder docstrings like `"""TODO: add docstring"""`
+- ✅ The developer will add docstrings manually when they deem it necessary
+
+**The developer adds docstrings for:**
+
+- Public API functions that need usage documentation
+- Complex functions with non-obvious behavior
+- Functions with multiple parameters requiring explanation
+- Functions that raise specific exceptions worth documenting
+
+**Skip docstrings for:**
+
+- Simple functions with self-explanatory names
+- Internal/private functions
+- Functions where the type hints and parameter names are sufficient
+- `__init__.py` files
+
+### Docstring Format (when added manually)
 
 **Use NumPy format for multi-line docstrings:**
 
@@ -59,34 +104,48 @@ def validate_value(value: Any, expected_type: type[T]) -> T:
     """
 ```
 
-### When to Omit Docstrings
+---
 
-**Omit docstrings that add no value beyond the function name:**
+## Type Annotations
+
+### Use Annotated Types for CLI Parameters
+
+Define reusable CLI parameters using `Annotated` types in `params.py`:
 
 ```python
-# Bad - redundant, function name is self-explanatory
-def validate_file_name(file_name: str) -> None:
-    """Validate file_name is a filename (not a path) and ends with .py."""
-    # Implementation...
+from pathlib import Path
+from typing import Annotated
+import typer
 
-# Good - no docstring, function name says it all
-def validate_file_name(file_name: str) -> None:
-    # Implementation...
+chdir_option = Annotated[
+    Path,
+    typer.Option(
+        "-C",
+        "--chdir",
+        help="Change directory before running",
+    ),
+]
+
+file_name_option = Annotated[
+    str,
+    typer.Option(
+        "--file-name",
+        "-f",
+        help="Path to bakefile.py",
+        callback=validate_file_name_callback,
+    ),
+]
 ```
 
-**Use docstrings when:**
+### Use the Bakebook Class
 
-- Function has **multiple parameters** to document
-- Function has **complex behavior** not obvious from name
-- Function **raises exceptions** worth documenting
-- Public API that needs **usage documentation**
+The `Bakebook` class (from `bake`) combines Pydantic's `BaseSettings` with Typer's CLI functionality:
 
-**Omit docstrings when:**
+```python
+from bake import Bakebook
 
-- Function name is **self-explanatory** (`validate_file_name`, `change_directory`)
-- Implementation is **obvious** from code
-- Private/internal functions
-- `__init__.py` files
+bakebook = Bakebook()
+```
 
 ---
 
@@ -99,10 +158,12 @@ Tests mirror the source folder structure for easy navigation and maintainability
 **Example:**
 
 ```
-src/bakefile/cli/          tests/cli/
-├── __init__.py         →  ├── __init__.py
-├── bake.py             →  ├── test_bake.py
-└── bakefile.py         →  └── test_bakefile.py
+src/bake/cli/common/  tests/cli/common/
+├── __init__.py          ├── __init__.py
+├── app.py               ├── test_app.py
+├── callback.py          ├── test_callback.py
+├── context.py           ├── test_context.py
+└── obj.py               └── test_obj.py
 ```
 
 **Rules:**
@@ -114,37 +175,270 @@ src/bakefile/cli/          tests/cli/
 
 ---
 
+## Code Organization
+
+### File Structure Patterns
+
+#### Group related functionality with separator comments
+
+```python
+# params.py
+
+# ==========================================================
+# Bakefile CLI Parameters
+# ==========================================================
+chdir_option = ...
+file_name_option = ...
+...
+
+# ==========================================================
+# Bakefile Local CLI Frequently Used Params
+# ==========================================================
+force_option = ...
+```
+
+#### Keep **init**.py minimal
+
+Only export what's necessary, prefer explicit imports:
+
+```python
+# __init__.py
+from importlib.metadata import PackageNotFoundError, version
+
+__all__ = ["__version__"]
+
+
+def _get_version() -> str:
+    try:
+        return version("bake")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+__version__ = _get_version()
+```
+
+---
+
+## Error Handling
+
+### Custom Exception Hierarchy
+
+Define a base exception for all project-specific exceptions:
+
+```python
+# exceptions.py
+class BaseBakefileError(Exception):
+    """Base exception for all bakefile errors."""
+
+
+class BakebookError(BaseBakefileError):
+    """Exception raised when bakebook cannot be loaded or validated."""
+```
+
+### Use contextlib.suppress for Graceful Degradation
+
+```python
+# obj.py
+import contextlib
+
+def get_bakebook(self):
+    if self.bakebook is not None:
+        return
+
+    with contextlib.suppress(BakebookError):
+        self.bakefile_path = resolve_bakefile_path(...)
+        self.bakebook = get_bakebook_from_target_dir_path(...)
+```
+
+### Use Typer's BadParameter for Input Validation
+
+```python
+# callback.py
+import typer
+
+def validate_file_name(file_name: str) -> str:
+    if "/" in file_name or "\\" in file_name:
+        raise typer.BadParameter(f"File name must not contain path separators: {file_name}")
+    if not file_name.endswith(".py"):
+        raise typer.BadParameter(f"File name must end with .py: {file_name}")
+    return file_name
+```
+
+---
+
+## Dataclass Patterns
+
+### Use dataclasses for Configuration Objects
+
+```python
+@dataclass
+class BakefileObject:
+    chdir: Path
+    file_name: str
+    bakebook_name: str
+    bakefile_path: Path | None = None
+    bakebook: Bakebook | None = None
+
+    def __post_init__(self):
+        validate_file_name(self.file_name)
+```
+
+---
+
+## CLI Patterns
+
+### Context Subclass for Type Safety
+
+Create a typed `Context` subclass to pass objects through CLI:
+
+```python
+# context.py
+import typer
+from .obj import BakefileObject
+
+class Context(typer.Context):
+    obj: BakefileObject
+```
+
+### Show Help When No Command Invoked
+
+```python
+# app.py
+def show_help_if_no_command(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+```
+
+### Use Callback to Set Context Object
+
+```python
+def bake_app_callback_with_obj(obj: BakefileObject) -> Callable:
+    def bake_app_callback(
+        ctx: Context,
+        _chdir: chdir_option = DEFAULT_CHDIR,
+        ...
+    ):
+        ctx.obj = obj
+        show_help_if_no_command(ctx)
+    return bake_app_callback
+```
+
 ---
 
 ## Bakebook Pattern
 
 ### User's bakefile.py
 
-Users define their bakebook as a `typer.Typer` app with commands as methods:
+Users define their bakebook using the `Bakebook` class with commands as methods:
 
 ```python
-import typer
+from bake import Bakebook
+from bake.ui import console
 
-bakebook = typer.Typer()
+bakebook = Bakebook()
 
 @bakebook.command()
 def build(
-    prod: bool = typer.Option(False, "--prod", help="Production build"),
+    prod: bool = False,
 ):
     """Build the project."""
-    typer.echo(f"Building{' (prod)' if prod else ''}...")
+    console.success(f"Building{' (prod)' if prod else ''}...")
 
 @bakebook.command()
 def test(
-    coverage: bool = typer.Option(False, "--coverage", help="Run with coverage"),
+    coverage: bool = False,
 ):
     """Run tests."""
-    typer.echo("Running tests...")
+    console.echo("Running tests...")
 
 @bakebook.command()
 def lint():
     """Run linters."""
-    typer.echo("Running linters...")
+    console.echo("Running linters...")
+```
+
+### Environment Variables with Bakebook
+
+The `Bakebook` class extends `BaseSettings`, allowing you to define environment variables:
+
+```python
+from bake import Bakebook
+
+class MyBakebook(Bakebook):
+    # Environment variables (auto-loaded from .env)
+    database_url: str
+    debug: bool = False
+    workers: int = 4
+
+    def get_connection(self):
+        return connect(self.database_url)
+
+bakebook = MyBakebook()
+
+# Access env vars directly
+url = bakebook.database_url
+```
+
+### Class Methods as Commands
+
+Users can define methods as commands with `@bake.command()`:
+
+```python
+from bake import Bakebook, command
+
+class MyBakebook(Bakebook):
+    database_url: str = "sqlite:///default.db"
+    debug: bool = False
+
+    @command()
+    def migrate(self):
+        """Run migrations - has access to self.database_url"""
+        console.echo(f"Migrating {self.database_url}")
+
+    @command(name="deploy-prod")
+    def deploy(self):
+        """Deploy the application"""
+        if self.debug:
+            console.echo("Debug mode - skipping deployment")
+        else:
+            console.echo("Deploying...")
+
+    def helper_method(self):
+        """Internal helper - NOT a command"""
+        return "internal"
+
+bakebook = MyBakebook()
+```
+
+**Key points:**
+
+- Methods decorated with `@bake.command()` become CLI commands
+- Methods have full access to `self` (instance properties, helper methods)
+- Use `@command(name="custom")` for custom command names
+- Undecorated methods remain as helper methods (not exposed as commands)
+
+**Hybrid API:**
+
+Both standalone functions and class methods work:
+
+```python
+from bake import Bakebook, command
+
+# Old way: standalone functions (still works)
+bakebook = Bakebook()
+
+@bakebook.command()
+def standalone_task():
+    """This still works."""
+    pass
+
+# New way: class methods
+class MyBakebook(Bakebook):
+    @command()
+    def method_task(self):
+        """This is new."""
+        pass
 ```
 
 ### Running Commands
@@ -165,17 +459,212 @@ bake -b my_tasks build
 
 ### Bakebook Evolution
 
-| Phase        | bakebook Type    | Description                    |
-| ------------ | ---------------- | ------------------------------ |
-| v0 (past)    | `str`            | Temporary placeholder          |
-| v1 (current) | `typer.Typer`    | Commands only                  |
-| v2 (future)  | `Bakebook` class | Full OOP: commands + variables |
+| Phase        | bakebook Type    | Description                        |
+| ------------ | ---------------- | ---------------------------------- |
+| v0 (past)    | `str`            | Temporary placeholder              |
+| v1 (past)    | `typer.Typer`    | Commands only                      |
+| v2 (current) | `Bakebook` class | OOP with commands + env validation |
+
+### Bakebook Class API
+
+The `Bakebook` class combines Pydantic's `BaseSettings` with Typer's CLI functionality.
+
+**Import:**
+
+```python
+from bake import Bakebook
+```
+
+**Public Methods:**
+
+| Method                     | Purpose                                |
+| -------------------------- | -------------------------------------- |
+| `command(*args, **kwargs)` | Register commands (delegates to Typer) |
+
+**Environment Variable Configuration:**
+
+The `Bakebook` class uses Pydantic's `SettingsConfigDict`:
+
+```python
+model_config = SettingsConfigDict(
+    env_file=".env",              # Load from .env file
+    env_file_encoding="utf-8",    # File encoding
+    extra="ignore"                # Ignore extra fields
+)
+```
+
+**Environment Variable Priority (highest to lowest):**
+
+1. Keyword arguments: `MyBakebook(database_url="...")`
+2. Environment variables: `DATABASE_URL=...`
+3. `.env` file values
+4. Field defaults
+
+**Type Hints:**
+
+```python
+from bake import Bakebook
+
+def process_bakebook(bakebook: Bakebook) -> None:
+    """Process a bakebook instance."""
+    pass
+```
 
 ---
 
-## Sections to Add:
+## Constants
 
-- Code conventions
-- Design patterns used
-- File organization standards
-- Error handling patterns
+### Define Constants in Dedicated Module
+
+```python
+# constants.py
+from pathlib import Path
+
+# Default value
+DEFAULT_CHDIR = Path(".")
+DEFAULT_FILE_NAME = "bakefile.py"
+DEFAULT_BAKEBOOK_NAME = "bakebook"
+
+# Bakefile app command name
+GET_BAKEFILE_OBJECT = "get_bakefile_object"
+
+# Others
+BAKEBOOK_NAME_IN_SAMPLES = "__bakebook__"
+```
+
+---
+
+## Color Output
+
+### Console Output Pattern
+
+**Use the `console` module from `bakefile.ui` for all user-facing output:**
+
+```python
+from bake.ui import console
+
+# Success messages (green, stdout)
+console.success("Operation completed")
+
+# Echo messages (plain, stdout, accepts any type)
+console.echo("Processing data")
+console.echo({"key": "value"})  # prints dict
+console.echo(42)  # prints number
+
+# Warning messages (yellow, stderr)
+console.warning("File not found")
+
+# Error messages (red, stderr)
+console.error("Failed to connect")
+```
+
+**Rich Markup in Messages:**
+
+You can use Rich's `[tag]text[/tag]` markup syntax for emphasis:
+
+```python
+# Highlight paths or commands
+console.error(f"File [bold]{path}[/bold] already exists")
+console.info(f"Run [code]bakefile init --inline[/code] to create one")
+
+# Common markup tags
+# [bold], [italic], [underline]
+# [red], [green], [yellow], [blue], [cyan], [magenta]
+# [code] or backticks for monospace
+```
+
+**Stream separation:**
+
+- `success()` and `info()` → stdout
+- `warning()` and `error()` → stderr
+
+**Type hints:**
+
+- `success(message: str)`, `warning(message: str)`, `error(message: str)` - strings only
+- `info(message: Any)` - accepts any object type
+
+### Respect NO_COLOR Environment Variable
+
+The console module automatically handles NO_COLOR:
+
+- Colors enabled: Labels show as "SUCCESS", "WARNING", "ERROR"
+- NO_COLOR set: Labels show as "[SUCCESS]", "[WARNING]", "[ERROR]"
+
+```python
+# env.py
+import os
+
+ENV_NO_COLOR = "NO_COLOR"
+
+def should_use_colors() -> bool:
+    value = os.environ.get(ENV_NO_COLOR)
+    return value == "" or value is None
+
+# Usage
+rich_markup_mode = "rich" if env.should_use_colors() else None
+```
+
+---
+
+## Logging
+
+### Verbosity Levels
+
+The bakefile CLI supports three verbosity levels via the `-v` flag:
+
+| Flag   | Level    | Output                        |
+| ------ | -------- | ----------------------------- |
+| (none) | WARNING+ | Warnings, Errors (default)    |
+| `-v`   | INFO+    | Info, Warnings, Errors        |
+| `-vv`  | DEBUG+   | Debug, Info, Warnings, Errors |
+
+**Max validation:** `-vvv` raises "Maximum verbosity is -vv" error
+
+### Logging in User Bakefiles
+
+Users can use the standard Python `logging` module in their bakefiles:
+
+```python
+# In your bakefile.py
+import logging
+from bake import Bakebook
+
+bakebook = Bakebook()
+
+@bakebook.command()
+def build():
+    """Build the project."""
+    logging.info("Starting build process...")
+    logging.debug("Reading configuration...")
+    # ... build logic ...
+    logging.info("Build complete!")
+```
+
+The logging is automatically intercepted and formatted consistently with the CLI output.
+
+### Internal Logging (for bakefile development)
+
+For internal bakefile CLI development, use `setup_logging()` and Loguru:
+
+```python
+from bake.ui import setup_logging
+import logging
+
+# Setup with per-module log levels
+setup_logging(
+    level_per_module={
+        "": logging.WARNING,  # Default level
+        "bakefile.cli": logging.DEBUG,  # Debug for CLI module
+        "bakefile.manage": logging.INFO,  # Info for manage module
+    },
+    is_pretty_log=True,  # Use human-readable format (False for JSON)
+)
+```
+
+**Key points:**
+
+- User bakefiles should use `logging` module (standard Python)
+- Internal bakefile code uses `setup_logging()` with Loguru
+- Standard `logging` calls are intercepted and routed to Loguru for consistent formatting
+- Default output is JSON format (`is_pretty_log=False`) for machine parsing
+- Use `is_pretty_log=True` for human-readable output in development
