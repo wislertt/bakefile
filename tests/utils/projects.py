@@ -1,4 +1,5 @@
 import os
+import shutil
 import textwrap
 from pathlib import Path
 
@@ -7,6 +8,9 @@ import pytest
 from bake.ui import run, run_uv
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
 from tests.utils.cli import RunCli
+
+# Path to the complex vars bakebook file
+COMPLEX_VARS_BAKEBOOK_PATH = Path(__file__).parent / "bakefiles" / "complex_vars.py"
 
 
 def _create_bakefile(
@@ -93,3 +97,22 @@ def isolated_uv_cache(tmp_path_factory: pytest.TempPathFactory):
         os.environ.pop("UV_CACHE_DIR", None)
     else:
         os.environ["UV_CACHE_DIR"] = old_value
+
+
+@pytest.fixture
+def no_bakebook_dir(tmp_path: Path) -> Path:
+    (tmp_path / "bakefile.py").write_text("")
+    return tmp_path
+
+
+@pytest.fixture
+def no_bakefile_dir(tmp_path: Path) -> Path:
+    return tmp_path
+
+
+@pytest.fixture
+def complex_vars_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
+    _ = isolated_uv_cache
+    bakefile_path = tmp_path / DEFAULT_FILE_NAME
+    shutil.copy(COMPLEX_VARS_BAKEBOOK_PATH, bakefile_path)
+    return tmp_path

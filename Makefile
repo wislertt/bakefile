@@ -1,4 +1,12 @@
 test:
+	uv run pytest tests/unit/ \
+		--cov=src --cov-report=html \
+		--cov-report=term-missing --cov-report=xml
+
+test-integration:
+	uv run pytest tests/integration/ -v
+
+test-all:
 	uv run pytest tests/ \
 		--cov=src --cov-report=html \
 		--cov-report=term-missing --cov-report=xml

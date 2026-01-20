@@ -1,8 +1,17 @@
 import os
+from pathlib import Path
 
 import pytest
 
 from bake.utils.env import _BAKE_REINVOKED
+
+
+def get_project_env(project_dir: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    venv_bin = str(project_dir / ".venv" / "bin")
+    env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+    env["VIRTUAL_ENV"] = str(project_dir / ".venv")
+    return env
 
 
 @pytest.fixture

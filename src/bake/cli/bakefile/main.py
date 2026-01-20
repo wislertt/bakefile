@@ -8,6 +8,7 @@ from bake.cli.common.obj import get_bakefile_object
 
 from . import uv
 from .add_inline import add_inline
+from .export import export
 from .find_python import find_python
 from .init import init
 from .lint import lint
@@ -33,6 +34,7 @@ def main():
     bakefile_app.command()(add_inline)
     bakefile_app.command()(find_python)
     bakefile_app.command()(lint)
+    bakefile_app.command()(export)
     bakefile_app.command(context_settings=uv_commands_context_settings)(uv.sync)
     bakefile_app.command(context_settings=uv_commands_context_settings)(uv.lock)
     bakefile_app.command(context_settings=uv_commands_context_settings)(uv.add)
