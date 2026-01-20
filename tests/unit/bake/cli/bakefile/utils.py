@@ -1,10 +1,7 @@
 import datetime
-import platform
 import re
-import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import orjson
@@ -96,56 +93,9 @@ ALTERNATIVE_MULTI_LINES = """
 
 
 def get_str_from_inline_env(inline_env: str) -> str:
-    """Parse a shell inline environment variable assignment to get the value.
-
-    Simulates setting an environment variable with inline assignment and reading it back.
-    Uses platform-appropriate shell syntax.
-
-    Parameters
-    ----------
-    inline_env : str
-        The inline environment value (e.g., "'hello'", "42", "'with spaces'")
-
-    Returns
-    -------
-    str
-        The parsed environment variable value
-
-    Examples
-    --------
-    >>> get_str_from_inline_env("hello")
-    'hello'
-    >>> get_str_from_inline_env("'hello world'")
-    'hello world'
-    """
-    if platform.system() == "Windows":
-        # Windows: Use a temporary Python script to avoid quoting issues
-        # Create a temp Python script that reads VALUE env var and prints it
-        escaped_env = inline_env.replace("'", "''")
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, encoding="utf-8"
-        ) as f:
-            f.write("import os\n")
-            f.write('print(os.environ.get("VALUE", ""), end="")\n')
-            script_path = f.name
-
-        try:
-            # Set the env var and run the script via PowerShell
-            # Force UTF-8 output encoding to avoid pytest capture corruption
-            ps_script = (
-                f"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
-                f"$env:VALUE='{escaped_env}'; python \"{script_path}\""
-            )
-            cmd = ["powershell.exe", "-NoProfile", "-Command", ps_script]
-            # Force UTF-8 decoding of the output
-            parsed = run(cmd, check=False, shell=False, _encoding="utf-8")
-        finally:
-            # Clean up the temp file
-            Path(script_path).unlink(missing_ok=True)
-    else:
-        # Unix shell syntax (bash/sh)
-        cmd = f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\''
-        parsed = run(cmd, check=False, shell=True)
+    # Unix shell syntax (bash/sh)
+    cmd = f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\''
+    parsed = run(cmd, check=False, shell=True)
     value = parsed.stdout
     return value
 

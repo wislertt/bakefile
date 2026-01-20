@@ -104,6 +104,10 @@ class TestExportCli:
 
         _assert_export_lines_match(lines, expected, context="Export")
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Unix shell command parsing not available on Windows",
+    )
     def test_export_sh_env_assignment(
         self, complex_vars_project: Path, run_cli: RunCli, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -362,6 +366,10 @@ class TestExportFormatter:
             export_cmd(mock_ctx, format="json")
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Unix shell command parsing not available on Windows",
+)
 class TestFormatShellValueUnit:
     @pytest.mark.parametrize(
         "value,expected,reverse_func",
