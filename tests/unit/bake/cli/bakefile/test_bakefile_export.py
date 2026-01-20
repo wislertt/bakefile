@@ -567,7 +567,7 @@ class TestFormatDotEnvValueUnit:
             for case in COMMON_FORMAT_SHELL_VALUE_CASES2
         ],
     )
-    def test_format_shell_value(
+    def test_format_dotenv_value(
         self, value: Any, expected: str, reverse_func: ReverseFuncType, tmp_path: Path
     ) -> None:
         result = _format_dotenv_value(value)
