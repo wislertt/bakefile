@@ -1,8 +1,10 @@
 import datetime
 import platform
 import re
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import orjson
@@ -117,16 +119,24 @@ def get_str_from_inline_env(inline_env: str) -> str:
     'hello world'
     """
     if platform.system() == "Windows":
-        # Windows: Use PowerShell directly (without shell)
-        # Escape single quotes by doubling them for PowerShell
+        # Windows: Use a temporary Python script to avoid quoting issues
+        # Create a temp Python script that reads VALUE env var and prints it
         escaped_env = inline_env.replace("'", "''")
-        ps_script = (
-            f"$env:VALUE='{escaped_env}'; "
-            r'python -c \'import os; print(os.environ["VALUE"], end="")\''
-        )
-        # Use list form to avoid cmd.exe quoting issues
-        cmd = ["powershell.exe", "-NoProfile", "-Command", ps_script]
-        parsed = run(cmd, check=False, shell=False)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("import os\n")
+            f.write('print(os.environ.get("VALUE", ""), end="")\n')
+            script_path = f.name
+
+        try:
+            # Set the env var and run the script via PowerShell
+            ps_script = f"$env:VALUE='{escaped_env}'; python \"{script_path}\""
+            cmd = ["powershell.exe", "-NoProfile", "-Command", ps_script]
+            parsed = run(cmd, check=False, shell=False)
+        finally:
+            # Clean up the temp file
+            Path(script_path).unlink(missing_ok=True)
     else:
         # Unix shell syntax (bash/sh)
         cmd = f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\''
