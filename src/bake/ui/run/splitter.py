@@ -15,11 +15,13 @@ class OutputSplitter:
         stream: bool = True,
         capture: bool = True,
         pty_fd: int | None = None,
+        stderr_pty_fd: int | None = None,
         encoding: str | None = None,
     ):
         self._stream = stream
         self._capture = capture
         self._pty_fd = pty_fd
+        self._stderr_pty_fd = stderr_pty_fd
         self._encoding = encoding
         self._stdout_data = b""
         self._stderr_data = b""
@@ -208,7 +210,17 @@ class OutputSplitter:
             t.start()
             threads.append((t, stdout_list, "stdout"))
 
-        # Handle stderr (regular pipe)
+        # Handle PTY stderr (for color-preserving stderr on Unix)
+        if self._stderr_pty_fd is not None:
+            stderr_list = []
+            t = threading.Thread(
+                target=self._read_pty, args=(self._stderr_pty_fd, sys.stderr, stderr_list, proc)
+            )
+            t.daemon = True
+            t.start()
+            threads.append((t, stderr_list, "stderr"))
+
+        # Handle stderr (regular pipe) - use separate if, not elif
         if proc.stderr:
             stderr_list = []
             t = threading.Thread(

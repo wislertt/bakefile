@@ -1,8 +1,7 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
-#     "bakefile>=0.0.4",
-#     "numpy>=2.4.0",
+#     "bakefile>=0.0.0",
 # ]
 #
 # [tool.uv.sources]
@@ -13,26 +12,22 @@ import logging
 
 import typer
 
-from bake import Bakebook, Context, command
-from bake.ui import console
+from bake import Bakebook, Context, command, console
 
 logger = logging.getLogger(__name__)
 
 
 class MyBakebook(Bakebook):
-    database_url: str = "sqlite:///default.db"
-    debug: bool = False
+    foo_url: str = "https://example.com"
 
     @command()
-    def migrate(self):
-        console.echo(f"Migrating {self.database_url}")
+    def foo(self):
+        console.echo(f"Doing foo with {self.foo_url}")
 
-    @command(name="deploy-something")
-    def deploy(self):
-        if self.debug:
-            console.echo("Debug mode - skipping deployment")
-        else:
-            console.echo("Deploying...")
+    @command()
+    def update(self, ctx: Context) -> None:
+        ctx.run("bakefile lock --upgrade")
+        ctx.run("bakefile sync")
 
 
 bakebook = MyBakebook()
@@ -45,14 +40,3 @@ def hello(name: str = typer.Option("world", help="Name to greet")) -> None:
     logger.warning(f"Hello {name}!")
     logger.error(f"Hello {name}!")
     console.echo(f"Hello {name}!")
-
-
-@bakebook.command()
-def build(
-    ctx: Context,
-    prod: bool = typer.Option(False, "--prod", help="Production build"),
-) -> None:
-    if ctx.dry_run:
-        console.err.print("This is dry run")
-
-    console.success(f"Building{' (prod)' if prod else ''}...")

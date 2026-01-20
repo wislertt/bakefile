@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, overload
 
@@ -23,6 +24,13 @@ logger = logging.getLogger(__name__)
 # Lock for subprocess.Popen calls - subprocess is not thread-safe by design
 # See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
 _subprocess_create_lock = threading.Lock()
+
+
+@dataclass(frozen=True, slots=True)
+class StreamSetup:
+    proc: subprocess.Popen
+    splitter: OutputSplitter
+    threads: list
 
 
 def _parse_shebang(script: str) -> str | None:
@@ -285,26 +293,17 @@ def run(
     logger.debug(f"[run] {cmd_str}", extra={"cwd": cwd})
     start = time.perf_counter()
 
-    if stream:
-        result = _run_with_stream(
-            cmd=cmd,
-            shell=shell,
-            cwd=cwd,
-            capture_output=capture_output,
-            env=env,
-            _encoding=_encoding,
-            **kwargs,
-        )
-    else:
-        result = _run_without_stream(
-            cmd=cmd,
-            shell=shell,
-            cwd=cwd,
-            capture_output=capture_output,
-            env=env,
-            _encoding=_encoding,
-            **kwargs,
-        )
+    _run = _run_with_stream if stream else _run_without_stream
+
+    result = _run(
+        cmd=cmd,
+        shell=shell,
+        cwd=cwd,
+        capture_output=capture_output,
+        env=env,
+        _encoding=_encoding,
+        **kwargs,
+    )
 
     _check_exit_code(returncode=result.returncode, check=check, cmd_str=cmd_str)
 
@@ -398,27 +397,41 @@ def _setup_pty_stream(
     env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
-) -> tuple[subprocess.Popen, OutputSplitter]:
+) -> StreamSetup:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
-        stdout_fd, slave_fd = pty.openpty()
+        stdout_fd, slave_stdout = pty.openpty()
+
+        # Always create stderr PTY when streaming to ensure output goes through
+        # our thread which writes to sys.stderr (allows pytest to capture it)
+        stderr_fd, slave_stderr = pty.openpty()
+
         env = _prepare_subprocess_env(env)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
-            stdout=slave_fd,
-            stderr=subprocess.PIPE if capture_output else None,
+            stdout=slave_stdout,
+            stderr=slave_stderr,
             shell=shell,
             env=env,
             **kwargs,
         )
-        os.close(slave_fd)
+        os.close(slave_stdout)
+        os.close(slave_stderr)
 
+    # Attach threads BEFORE releasing lock to ensure reader is ready
+    # when fast-exiting processes complete
     splitter = OutputSplitter(
-        stream=True, capture=capture_output, pty_fd=stdout_fd, encoding=_encoding
+        stream=True,
+        capture=capture_output,
+        pty_fd=stdout_fd,
+        stderr_pty_fd=stderr_fd,
+        encoding=_encoding,
     )
-    return proc, splitter
+    threads = splitter.attach(proc)
+
+    return StreamSetup(proc=proc, splitter=splitter, threads=threads)
 
 
 def _setup_pipe_stream(
@@ -429,7 +442,7 @@ def _setup_pipe_stream(
     env: dict[str, str] | None = None,
     _encoding: str | None = None,
     **kwargs,
-) -> tuple[subprocess.Popen, OutputSplitter, list]:
+) -> StreamSetup:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
@@ -448,7 +461,7 @@ def _setup_pipe_stream(
         splitter = OutputSplitter(stream=True, capture=capture_output, encoding=_encoding)
         threads = splitter.attach(proc)
 
-    return proc, splitter, threads
+    return StreamSetup(proc=proc, splitter=splitter, threads=threads)
 
 
 def _run_with_stream(
@@ -462,32 +475,22 @@ def _run_with_stream(
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     use_pty = sys.platform != "win32"
 
-    if use_pty:
-        proc, splitter = _setup_pty_stream(
-            cmd=cmd,
-            shell=shell,
-            cwd=cwd,
-            capture_output=capture_output,
-            env=env,
-            _encoding=_encoding,
-            **kwargs,
-        )
-        threads = splitter.attach(proc)
-    else:
-        proc, splitter, threads = _setup_pipe_stream(
-            cmd=cmd,
-            shell=shell,
-            cwd=cwd,
-            capture_output=capture_output,
-            env=env,
-            _encoding=_encoding,
-            **kwargs,
-        )
+    _setup = _setup_pty_stream if use_pty else _setup_pipe_stream
 
-    proc.wait()
-    splitter.finalize(threads)
+    setup = _setup(
+        cmd=cmd,
+        shell=shell,
+        cwd=cwd,
+        capture_output=capture_output,
+        env=env,
+        _encoding=_encoding,
+        **kwargs,
+    )
 
-    return _process_stream_output(splitter, proc, cmd, capture_output)
+    setup.proc.wait()
+    setup.splitter.finalize(setup.threads)
+
+    return _process_stream_output(setup.splitter, setup.proc, cmd, capture_output)
 
 
 def _run_without_stream(
@@ -504,7 +507,7 @@ def _run_without_stream(
 
     # Use specified encoding with errors="replace", or fall back to text=True (platform default)
     if _encoding:
-        return subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=cwd,
             capture_output=capture_output,
@@ -516,7 +519,7 @@ def _run_without_stream(
             **kwargs,
         )
     else:
-        return subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=cwd,
             capture_output=capture_output,
@@ -526,6 +529,8 @@ def _run_without_stream(
             env=env,
             **kwargs,
         )
+
+    return result
 
 
 def _log_completion(cmd_str: str, result: subprocess.CompletedProcess, start: float) -> None:

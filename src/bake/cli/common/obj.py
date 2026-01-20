@@ -81,9 +81,11 @@ class BakefileObject:
             self.bakebook = get_bakebook_from_target_dir_path(
                 target_dir_path=self.bakefile_path, bakebook_name=self.bakebook_name
             )
-        except BakefileNotFoundError:
+        except BakefileNotFoundError as e:
             if allow_missing:
                 return
+            console.error(str(e))
+            raise SystemExit(1) from e
         except BakebookError as e:
             if allow_missing:
                 return
