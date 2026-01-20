@@ -455,7 +455,7 @@ class TestFormatShellValueUnit:
                 lambda x: uuid.UUID(x),
             ),
             # Path - becomes string
-            (Path("/usr/local/bin"), Path, "/usr/local/bin", lambda x: Path(x)),
+            (Path("/usr/local/bin"), Path, str(Path("/usr/local/bin")), lambda x: Path(x)),
             # Pydantic Basemodel
             # Simple BaseModel - becomes dict
             (
