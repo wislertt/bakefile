@@ -12,9 +12,9 @@ dependencies = [
   "click>=8.3.1",
   "loguru>=0.7.3",
   "orjson>=3.11.5",
-  # "pathspec>=1.0.3",
   "pydantic-settings>=2.0.0",
   "pydantic>=2.12.5",
+  "pyyaml>=6.0.3",
   "rich>=14.2.0",
   "ruff>=0.14.10",
   "tomli>=2.0.0; python_version < '3.11'",
@@ -36,9 +36,12 @@ bf = "bake.cli.bakefile:main"
 [dependency-groups]
 dev = [
   "deptry>=0.24.0",
+  "pandas>=2.3.3",
   "pre-commit>=4.5.1",
   "pytest-cov>=7.0.0",
   "pytest>=9.0.2",
+  "python-dotenv>=1.2.1",
+  "python_package",
   "toml-sort>=0.24.3"
 ]
 
@@ -47,12 +50,7 @@ requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
 
 [tool.deptry]
-known_first_party = ["bake", "bakelib"]
-
-[tool.pytest.ini_options]
-markers = [
-  "integration: marks tests as integration tests (slower, full flow tests)"
-]
+known_first_party = ["bake", "bakelib", "python_package"]
 
 [tool.ruff]
 line-length = 100
@@ -77,3 +75,6 @@ select = [
 [tool.uv.build-backend]
 module-name = ["bake", "bakelib"]
 module-root = "src"
+
+[tool.uv.sources]
+python-package = {path = "examples/python-package", editable = true}

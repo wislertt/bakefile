@@ -1,10 +1,73 @@
 import shutil
+import sys
+from enum import Enum
 from pathlib import Path
+from typing import Literal
 
 import pathspec
 from pathspec.patterns.gitignore.basic import GitIgnoreBasicPattern
+from pydantic import BaseModel, Field
 
+from bake import Context
 from bake.ui import console
+
+
+def setup_brew(ctx: Context) -> None:
+    ctx.run("brew update")
+    ctx.run("brew upgrade")
+    ctx.run("brew cleanup")
+    ctx.run("brew list")
+    ctx.run("brew leaves")
+
+
+class ToolInfo(BaseModel):
+    version: str | None = None
+    expected_paths: list[Path] = Field(default_factory=list, exclude=True)
+
+
+class Platform(Enum):
+    MACOS = "macos"
+    LINUX = "linux"
+    WINDOWS = "windows"
+    OTHER = "other"
+
+
+PlatformType = Literal["macos", "linux", "windows", "other"]
+
+
+def get_platform() -> PlatformType:
+    if sys.platform == "darwin":
+        return Platform.MACOS.value
+    elif sys.platform == "linux":
+        return Platform.LINUX.value
+    elif sys.platform == "win32":
+        return Platform.WINDOWS.value
+    return Platform.OTHER.value
+
+
+def setup_uv(ctx: Context) -> None:
+    ctx.run("brew install uv")
+    ctx.run("uv python upgrade")
+    ctx.run("uv tool upgrade --all")
+    ctx.run("uv tool update-shell")
+
+
+def setup_bun(ctx: Context) -> None:
+    ctx.run("brew install oven-sh/bun/bun")
+
+
+def setup_uv_tool(ctx: Context) -> None:
+    ctx.run("uv tool install bakefile")
+    ctx.run("uv tool install pre-commit")
+
+
+HOMWBREW_BIN = Path("/opt/homebrew/bin")
+LOCAL_BIN = Path.home() / ".local" / "bin"
+VENV_BIN = Path.cwd() / ".venv" / "bin"
+
+
+def get_expected_paths(tool: str, locations: set[Path]) -> list[Path]:
+    return [loc / tool for loc in locations]
 
 
 def _skip_msg(path: Path, suffix: str, dry_run: bool) -> None:

@@ -20,15 +20,17 @@ Guidance for Claude Code (claude.ai/code) working on this repository.
 ## Essential Commands
 
 ```bash
-make test   # Run tests with coverage
-make lint   # Run linters and formatters
+make test              # Run unit tests with coverage (fast)
+make test-integration  # Run integration tests (slow, real subprocess)
+make test-all          # Run all tests with coverage
+make lint              # Run linters and formatters
 ```
 
 **Verification workflow:**
 
 1. Make changes
 2. Run `make lint` to check code quality
-3. Run `make test` to verify tests pass
+3. Run `make test` to verify unit tests pass
 4. Commit when both pass
 
 **Development workflow:**
@@ -37,13 +39,13 @@ During development, run specific tests instead of the full suite for faster feed
 
 ```bash
 # Run specific test file
-uv run pytest tests/bakelib/space/test_space_base.py -v
+uv run pytest tests/unit/bakelib/space/test_space_base.py -v
 
 # Run specific test
-uv run pytest tests/bakelib/space/test_space_base.py::test_recipe_with_bakebook_succeeds -v
+uv run pytest tests/unit/bakelib/space/test_space_base.py::test_recipe_with_bakebook_succeeds -v
 
 # Run all tests in a directory
-uv run pytest tests/bakelib/ -v
+uv run pytest tests/unit/bakelib/ -v
 ```
 
 **IMPORTANT:** The developer will run `make test` before committing. During development, only run targeted tests for speed.
@@ -60,8 +62,41 @@ uv run pytest tests/bakelib/ -v
 ```
 src/bake/    # Main package
 tests/           # Tests
+├── unit/              # Fast unit tests (mocked, no real subprocess)
+│   ├── bake/         # Bake-specific tests
+│   └── bakelib/      # Bakelib tests
+├── integration/      # Slow integration tests (real subprocess, isolated envs)
+│   ├── examples/     # Tests against @examples/
+│   └── fixtures/     # Tests using temp fixture folders
+├── utils/            # Shared test utilities
+└── conftest.py       # Shared fixtures
 bakefile.py      # Example bakefile
 ```
+
+## Test Structure
+
+**Unit Tests (`tests/unit/`)** - Fast, isolated tests
+
+- Use mocks to avoid subprocess calls
+- Test individual functions and classes in isolation
+- Run with `make test` (completes in ~50 seconds)
+- 824 tests currently
+
+**Integration Tests (`tests/integration/`)** - Slow, real-world tests
+
+- Run real subprocess commands
+- Test against actual examples or temporary projects
+- Two categories:
+    - `examples/` - Tests against real examples in `@examples/`
+    - `fixtures/` - Tests using temporary fixture folders
+- Run with `make test-integration`
+
+**When to write unit vs integration tests:**
+
+- **Unit tests:** Default for new tests. Test logic in isolation with mocks.
+- **Integration tests:** Only when testing real subprocess behavior, end-to-end flows, or actual example projects.
+
+See `tests/README.md` for detailed testing guidelines.
 
 ## Additional Documentation
 

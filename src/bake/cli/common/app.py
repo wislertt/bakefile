@@ -24,7 +24,7 @@ from bake.utils.constants import (
 from .obj import BakefileObject
 
 rich_markup_mode: MarkupMode = "rich" if not console.out.no_color else None
-add_completion = False
+add_completion = True
 
 
 class BakefileApp(typer.Typer):

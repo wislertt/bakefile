@@ -7,6 +7,7 @@ import pytest
 
 from bake.cli.bake.main import main as bake_main
 from bake.cli.bakefile.main import main as bakefile_main
+from bake.ui.logger import strip_ansi
 from bake.utils.constants import CMD_BAKE, CMD_BAKEFILE
 
 COMMANDS: dict[str, Callable[[], None]] = {
@@ -19,6 +20,14 @@ class CaptureOutput(NamedTuple):
     out: str
     err: str
     exit_code: int
+
+    def stripped(self) -> "CaptureOutput":
+        """Return a new CaptureOutput with ANSI codes stripped from out and err."""
+        return CaptureOutput(
+            out=strip_ansi(self.out),
+            err=strip_ansi(self.err),
+            exit_code=self.exit_code,
+        )
 
 
 class RunCli:
@@ -40,7 +49,7 @@ class RunCli:
             raise TypeError("Invalid type of exit code")
 
         captured = self.capsys.readouterr()
-        return CaptureOutput(out=captured.out, err=captured.err, exit_code=code)
+        return CaptureOutput(out=captured.out, err=captured.err, exit_code=code).stripped()
 
 
 @pytest.fixture
