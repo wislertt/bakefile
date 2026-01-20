@@ -131,9 +131,14 @@ def get_str_from_inline_env(inline_env: str) -> str:
 
         try:
             # Set the env var and run the script via PowerShell
-            ps_script = f"$env:VALUE='{escaped_env}'; python \"{script_path}\""
+            # Force UTF-8 output encoding to avoid pytest capture corruption
+            ps_script = (
+                f"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+                f"$env:VALUE='{escaped_env}'; python \"{script_path}\""
+            )
             cmd = ["powershell.exe", "-NoProfile", "-Command", ps_script]
-            parsed = run(cmd, check=False, shell=False)
+            # Force UTF-8 decoding of the output
+            parsed = run(cmd, check=False, shell=False, _encoding="utf-8")
         finally:
             # Clean up the temp file
             Path(script_path).unlink(missing_ok=True)
