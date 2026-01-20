@@ -163,7 +163,7 @@ def _export(
 
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(content)
+        output.write_text(content, encoding="utf-8")
     elif content != "":
         console.echo(content, overflow="ignore", crop=False)
 

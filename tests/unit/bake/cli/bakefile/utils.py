@@ -1,4 +1,5 @@
 import datetime
+import platform
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -93,10 +94,41 @@ ALTERNATIVE_MULTI_LINES = """
 
 
 def get_str_from_inline_env(inline_env: str) -> str:
-    parsed = run(
-        f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\'',
-        check=False,
-    )
+    """Parse a shell inline environment variable assignment to get the value.
+
+    Simulates setting an environment variable with inline assignment and reading it back.
+    Uses platform-appropriate shell syntax.
+
+    Parameters
+    ----------
+    inline_env : str
+        The inline environment value (e.g., "'hello'", "42", "'with spaces'")
+
+    Returns
+    -------
+    str
+        The parsed environment variable value
+
+    Examples
+    --------
+    >>> get_str_from_inline_env("hello")
+    'hello'
+    >>> get_str_from_inline_env("'hello world'")
+    'hello world'
+    """
+    if platform.system() == "Windows":
+        # Windows PowerShell syntax
+        # Need to escape single quotes by doubling them for PowerShell
+        escaped_env = inline_env.replace("'", "''")
+        cmd = (
+            f"$env:VALUE='{escaped_env}'; "
+            'python -c \'import os; print(os.environ["VALUE"], end="")\''
+        )
+    else:
+        # Unix shell syntax (bash/sh)
+        cmd = f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\''
+
+    parsed = run(cmd, check=False, shell=True)
     value = parsed.stdout
     return value
 
