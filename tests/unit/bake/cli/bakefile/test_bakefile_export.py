@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import json
+import sys
 import uuid
 from pathlib import Path
 from typing import Any
@@ -142,6 +143,10 @@ class TestExportCli:
         alt_env_loaded_data["nullable"] = None
         assert alt_env_loaded_data == default_complex_vars_data
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Unix shell eval (eval, cat) not available on Windows",
+    )
     def test_export_sh_eval(self, complex_vars_project: Path, run_cli: RunCli) -> None:
         """Test that exported edge case values work correctly with shell eval."""
         tmp_sh_path = complex_vars_project / "tmp_eval.sh"
@@ -562,7 +567,7 @@ class TestFormatDotEnvValueUnit:
 
         # Write to temp file for dotenv_values to parse
         dotenv_file = tmp_path / "test.env"
-        dotenv_file.write_text(f"VALUE={result}")
+        dotenv_file.write_text(f"VALUE={result}", encoding="utf-8")
         parsed_dict = dotenv_values(dotenv_file)
 
         # Extract the parsed value from the dict
@@ -722,7 +727,7 @@ class TestFormatDotEnvValueUnit:
 
         # Write to temp file for dotenv_values to parse
         dotenv_file = tmp_path / "test.env"
-        dotenv_file.write_text(f"VALUE={result}")
+        dotenv_file.write_text(f"VALUE={result}", encoding="utf-8")
         parsed_dict = dotenv_values(dotenv_file)
 
         # Extract the parsed value from the dict (dotenv_values returns str | None)

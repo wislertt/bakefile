@@ -117,15 +117,16 @@ def get_str_from_inline_env(inline_env: str) -> str:
     'hello world'
     """
     if platform.system() == "Windows":
-        # Windows: Use PowerShell via cmd.exe shell
+        # Windows: Use PowerShell directly (without shell)
         # Escape single quotes by doubling them for PowerShell
         escaped_env = inline_env.replace("'", "''")
         ps_script = (
             f"$env:VALUE='{escaped_env}'; "
             r'python -c \'import os; print(os.environ["VALUE"], end="")\''
         )
-        cmd = f'powershell.exe -NoProfile -Command "{ps_script}"'
-        parsed = run(cmd, check=False, shell=True)
+        # Use list form to avoid cmd.exe quoting issues
+        cmd = ["powershell.exe", "-NoProfile", "-Command", ps_script]
+        parsed = run(cmd, check=False, shell=False)
     else:
         # Unix shell syntax (bash/sh)
         cmd = f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\''
