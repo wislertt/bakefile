@@ -295,7 +295,7 @@ class TestExportCli:
         assert result.exit_code == 0
 
         # Read and parse JSON from file
-        exported_data = json.loads(tmp_json_path.read_text())
+        exported_data = json.loads(tmp_json_path.read_text(encoding="utf-8"))
         _assert_export_roundtrip(exported_data, format_name="JSON")
 
     def test_export_yaml_format(self, complex_vars_project: Path, run_cli: RunCli) -> None:
@@ -324,7 +324,7 @@ class TestExportCli:
         assert result.exit_code == 0
 
         # Read and parse YAML from file
-        exported_data = yaml.safe_load(tmp_yaml_path.read_text())
+        exported_data = yaml.safe_load(tmp_yaml_path.read_text(encoding="utf-8"))
         _assert_export_roundtrip(exported_data, format_name="YAML")
 
 
