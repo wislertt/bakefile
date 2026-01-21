@@ -62,12 +62,6 @@ jobs:
             - name: run-tests
               run: make test
 
-            - name: sonarqube-scan
-              if: matrix.os == 'ubuntu-latest' && matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
-              uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
-              env:
-                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
             - name: upload-coverage-reports-to-codecov
               if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
               uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
@@ -75,3 +69,9 @@ jobs:
                   fail_ci_if_error: true
                   token: ${{ secrets.CODECOV_TOKEN }}
                   verbose: true
+
+            - name: sonarqube-scan
+              if: matrix.os == 'ubuntu-latest' && matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+              uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+              env:
+                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
