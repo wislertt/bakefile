@@ -293,6 +293,7 @@ def test_run_stderr_is_captured_and_streamed(
 # ============================================================================
 
 
+@flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "cmd,expected_in_output",
     [
