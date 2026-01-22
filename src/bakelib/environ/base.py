@@ -50,15 +50,13 @@ class BaseEnv(str):
     @classmethod
     def _get_priority_index(cls, value: str) -> int:
         for idx, item in enumerate(cls.ENV_ORDER):
-            if isinstance(item, set):
-                if value in item:
-                    return idx
-            elif item == value:
+            is_in_set = isinstance(item, set) and value in item
+            is_equal = item == value
+            if is_in_set or is_equal:
                 return idx
         raise ValueError(f"Value '{value}' not found in ENV_ORDER")
 
     def __lt__(self, other: str) -> bool:
-        """Compare environments by priority (lower index = higher priority)."""
         if type(other) is not type(self):
             return NotImplemented
         self_idx = self._get_priority_index(str(self))
@@ -69,43 +67,32 @@ class BaseEnv(str):
         return str(self) < str(other)
 
     def __le__(self, other: str) -> bool:
-        """Compare less than or equal."""
         if type(other) is not type(self):
             return NotImplemented
         return self < other or self == other
 
     def __gt__(self, other: str) -> bool:
-        """Compare greater than."""
         if type(other) is not type(self):
             return NotImplemented
         return not (self < other) and self != other
 
     def __ge__(self, other: str) -> bool:
-        """Compare greater than or equal."""
         if type(other) is not type(self):
             return NotImplemented
         return not (self < other)
 
     def __eq__(self, other: object) -> bool:
-        """Check equality with Env or string."""
-        if isinstance(other, BaseEnv):
-            if type(other) is not type(self):
-                return False
-            return str(self) == str(other)
-        if isinstance(other, str):
-            return str(self) == other
-        return False
+        if type(other) is not type(self):
+            return False
+        return str(self) == str(other)
 
     def __ne__(self, other: object) -> bool:
-        """Check inequality (not equal)."""
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        """Return hash for use in sets and dicts."""
         return hash(str(self))
 
     def __repr__(self) -> str:
-        """Return representation for debugging."""
         return f"{self.__class__.__name__}('{self!s}')"
 
     @classmethod

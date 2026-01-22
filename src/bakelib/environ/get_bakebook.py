@@ -5,6 +5,8 @@ from dotenv import load_dotenv as _load_dotenv
 
 from .bakebook import EnvBakebook
 
+# TODO: When min Python >= 3.12, use PEP 695 type parameter syntax:
+# def get_bakebook[E: EnvBakebook](bakebooks: list[E], ...) -> E:
 E = TypeVar("E", bound=EnvBakebook)
 
 

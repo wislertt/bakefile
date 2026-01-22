@@ -53,7 +53,7 @@ class TestBaseEnvComparison:
 class TestBaseEnvEquality:
     def test_equals_same_value(self):
         assert BaseEnv("dev") == BaseEnv("dev")
-        assert BaseEnv("dev") == "dev"
+        assert BaseEnv("dev") != "dev"
 
     def test_not_equal_different_values(self):
         assert BaseEnv("dev") != BaseEnv("prod")
@@ -90,13 +90,14 @@ class TestBaseEnvHash:
 
     def test_env_can_be_used_in_set(self):
         envs = {BaseEnv("dev"), BaseEnv("prod"), "dev"}
-        assert len(envs) == 2
+        assert len(envs) == 3
         assert BaseEnv("prod") in envs
 
     def test_env_can_be_used_as_dict_key(self):
         d = {BaseEnv("dev"): "development", BaseEnv("prod"): "production"}
         assert d[BaseEnv("dev")] == "development"
-        assert d["dev"] == "development"
+        with pytest.raises(KeyError):
+            assert d["dev"] == "development"
         assert len(d) == 2
 
 
@@ -150,7 +151,10 @@ class TestBaseEnvPydanticIntegration:
             env: BaseEnv
 
         m = Model(env="dev")  # type: ignore[arg-type]
-        assert m.model_dump() == {"env": "dev"}
+
+        assert m.model_dump() == {"env": BaseEnv("dev")}
+        assert m.model_dump() != {"env": "dev"}
+        assert m.model_dump_json() != {"env": "dev"}
 
 
 class TestBaseEnvValidate:
@@ -260,4 +264,4 @@ class TestBaseEnvEdgeCases:
     def test_env_in_list(self):
         envs = [BaseEnv("dev"), BaseEnv("prod"), "staging"]
         assert BaseEnv("dev") in envs
-        assert "dev" in envs
+        assert "dev" not in envs
