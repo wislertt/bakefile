@@ -227,3 +227,110 @@ class TestReadPty:
             assert output_list == [b"data"]
 
         os.close(slave_fd)
+
+    @pytest.mark.skipif(os.name != "posix", reason="PTY only on Unix")
+    def test_read_pty_handles_eio_after_select_ready(self):
+        """Reproduces CI error: BlockingIOError -> select ready -> os.read EIO (PTY closed).
+
+        When a process exits in CI, the PTY slave closes immediately.
+        1. os.read() raises BlockingIOError (no data yet)
+        2. select.select() returns ready (PTY closed, FD readable due to EOF)
+        3. os.read() raises OSError EIO [Errno 5] (PTY slave closed)
+
+        This should be handled gracefully, not raise an uncaught exception.
+        """
+        import errno
+        import fcntl
+        import pty
+
+        master_fd, slave_fd = pty.openpty()
+        splitter = OutputSplitter(stream=False, capture=True)
+        output_list = []
+
+        mock_proc = Mock()
+        mock_proc.poll.return_value = None  # Process still running
+
+        # Simulate the exact error sequence from CI
+        eio_error = OSError("[Errno 5] Input/output error")
+        eio_error.errno = errno.EIO
+
+        call_count = [0]
+
+        def mock_os_read(_fd, _size):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First read: BlockingIOError (no data available yet)
+                raise BlockingIOError("[Errno 11] Resource temporarily unavailable")
+            elif call_count[0] == 2:
+                # Second read after select returns ready: EIO (PTY slave closed)
+                raise eio_error
+            return b""
+
+        # Track fcntl calls to ensure we're mocking correctly
+        fcntl_flags = 0
+
+        def mock_fcntl(_fd, cmd, *args):
+            nonlocal fcntl_flags
+            if cmd == fcntl.F_GETFL:
+                return fcntl_flags
+            elif cmd == fcntl.F_SETFL:
+                if args:
+                    fcntl_flags = args[0]
+                return 0
+            return 0
+
+        with (
+            patch("fcntl.fcntl", side_effect=mock_fcntl),
+            patch("os.read", side_effect=mock_os_read),
+            patch("select.select", return_value=([master_fd], [], [])),
+            patch("os.close"),
+        ):
+            # Should NOT raise - should handle EIO gracefully as EOF
+            splitter._read_pty(master_fd, Mock(), output_list, mock_proc)
+
+        # Should complete without crashing
+        assert call_count[0] >= 1
+
+        os.close(slave_fd)
+
+    @pytest.mark.skipif(os.name != "posix", reason="PTY only on Unix")
+    def test_read_pty_integration_with_real_pty_and_fast_exit(self):
+        """Integration test with REAL PTY and subprocess to verify the fix works.
+
+        This creates a real PTY, spawns a fast-exiting process, and verifies
+        that EIO errors are handled gracefully (like in CI).
+        """
+        import pty
+        import subprocess
+
+        # Create a real PTY pair
+        master_fd, slave_fd = pty.openpty()
+
+        # Spawn a process that exits immediately (no output)
+        proc = subprocess.Popen(
+            ["true"],  # exits immediately with exit code 0
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+        )
+        os.close(slave_fd)  # Close slave in parent
+
+        # Use the real OutputSplitter with real PTY
+        splitter = OutputSplitter(stream=False, capture=True)
+
+        # Attach the splitter (uses real threads)
+        threads = splitter.attach(proc)
+
+        # This should NOT raise uncaught EIO exceptions
+        # The threads should handle EIO gracefully
+        try:
+            splitter.finalize(threads)
+        except OSError as e:
+            # If EIO escapes, the test fails
+            if e.errno == 5:  # EIO
+                pytest.fail(f"EIO error escaped from PTY reader: {e}")
+            raise
+
+        # Verify process completed
+        proc.wait()
+        os.close(master_fd)

@@ -34,11 +34,20 @@ class PythonSpace(BaseSpace):
         ctx.run("uv run ty check --error-on-warning --no-progress .")
         ctx.run("uv run deptry .")
 
-    def _test(self, ctx: Context, *, tests_path: str, verbose: bool = False) -> None:
-        cmd = (
-            f"uv run pytest {tests_path} --cov=src --cov-report=html"
-            " --cov-report=term-missing --cov-report=xml"
-        )
+    def _test(
+        self,
+        ctx: Context,
+        *,
+        tests_paths: str | list[str],
+        verbose: bool = False,
+        coverage_report: bool = True,
+    ) -> None:
+        paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
+
+        cmd = f"uv run pytest {paths}"
+
+        if coverage_report:
+            cmd += " --cov=src --cov-report=html --cov-report=term-missing --cov-report=xml"
 
         if verbose:
             cmd += " -s -v"
@@ -53,20 +62,20 @@ class PythonSpace(BaseSpace):
         integration_tests_path = "tests/integration/"
         if Path(integration_tests_path).exists():
             tests_path = integration_tests_path
-            self._test(ctx, tests_path=tests_path, verbose=verbose)
+            self._test(ctx, tests_paths=tests_path, verbose=verbose)
         else:
             self._no_implementation(ctx)
 
     def test(self, ctx: Context) -> None:
         unit_tests_path = "tests/unit/"
         tests_path = unit_tests_path if Path(unit_tests_path).exists() else "tests/"
-        self._test(ctx, tests_path=tests_path)
+        self._test(ctx, tests_paths=tests_path)
 
     def test_all(self, ctx: Context) -> None:
         unit_tests_path = "tests/unit/"
         if Path(unit_tests_path).exists():
             tests_path = "tests/"
-            self._test(ctx, tests_path=tests_path)
+            self._test(ctx, tests_paths=tests_path)
         else:
             self._no_implementation(ctx)
 
