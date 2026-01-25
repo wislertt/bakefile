@@ -1,3 +1,4 @@
+import errno
 import os
 import select
 import subprocess
@@ -72,7 +73,14 @@ class OutputSplitter:
                     ready, _, _ = select.select([pty_fd], [], [], 0.1)
 
                     if ready:
-                        data = os.read(pty_fd, 4096)
+                        try:
+                            data = os.read(pty_fd, 4096)
+                        except OSError as e:
+                            # EIO (errno 5) means PTY slave closed - treat as EOF
+                            # This can happen in CI environments when process exits
+                            if e.errno == errno.EIO:
+                                break
+                            raise
                         if not self._handle_data(data, target, output_list):
                             break
 
