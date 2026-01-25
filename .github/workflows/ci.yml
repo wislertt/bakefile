@@ -25,7 +25,10 @@ jobs:
         needs: check-pre-release
         uses: wislertt/zerv/.github/workflows/shared-zerv-versioning.yml@v0
         with:
-            schema: ${{ (needs.check-pre-release.outputs.is_valid == 'true' && 'standard-base-prerelease-post') || '' }}
+            schema: >-
+                ${{ (needs.check-pre-release.outputs.is_valid == 'true'
+                && 'standard-base-prerelease-post')
+                || 'standard-base-prerelease-post-dev' }}
 
     tag-pre-release:
         name: tag-pre-release
