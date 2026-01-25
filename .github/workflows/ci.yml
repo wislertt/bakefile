@@ -51,7 +51,7 @@ jobs:
     # Deployment
     # ====================================================
     publish-test-pypi:
-        if: needs.check-pre-release.outputs.is_valid == 'true'
+        if: needs.check-pre-release.outputs.has_label == 'true'
         needs: [zerv-versioning, check-pre-release]
         uses: ./.github/workflows/publish.yml
         with:
