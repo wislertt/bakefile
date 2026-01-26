@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from itertools import product
 from typing import Any, Literal
 
-import loguru
+import loguru._logger
 import pytest
 
 from bake.ui.logger import capsys_to_logs, capsys_to_logs_pretty, setup_logging
@@ -20,7 +20,7 @@ def inner_test_setup_logging(
     capsys: pytest.CaptureFixture[str],
     handler_root_level: int,
     handler_module_b_level: int,
-    module_a_dynamic_logger: logging.Logger | loguru.Logger,
+    module_a_dynamic_logger: logging.Logger | loguru._logger.Logger,
     module_a_logger_lib: Literal["logging", "loguru"],
     module_b_logger_func: Callable[[dict[str, Any] | None], None],
     module_b_logger_lib: Literal["logging", "loguru"],
@@ -167,7 +167,7 @@ def test_setup_logging(
     capsys: pytest.CaptureFixture[str],
     handler_root_level: int,
     handler_module_b_level: int,
-    module_a_dynamic_logger: logging.Logger | loguru.Logger,
+    module_a_dynamic_logger: logging.Logger | loguru._logger.Logger,
     module_a_logger_lib: Literal["logging", "loguru"],
     module_b_logger_func: Callable[[dict[str, Any] | None], None],
     module_b_logger_lib: Literal["logging", "loguru"],
@@ -223,7 +223,7 @@ def test_setup_logging_extra(
     capsys: pytest.CaptureFixture[str],
     handler_root_level: int,
     handler_module_b_level: int,
-    module_a_dynamic_logger: logging.Logger | loguru.Logger,
+    module_a_dynamic_logger: logging.Logger | loguru._logger.Logger,
     module_a_logger_lib: Literal["logging", "loguru"],
     module_b_logger_func: Callable[[dict[str, Any] | None], None],
     module_b_logger_lib: Literal["logging", "loguru"],
@@ -276,7 +276,7 @@ def test_setup_logging_thread_local_context(
     capsys: pytest.CaptureFixture[str],
     handler_root_level: int,
     handler_module_b_level: int,
-    module_a_dynamic_logger: logging.Logger | loguru.Logger,
+    module_a_dynamic_logger: logging.Logger | loguru._logger.Logger,
     module_a_logger_lib: Literal["logging", "loguru"],
     module_b_logger_func: Callable[[dict[str, Any] | None], None],
     module_b_logger_lib: Literal["logging", "loguru"],
@@ -322,7 +322,7 @@ def test_setup_logging_pretty_log(
     capsys: pytest.CaptureFixture[str],
     handler_root_level: int,
     handler_module_b_level: int,
-    module_a_dynamic_logger: logging.Logger | loguru.Logger,
+    module_a_dynamic_logger: logging.Logger | loguru._logger.Logger,
     module_a_logger_lib: Literal["logging", "loguru"],
     module_b_logger_func: Callable[[dict[str, Any] | None], None],
     module_b_logger_lib: Literal["logging", "loguru"],

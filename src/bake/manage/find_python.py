@@ -9,6 +9,8 @@ from bake.utils.exceptions import PythonNotFoundError
 
 logger = logging.getLogger(__name__)
 
+_NO_PROJECT_PYTHON_MSG = "No project Python found"
+
 
 def is_standalone_bakefile(bakefile_path: Path) -> bool:
     inline_metadata = read_inline(bakefile_path)
@@ -101,18 +103,33 @@ def _find_project_python(bakefile_path: Path) -> Path | None:
     # Check if stderr contains "Found `...` at `...` (...)"
     # where source is "active virtual environment" or "virtual environment"
     stderr = result.stderr.strip()
-    pattern = r"Found `[^`]+` at `[^`]+` \(([^)]+)\)"
+    pattern = r"Found `[^`]+` at `([^`]+)` \(([^)]+)\)"
     match = re.search(pattern, stderr)
 
-    if result.returncode == 0 and match:
-        source = match.group(1)
-        if source in {"active virtual environment", "virtual environment"}:
-            python_path = Path(result.stdout.strip())
-            logger.debug(f"Found project Python at {python_path} (source: {source})")
-            return python_path
+    if not (result.returncode == 0 and match):
+        logger.debug(_NO_PROJECT_PYTHON_MSG)
+        return None
 
-    logger.debug("No project Python found")
-    return None
+    source = match.group(2)
+    if source not in {"active virtual environment", "virtual environment"}:
+        logger.debug(_NO_PROJECT_PYTHON_MSG)
+        return None
+
+    python_path_from_log = Path(match.group(1))
+    python_path_from_stdout = Path(result.stdout.strip())
+    if python_path_from_log != python_path_from_stdout:
+        logger.debug(
+            "Python path mismatch between log and stdout",
+            extra={
+                "python_path_from_log": python_path_from_log,
+                "python_path_from_stdout": python_path_from_stdout,
+            },
+        )
+        logger.debug(_NO_PROJECT_PYTHON_MSG)
+        return None
+
+    logger.debug(f"Found project Python at {python_path_from_stdout} (source: {source})")
+    return python_path_from_stdout
 
 
 def _create_bakefile_venv(bakefile_path: Path) -> Path | None:

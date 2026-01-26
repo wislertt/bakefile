@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Literal
 
-import loguru
+import loguru._logger
 
 NAME = __name__
 MODULE = __name__.rsplit(".", maxsplit=1)[-1]
@@ -9,7 +9,7 @@ MODULE_LOG_MESSAGE = "This is a log from module a"
 
 
 def log_func_by_dynamic_logger(
-    logger: logging.Logger | loguru.Logger,
+    logger: logging.Logger | loguru._logger.Logger,
     logger_lib: Literal["logging", "loguru"],
     extra: dict[str, Any] | None = None,
 ):

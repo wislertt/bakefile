@@ -57,20 +57,16 @@ class BaseSpace(Bakebook):
                 help="Patterns to exclude",
             ),
         ] = None,
-        use_default_excludes: Annotated[
+        default_excludes: Annotated[
             bool,
-            typer.Option(
-                "--no-default-excludes",
-                help="Do not apply default exclude patterns",
-                is_flag=True,
-            ),
-        ] = False,
+            typer.Option(help="Apply default exclude patterns (.env, .cache)"),
+        ] = True,
     ) -> None:
         results = ctx.run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
 
         exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
 
-        if not use_default_excludes:
+        if default_excludes:
             exclude_patterns |= {".env", ".cache"}
 
         console.err.print(f"Exclude pattens: {exclude_patterns}")
@@ -175,7 +171,6 @@ class BaseSpace(Bakebook):
                 "--skip-test",
                 "-s",
                 help="Skip running tests",
-                is_flag=True,
             ),
         ] = False,
     ) -> None:

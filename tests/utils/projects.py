@@ -45,8 +45,11 @@ def empty_project_folder(tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Pat
 
 
 @pytest.fixture
-def uv_project_folder_without_dep(tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path) -> Path:
+def uv_project_folder_without_dep(
+    tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path, isolate_virtual_env: None
+) -> Path:
     _ = isolated_uv_cache
+    _ = isolate_virtual_env
     run_uv(["init"], cwd=tmp_path)
     return _create_bakefile(tmp_path, run_cli)
 

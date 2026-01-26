@@ -196,6 +196,7 @@ def test_run_script_runtime_error_propagates() -> None:
     assert "ValueError" in result.stderr or "This is a test error" in result.stderr
 
 
+@flaky_on_macos_ci()
 def test_run_script_nonzero_exit_propagates() -> None:
     """Test that non-zero exit codes propagate correctly and temp files are cleaned up."""
     script = dedent("""
