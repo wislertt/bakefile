@@ -56,6 +56,9 @@ jobs:
                       uv-${{ runner.os }}-py${{ matrix.python-version }}-
                       uv-${{ runner.os }}-
 
+            - name: remove-dot-python-version
+              run: rm .python-version
+
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
 
