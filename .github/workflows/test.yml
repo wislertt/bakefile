@@ -66,6 +66,14 @@ jobs:
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
 
+            - name: debug
+              run: |
+                  which python
+                  python --version
+                  which bake
+                  uv python find
+                  bf -vv find-python
+
             - name: run-tests
               run: make test
 
