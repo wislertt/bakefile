@@ -52,10 +52,6 @@ jobs:
                       uv-${{ runner.os }}-py${{ matrix.python-version }}-
                       uv-${{ runner.os }}-
 
-            - name: debug
-              run: |
-                  uv run python --version
-
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
 
