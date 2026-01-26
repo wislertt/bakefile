@@ -1,5 +1,3 @@
-"""Tests for bakefile.ui.logger.capsys module."""
-
 import json
 import logging
 import sys
