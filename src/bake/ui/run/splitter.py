@@ -47,51 +47,55 @@ class OutputSplitter:
             output_list.append(data)
         return True
 
-    def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
-        """Read from PTY file descriptor in chunks and stream to output."""
+    def _read_pty_eio_safe(self, pty_fd: int) -> bytes | None:
+        """Read from PTY, treating EIO as EOF (returns None)."""
+        try:
+            return os.read(pty_fd, 4096)
+        except OSError as e:
+            if e.errno == errno.EIO:
+                return None
+            raise
+
+    def _try_immediate_read(self, pty_fd: int, target, output_list) -> bool:
+        """Try immediate non-blocking read. Returns True if should continue."""
         import fcntl
 
+        flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
+        fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+        data = self._read_pty_eio_safe(pty_fd)
+        if data is None or not self._handle_data(data, target, output_list):
+            fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+            return False
+
+        fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+        return True
+
+    def _blocking_pty_read(self, pty_fd: int, target, output_list) -> bool:
+        """Try select-based blocking read. Returns True if should continue."""
+        import fcntl
+
+        flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
+        fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
+
+        ready, _, _ = select.select([pty_fd], [], [], 0.1)
+        if ready:
+            data = self._read_pty_eio_safe(pty_fd)
+            if data is None or not self._handle_data(data, target, output_list):
+                return False
+        return True
+
+    def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
+        """Read from PTY file descriptor in chunks and stream to output."""
         try:
             while True:
-                # Try immediate non-blocking read first (catches fast-exiting processes)
                 try:
-                    # Set non-blocking mode
-                    flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
-                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-                    try:
-                        data = os.read(pty_fd, 4096)
-                    except OSError as e:
-                        # EIO (errno 5) means PTY slave closed - treat as EOF
-                        # This can happen on Linux when process exits quickly
-                        if e.errno == errno.EIO:
-                            break
-                        raise
-                    if not self._handle_data(data, target, output_list):
+                    if not self._try_immediate_read(pty_fd, target, output_list):
+                        break
+                except BlockingIOError:
+                    if not self._blocking_pty_read(pty_fd, target, output_list):
                         break
 
-                    # Restore blocking mode
-                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
-                except BlockingIOError:
-                    # No data available yet, restore blocking mode and wait with select
-                    fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
-
-                    # Wait for data to be available
-                    ready, _, _ = select.select([pty_fd], [], [], 0.1)
-
-                    if ready:
-                        try:
-                            data = os.read(pty_fd, 4096)
-                        except OSError as e:
-                            # EIO (errno 5) means PTY slave closed - treat as EOF
-                            # This can happen in CI environments when process exits
-                            if e.errno == errno.EIO:
-                                break
-                            raise
-                        if not self._handle_data(data, target, output_list):
-                            break
-
-                # Check if process exited after reading data
                 if proc.poll() is not None:
                     self._drain_pty(pty_fd, target, output_list)
                     break
