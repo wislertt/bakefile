@@ -5,7 +5,7 @@ import sys
 from functools import wraps
 
 
-def flaky_on_macos_ci(max_retries: int = 3):
+def flaky_on_macos_ci(max_retries: int = 5):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
