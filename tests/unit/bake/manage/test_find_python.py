@@ -1,10 +1,12 @@
 import logging
 import re
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bake.manage.find_python import find_python_path
+from bake.manage.find_python import _find_project_python, find_python_path
 from bake.ui import run_uv
 from bake.ui.logger import (
     capsys_to_logs,
@@ -335,3 +337,104 @@ def test_find_python_with_no_bakefile(
     # Assert =================
     error_message = str(exc_info.value)
     assert str(bakefile_path) in error_message
+
+
+class TestFindProjectPythonEdgeCases:
+    """Tests for _find_project_python edge cases."""
+
+    def test_find_project_python_returns_none_on_non_zero_returncode(
+        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Case: uv python find returns non-zero returncode."""
+        # Arrange ================
+        setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
+
+        mock_result = MagicMock(spec=subprocess.CompletedProcess)
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_result.stderr = "error: some error"
+
+        with patch("bake.manage.find_python.run_uv", return_value=mock_result):
+            # Act ====================
+            _ = capsys.readouterr()
+            result = _find_project_python(bakefile_path)
+
+            # Assert =================
+            assert result is None
+            logs = capsys_to_logs(capsys)
+            assert has_messages_in_logs(logs, ["No project Python found"])
+
+    def test_find_project_python_returns_none_on_pattern_mismatch(
+        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Case: uv python find succeeds but stderr doesn't match expected pattern."""
+        # Arrange ================
+        setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
+
+        mock_result = MagicMock(spec=subprocess.CompletedProcess)
+        mock_result.returncode = 0
+        mock_result.stdout = "/usr/bin/python3"
+        mock_result.stderr = "Some other output that doesn't match pattern"
+
+        with patch("bake.manage.find_python.run_uv", return_value=mock_result):
+            # Act ====================
+            _ = capsys.readouterr()
+            result = _find_project_python(bakefile_path)
+
+            # Assert =================
+            assert result is None
+            logs = capsys_to_logs(capsys)
+            assert has_messages_in_logs(logs, ["No project Python found"])
+
+    def test_find_project_python_returns_none_on_source_mismatch(
+        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Case: stderr matches pattern but source is not virtual environment."""
+        # Arrange ================
+        setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
+
+        mock_result = MagicMock(spec=subprocess.CompletedProcess)
+        mock_result.returncode = 0
+        mock_result.stdout = "/usr/bin/python3"
+        mock_result.stderr = "Found `python3.12` at `/usr/bin/python3.12` (custom)"
+
+        with patch("bake.manage.find_python.run_uv", return_value=mock_result):
+            # Act ====================
+            _ = capsys.readouterr()
+            result = _find_project_python(bakefile_path)
+
+            # Assert =================
+            assert result is None
+            logs = capsys_to_logs(capsys)
+            assert has_messages_in_logs(logs, ["No project Python found"])
+
+    def test_find_project_python_returns_none_on_path_mismatch(
+        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Case: Python path from stderr log doesn't match stdout (inconsistent output)."""
+        # Arrange ================
+        setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
+
+        mock_result = MagicMock(spec=subprocess.CompletedProcess)
+        mock_result.returncode = 0
+        # stdout has one path
+        mock_result.stdout = "/usr/bin/python3.12"
+        # stderr has different path
+        mock_result.stderr = "Found `python3.12` at `/usr/bin/python3.11` (virtual environment)"
+
+        with patch("bake.manage.find_python.run_uv", return_value=mock_result):
+            # Act ====================
+            _ = capsys.readouterr()
+            result = _find_project_python(bakefile_path)
+
+            # Assert =================
+            assert result is None
+            logs = capsys_to_logs(capsys)
+            assert has_messages_in_logs(
+                logs,
+                ["Python path mismatch between log and stdout", "No project Python found"],
+            )
