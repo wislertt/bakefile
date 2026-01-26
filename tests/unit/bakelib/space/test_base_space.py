@@ -61,7 +61,7 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.clean(mock_ctx, use_default_excludes=True)
+        base_space.clean(mock_ctx, default_excludes=False)
         captured = capsys.readouterr()
         assert "git clean -fdX -n" in captured.err
 
