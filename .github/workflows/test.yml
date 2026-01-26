@@ -70,9 +70,9 @@ jobs:
               run: |
                   which python
                   python --version
-                  which bake
+                  uv run which bake
                   uv python find
-                  bf -vv find-python
+                  uv run bf -vv find-python
 
             - name: run-tests
               run: make test
