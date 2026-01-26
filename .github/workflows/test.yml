@@ -36,14 +36,18 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: setup-python
-              uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-              with:
-                  python-version: ${{ matrix.python-version }}
+            # - name: setup-python
+            #   uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+            #   with:
+            #       python-version: ${{ matrix.python-version }}
+
+            - name: set-dot-python-version
+              run: echo "${{ matrix.python-version }}" > .python-version
 
             - name: setup-uv
               uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
               with:
+                  python-version: ${{ matrix.python-version }}
                   version: "latest"
                   enable-cache: true
 
@@ -56,8 +60,8 @@ jobs:
             #           uv-${{ runner.os }}-py${{ matrix.python-version }}-
             #           uv-${{ runner.os }}-
 
-            - name: set-dot-python-version
-              run: echo "${{ matrix.python-version }}" > .python-version
+            # - name: set-dot-python-version
+            #   run: echo "${{ matrix.python-version }}" > .python-version
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
