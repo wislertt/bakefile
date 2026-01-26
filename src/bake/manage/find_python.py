@@ -9,6 +9,8 @@ from bake.utils.exceptions import PythonNotFoundError
 
 logger = logging.getLogger(__name__)
 
+_NO_PROJECT_PYTHON_MSG = "No project Python found"
+
 
 def is_standalone_bakefile(bakefile_path: Path) -> bool:
     inline_metadata = read_inline(bakefile_path)
@@ -105,12 +107,12 @@ def _find_project_python(bakefile_path: Path) -> Path | None:
     match = re.search(pattern, stderr)
 
     if not (result.returncode == 0 and match):
-        logger.debug("No project Python found")
+        logger.debug(_NO_PROJECT_PYTHON_MSG)
         return None
 
     source = match.group(2)
     if source not in {"active virtual environment", "virtual environment"}:
-        logger.debug("No project Python found")
+        logger.debug(_NO_PROJECT_PYTHON_MSG)
         return None
 
     python_path_from_log = Path(match.group(1))
@@ -123,7 +125,7 @@ def _find_project_python(bakefile_path: Path) -> Path | None:
                 "python_path_from_stdout": python_path_from_stdout,
             },
         )
-        logger.debug("No project Python found")
+        logger.debug(_NO_PROJECT_PYTHON_MSG)
         return None
 
     logger.debug(f"Found project Python at {python_path_from_stdout} (source: {source})")
