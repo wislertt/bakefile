@@ -108,7 +108,10 @@ class TestCacheBasics:
         assert cache.get_value() == "test-value"
         assert fetch_count == 1
 
-    @pytest.mark.parametrize("cache_class,ttl", [(MemoryCache, 0.01), (KeyringCache, 0.05)])
+    @pytest.mark.parametrize(
+        "cache_class,ttl",
+        [(MemoryCache, 0.01)] + ([(KeyringCache, 0.05)] if keyring_backend_available() else []),
+    )
     def test_cache_respects_ttl(
         self, cache_class: type[RefreshableCache], ttl: float, capsys: pytest.CaptureFixture[str]
     ):
