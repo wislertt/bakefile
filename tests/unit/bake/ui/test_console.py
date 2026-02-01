@@ -39,10 +39,8 @@ class TestWarning:
             mock_settings.github_actions = github_actions
             console.warning("File not found")
             captured = capsys.readouterr()
-            if github_actions:
-                assert "::warning::File not found" in captured.err
-            else:
-                assert get_warning_label() in captured.err
+            assert get_warning_label(github_actions) in captured.err
+            assert "File not found" in captured.err
             assert captured.out == ""
 
 
@@ -55,10 +53,8 @@ class TestError:
             mock_settings.github_actions = github_actions
             console.error("Failed to connect")
             captured = capsys.readouterr()
-            if github_actions:
-                assert "::error::Failed to connect" in captured.err
-            else:
-                assert get_error_label() in captured.err
+            assert get_error_label(github_actions) in captured.err
+            assert "Failed to connect" in captured.err
             assert captured.out == ""
 
 

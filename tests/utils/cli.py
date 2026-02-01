@@ -58,11 +58,15 @@ def run_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str])
     return RunCli(monkeypatch, capsys)
 
 
-def get_error_label() -> str:
-    """Get the error label based on current environment."""
-    return "ERROR" if not bake_settings.github_actions else "::error::"
+def get_error_label(github_actions: bool | None = None) -> str:
+    """Get the error label based on current environment or provided value."""
+    if github_actions is None:
+        github_actions = bake_settings.github_actions
+    return "ERROR" if not github_actions else "::error::"
 
 
-def get_warning_label() -> str:
-    """Get the warning label based on current environment."""
-    return "WARNING" if not bake_settings.github_actions else "::warning::"
+def get_warning_label(github_actions: bool | None = None) -> str:
+    """Get the warning label based on current environment or provided value."""
+    if github_actions is None:
+        github_actions = bake_settings.github_actions
+    return "WARNING" if not github_actions else "::warning::"
