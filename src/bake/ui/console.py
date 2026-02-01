@@ -65,7 +65,8 @@ def echo(message: Any, **kwargs) -> None:
 
 
 def cmd(cmd_str: str, **kwargs) -> None:
-    err.print(f"[{BOLD_GREEN}]❯[/{BOLD_GREEN}] [default]{cmd_str}[/default]", **kwargs)  # noqa: RUF001
+    arrow = "❯" if sys.stdout.isatty() else ">"  # noqa: RUF001
+    err.print(f"[{BOLD_GREEN}]{arrow}[/{BOLD_GREEN}] [default]{cmd_str}[/default]", **kwargs)
 
 
 def script_block(title: str, script: str, **kwargs) -> None:

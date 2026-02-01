@@ -438,8 +438,6 @@ def _setup_pty_stream(
         stderr_fd, slave_stderr = pty.openpty()
 
         env = _prepare_subprocess_env(env)
-        # print("use env")
-        # print(env["UV_PUBLISH_TOKEN"])
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
