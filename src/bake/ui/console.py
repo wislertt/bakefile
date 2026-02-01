@@ -1,3 +1,4 @@
+import sys
 import textwrap
 from typing import Any
 
@@ -20,8 +21,13 @@ def _format_prefix(
     message: str,
 ) -> str:
     formatted_label = f"[{label}]" if console_obj.no_color or out.color_system is None else label
-    emoji = emoji + " " if emoji else ""
-    return f"[{style}]{emoji}{formatted_label}[/{style}] {message}"
+
+    # Strip emoji in non-terminal contexts (e.g., CI) to avoid encoding issues
+    emoji_str = ""
+    if emoji and sys.stdout.isatty():
+        emoji_str = emoji + " "
+
+    return f"[{style}]{emoji_str}{formatted_label}[/{style}] {message}"
 
 
 def prefix_out(
