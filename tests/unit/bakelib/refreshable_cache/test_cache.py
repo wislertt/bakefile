@@ -7,6 +7,7 @@ from typing import ClassVar
 
 import keyring
 import pytest
+from keyring.errors import NoKeyringError
 
 from bake.ui.logger import capsys_to_logs, has_messages_in_logs, setup_logging
 from bakelib.refreshable_cache import (
@@ -17,6 +18,20 @@ from bakelib.refreshable_cache import (
     RefreshableCache,
 )
 from bakelib.refreshable_cache.cache import DEFAULT_NAMESPACE
+
+
+def keyring_backend_available() -> bool:
+    """Check if a keyring backend is available."""
+    try:
+        keyring.get_password("__test__", "__test__")
+        return True
+    except NoKeyringError:
+        return False
+
+
+skip_if_no_keyring = pytest.mark.skipif(
+    not keyring_backend_available(), reason="No keyring backend available"
+)
 
 
 class TestKeyRegistry:
@@ -75,7 +90,9 @@ def cleanup_keyring():
 class TestCacheBasics:
     """Tests for basic cache functionality."""
 
-    @pytest.mark.parametrize("cache_class", [MemoryCache, KeyringCache])
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
     def test_cache_stores_and_retrieves_value(self, cache_class: type[RefreshableCache]):
         fetch_count = 0
 
@@ -116,7 +133,9 @@ class TestCacheBasics:
         logs = capsys_to_logs(capsys)
         assert has_messages_in_logs(logs, ["Cache expired"])
 
-    @pytest.mark.parametrize("cache_class", [MemoryCache, KeyringCache])
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
     def test_cache_with_none_ttl_never_expires(
         self, cache_class: type[RefreshableCache], capsys: pytest.CaptureFixture[str]
     ):
@@ -174,7 +193,9 @@ class TestCacheBasics:
 class TestDecorator:
     """Tests for @cache.catch_refresh decorator."""
 
-    @pytest.mark.parametrize("cache_class", [MemoryCache, KeyringCache])
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
     def test_catch_refresh_retries_on_error(self, cache_class: type[RefreshableCache]):
         call_count = 0
         fetch_count = 0
@@ -200,7 +221,9 @@ class TestDecorator:
         assert call_count == 2
         assert fetch_count == 2
 
-    @pytest.mark.parametrize("cache_class", [MemoryCache, KeyringCache])
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
     def test_catch_refresh_no_error(self, cache_class: type[RefreshableCache]):
         fetch_count = 0
 
@@ -243,8 +266,7 @@ class TestDecorator:
         assert fetch_count == 0
 
     @pytest.mark.parametrize(
-        "cache_class",
-        [MemoryCache, KeyringCache],
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
     )
     def test_catch_refresh_deletes_cache_after_last_retry_fails(
         self,
@@ -272,6 +294,7 @@ class TestDecorator:
 class TestKeyringCacheSpecific:
     """Tests specific to KeyringCache."""
 
+    @skip_if_no_keyring
     def test_keyring_cache_persists_across_instances(self):
         fetch_count = 0
 
@@ -288,6 +311,7 @@ class TestKeyringCacheSpecific:
         assert cache2.get_value() == "persistent"
         assert fetch_count == 1
 
+    @skip_if_no_keyring
     def test_keyring_cache_custom_namespace(self):
         fetch_count = 0
 
@@ -427,8 +451,12 @@ class TestChainedCache:
         def fetch_value() -> str:
             return "delete-test"
 
+        backends = [MemoryCache]
+        if keyring_backend_available():
+            backends.append(KeyringCache)
+
         cache = ChainedCache(
-            backends=[MemoryCache, KeyringCache],
+            backends=backends,
             key=TestKeyRegistry.create("chained-delete"),
             fetch_fn=fetch_value,
         )

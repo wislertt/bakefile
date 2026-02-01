@@ -1,5 +1,6 @@
 import subprocess
 from contextlib import contextmanager
+from unittest import mock
 
 import pytest
 import typer
@@ -148,13 +149,25 @@ class TestBaseLibSpace:
         assert result.result is None
 
     def test_determine_version_calls_zerv_when_no_version(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        _ = capsys
         space = MinimalTestLibSpace()
-        space._determine_version(mock_ctx, None)
-        captured = capsys.readouterr()
-        err = strip_ansi(captured.err)
-        assert "zerv flow" in err
+
+        mock_result = subprocess.CompletedProcess(
+            args=["zerv flow"],
+            returncode=0,
+            stdout="0.1.0",
+            stderr="",
+        )
+
+        mock_run = mock.Mock(return_value=mock_result)
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+
+        version = space._determine_version(mock_ctx, None)
+
+        assert version == "0.1.0"
+        mock_run.assert_called_once_with("zerv flow ", dry_run=False)
 
 
 class TestBaseLibSpaceDefaults:
