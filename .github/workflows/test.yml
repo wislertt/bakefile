@@ -69,12 +69,8 @@ jobs:
               run: |
                   bake print
 
-            # - name: debug-publish
-            #   run: |
-            #       bake publish --version 0.0.1
-
             - name: run-tests
-              run: make test
+              run: bake test
 
             - name: upload-coverage-reports-to-codecov
               if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
