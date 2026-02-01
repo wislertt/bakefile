@@ -19,15 +19,15 @@ jobs:
               with:
                   version: "latest"
                   enable-cache: true
-                  python-version: ${{ matrix.python-version }}
+                  python-version: ${{ inputs.python_version }}
 
             - name: cache-uv
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: ${{ github.workspace }}/.venv
-                  key: uv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+                  key: uv-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}
                   restore-keys: |
-                      uv-${{ runner.os }}-py${{ matrix.python-version }}-
+                      uv-${{ runner.os }}-py${{ inputs.python_version }}-
                       uv-${{ runner.os }}-
 
             - name: install-dependencies
