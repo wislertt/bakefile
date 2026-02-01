@@ -11,6 +11,11 @@ out = Console(stderr=False)
 err = Console(stderr=True)
 
 BOLD_GREEN = "bold green"
+UNICODE_ENCODINGS = {"utf-8", "utf-16", "utf-32", "utf-16-le", "utf-16-be"}
+
+
+def _supports_unicode() -> bool:
+    return sys.stdout.encoding.lower() in UNICODE_ENCODINGS
 
 
 def _format_prefix(
@@ -22,9 +27,9 @@ def _format_prefix(
 ) -> str:
     formatted_label = f"[{label}]" if console_obj.no_color or out.color_system is None else label
 
-    # Strip emoji in non-terminal contexts (e.g., CI) to avoid encoding issues
+    # Strip emoji/unicode in non-UTF contexts (e.g., Windows CI) to avoid encoding issues
     emoji_str = ""
-    if emoji and sys.stdout.isatty():
+    if emoji and _supports_unicode():
         emoji_str = emoji + " "
 
     return f"[{style}]{emoji_str}{formatted_label}[/{style}] {message}"
@@ -65,7 +70,7 @@ def echo(message: Any, **kwargs) -> None:
 
 
 def cmd(cmd_str: str, **kwargs) -> None:
-    arrow = "❯" if sys.stdout.isatty() else ">"  # noqa: RUF001
+    arrow = "❯" if _supports_unicode() else ">"  # noqa: RUF001
     err.print(f"[{BOLD_GREEN}]{arrow}[/{BOLD_GREEN}] [default]{cmd_str}[/default]", **kwargs)
 
 
@@ -106,3 +111,8 @@ def error(message: str, **kwargs) -> None:
         err.print(f"::error::{message}", **kwargs)
     else:
         prefix_err(emoji=":x:", label="ERROR", style="bold red", message=message, **kwargs)
+
+
+def github_action_add_mask(value: str, **kwargs) -> None:
+    if bake_settings.github_actions:
+        out.print(f"::add-mask::{value}", **kwargs)

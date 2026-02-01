@@ -179,3 +179,23 @@ def test_prefix_err_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     assert "WARN" in captured.err
     assert "Warning message" in captured.err
+
+
+def test_github_action_add_mask_prints_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+        mock_settings.github_actions = True
+        console.github_action_add_mask("my-secret-token")
+        captured = capsys.readouterr()
+        assert "::add-mask::my-secret-token" in captured.out
+        assert captured.err == ""
+
+
+def test_github_action_add_mask_does_nothing_when_not_github_actions(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+        mock_settings.github_actions = False
+        console.github_action_add_mask("my-secret-token")
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""

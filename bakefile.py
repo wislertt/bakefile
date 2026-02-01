@@ -13,4 +13,6 @@ def print(ctx: Context):
     console.success("test error message")
     console.out.print("::error::This is error message")
     console.out.print("::warning::This is warning message")
+    console.github_action_add_mask("my-secret-token-123")
+    console.out.print("Token: my-secret-token-123")
     ctx.run("echo hello", echo_cmd="echo hi")
