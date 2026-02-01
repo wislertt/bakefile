@@ -48,8 +48,8 @@ class RefreshableCache(ABC, Generic[CachedT]):
         fetch_fn: Callable[[], CachedT],
         ttl: float | None = None,
         namespace: str | None = None,
-        stop: "StopBaseT" | None = None,
-        wait: "WaitBaseT" | None = None,
+        stop: "StopBaseT | None" = None,
+        wait: "WaitBaseT | None" = None,
         cached_type: Any = None,
     ) -> None:
         self._key = key
