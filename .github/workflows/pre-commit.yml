@@ -2,6 +2,10 @@ name: pre-commit
 
 on:
     workflow_call:
+        inputs:
+            python_version:
+                required: true
+                type: string
 
 jobs:
     pre-commit:
