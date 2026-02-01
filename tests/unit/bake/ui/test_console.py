@@ -31,21 +31,35 @@ class TestEcho:
 
 
 class TestWarning:
-    def test_warning_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
-        console.warning("File not found")
-        captured = capsys.readouterr()
-        assert get_warning_label() in captured.err
-        assert "File not found" in captured.err
-        assert captured.out == ""
+    @pytest.mark.parametrize("github_actions", [False, True])
+    def test_warning_prints_to_stderr(
+        self, capsys: pytest.CaptureFixture[str], github_actions: bool
+    ) -> None:
+        with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+            mock_settings.github_actions = github_actions
+            console.warning("File not found")
+            captured = capsys.readouterr()
+            if github_actions:
+                assert "::warning::File not found" in captured.err
+            else:
+                assert get_warning_label() in captured.err
+            assert captured.out == ""
 
 
 class TestError:
-    def test_error_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
-        console.error("Failed to connect")
-        captured = capsys.readouterr()
-        assert get_error_label() in captured.err
-        assert "Failed to connect" in captured.err
-        assert captured.out == ""
+    @pytest.mark.parametrize("github_actions", [False, True])
+    def test_error_prints_to_stderr(
+        self, capsys: pytest.CaptureFixture[str], github_actions: bool
+    ) -> None:
+        with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+            mock_settings.github_actions = github_actions
+            console.error("Failed to connect")
+            captured = capsys.readouterr()
+            if github_actions:
+                assert "::error::Failed to connect" in captured.err
+            else:
+                assert get_error_label() in captured.err
+            assert captured.out == ""
 
 
 class TestOutputToCorrectStream:
