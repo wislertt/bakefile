@@ -488,3 +488,87 @@ class TestResolveInterpreter:
 
         result = _resolve_interpreter(interpreter)
         assert check_func(result)
+
+
+# ============================================================================
+# echo_cmd Tests (Command Display Override)
+# ============================================================================
+
+
+@flaky_on_macos_ci()
+def test_echo_cmd_overrides_all_display_and_logs(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test that echo_cmd overrides console echo, [run], [done], and [error] logs."""
+    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+    _ = capsys.readouterr()
+
+    result = run(["echo", "hello"], echo_cmd="custom command")
+
+    assert result.returncode == 0
+    assert result.stdout == "hello\n"
+
+    capture = capsys.readouterr()
+    logs = capture_to_logs(capture)
+
+    # Console echo and debug logs use echo_cmd
+    assert "custom command" in capture.err
+    assert any("[run] custom command" in log["message"] for log in logs)
+    assert any("[done] custom command" in log["message"] for log in logs)
+
+    # Error log also uses echo_cmd
+    with pytest.raises(typer.Exit):
+        run(["false"], echo_cmd="failing command", check=True)
+
+    capture = capsys.readouterr()
+    logs = capture_to_logs(capture)
+    assert any("[error] failing command" in log["message"] for log in logs)
+
+
+def test_echo_cmd_executes_actual_command_not_display_string(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that the actual command is executed, not the echo_cmd string."""
+    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+    _ = capsys.readouterr()
+
+    result = run(["echo", "test123"], echo_cmd="not a real command")
+
+    assert result.returncode == 0
+    assert result.stdout == "test123\n"
+
+    logs = capsys_to_logs(capsys)
+    assert any("[run] not a real command" in log["message"] for log in logs)
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected_log_prefix,expected_stdout,check_console_echo",
+    [
+        # echo=False: logs use echo_cmd, console echo is suppressed
+        ({"echo": False, "echo_cmd": "custom"}, "custom", "hello\n", False),
+        # dry_run=True: [dry-run] log uses echo_cmd, no execution
+        ({"dry_run": True, "echo_cmd": "custom"}, "[dry-run] custom", "", False),
+        # echo_cmd=None: shows actual command in logs and console
+        ({"echo_cmd": None}, "echo hello", "hello\n", True),
+    ],
+)
+def test_echo_cmd_edge_cases(
+    capsys: pytest.CaptureFixture[str],
+    kwargs: dict,
+    expected_log_prefix: str,
+    expected_stdout: str,
+    check_console_echo: bool,
+) -> None:
+    """Test echo_cmd with echo=False, dry_run=True, and echo_cmd=None."""
+    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+    _ = capsys.readouterr()
+
+    result = run(["echo", "hello"], **kwargs)
+
+    assert result.returncode == 0
+    assert result.stdout == expected_stdout
+
+    capture = capsys.readouterr()
+    logs = capture_to_logs(capture)
+
+    assert any(expected_log_prefix in log["message"] for log in logs)
+    if check_console_echo:
+        assert "echo hello" in capture.err

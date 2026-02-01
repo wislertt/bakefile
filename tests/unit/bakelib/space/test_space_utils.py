@@ -224,6 +224,25 @@ class TestSetupFunctions:
         captured = capsys.readouterr()
         assert "brew install oven-sh/bun/bun" in captured.err
 
+    def test_setup_rustup_runs_brew_install_and_rustup_update(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        from bakelib.space.utils import setup_rustup
+
+        setup_rustup(mock_ctx)
+        captured = capsys.readouterr()
+        assert "brew install rustup" in captured.err
+        assert "rustup update" in captured.err
+
+    def test_setup_zerv_runs_cargo_install(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        from bakelib.space.utils import setup_zerv
+
+        setup_zerv(mock_ctx)
+        captured = capsys.readouterr()
+        assert "cargo install zerv" in captured.err
+
 
 class TestGetPlatform:
     @pytest.mark.parametrize(

@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from bake.utils.env import ENV_NO_COLOR
+from bake.utils import ENV_NO_COLOR
 
 
 @pytest.fixture(autouse=True, scope="function")

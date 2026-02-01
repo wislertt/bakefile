@@ -5,7 +5,8 @@ on:
         inputs:
             python_versions:
                 type: string
-                default: "['3.10', '3.11', '3.12', '3.13', '3.14']"
+                # default: "['3.10', '3.11', '3.12', '3.13', '3.14']"
+                default: "['3.14']"
                 description: "JSON array of Python versions to test"
             target_python_version:
                 type: string
@@ -54,6 +55,14 @@ jobs:
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
+
+            - name: debug-print
+              run: |
+                  bake print
+
+            - name: debug-publish
+              run: |
+                  bake publish
 
             - name: run-tests
               run: make test

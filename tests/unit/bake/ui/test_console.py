@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 
 from bake.ui import console
@@ -108,3 +110,71 @@ class TestScriptBlock:
         captured = capsys.readouterr()
         assert "━" in captured.err  # bold line character
         assert "─" in captured.err  # thin line character
+
+
+def test_warning_prints_github_actions_format(capsys: pytest.CaptureFixture[str]) -> None:
+    with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+        mock_settings.github_actions = True
+        console.warning("File not found")
+        captured = capsys.readouterr()
+        assert "::warning::File not found" in captured.err
+        assert captured.out == ""
+
+
+def test_error_prints_github_actions_format(capsys: pytest.CaptureFixture[str]) -> None:
+    with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+        mock_settings.github_actions = True
+        console.error("Failed to connect")
+        captured = capsys.readouterr()
+        assert "::error::Failed to connect" in captured.err
+        assert captured.out == ""
+
+
+def test_cmd_prints_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
+    console.cmd("pytest tests/")
+    captured = capsys.readouterr()
+    assert "pytest tests/" in captured.err
+    assert "❯" in captured.err  # noqa: RUF001
+    assert captured.out == ""
+
+
+def test_script_block_falls_back_to_dedent_on_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with mock.patch("bake.ui.console.BashFormatter") as mock_formatter:
+        mock_formatter.return_value.beautify_string.return_value = ("", "error message")
+        console.script_block("Test", "    echo 'indented'")
+        captured = capsys.readouterr()
+        assert "Test" in captured.err
+        assert "echo 'indented'" in captured.err
+        assert captured.out == ""
+
+
+def test_prefix_out_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix_out("Task complete", emoji=":check:", label="DONE", style="bold green")
+    captured = capsys.readouterr()
+    assert "DONE" in captured.out
+    assert "Task complete" in captured.out
+    assert captured.err == ""
+
+
+def test_prefix_out_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix_out("Just info", label="INFO", style="bold blue")
+    captured = capsys.readouterr()
+    assert "INFO" in captured.out
+    assert "Just info" in captured.out
+
+
+def test_prefix_err_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix_err("Task failed", emoji=":x:", label="FAIL", style="bold red")
+    captured = capsys.readouterr()
+    assert "FAIL" in captured.err
+    assert "Task failed" in captured.err
+    assert captured.out == ""
+
+
+def test_prefix_err_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix_err("Warning message", label="WARN", style="bold yellow")
+    captured = capsys.readouterr()
+    assert "WARN" in captured.err
+    assert "Warning message" in captured.err

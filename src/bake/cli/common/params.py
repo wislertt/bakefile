@@ -3,8 +3,16 @@ from typing import Annotated
 
 import typer
 
-from bake.cli.common.callback import validate_file_name_callback
 from bake.cli.utils.version import version_callback
+
+
+def validate_file_name(value: str) -> str:
+    """Validate file name for --file-name option."""
+    if "/" in value or "\\" in value:
+        raise typer.BadParameter(f"File name must not contain path separators: {value}")
+    if not value.endswith(".py"):
+        raise typer.BadParameter(f"File name must end with .py: {value}")
+    return value
 
 
 def verbosity_callback(_ctx: typer.Context, _param: typer.CallbackParam, value: int) -> int:
@@ -31,7 +39,7 @@ file_name_option = Annotated[
         "--file-name",
         "-f",
         help="Path to bakefile.py",
-        callback=validate_file_name_callback,
+        callback=validate_file_name,
     ),
 ]
 bakebook_name_option = Annotated[

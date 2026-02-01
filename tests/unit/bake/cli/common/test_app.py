@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import click
@@ -8,12 +7,11 @@ import typer
 from bake import Context
 from bake.cli.common.app import (
     BakefileApp,
-    bake_app_callback_with_obj,
     rich_markup_mode,
     show_help_if_no_command,
 )
-from bake.cli.common.obj import BakefileObject
-from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
+from bake.cli.common.params import validate_file_name
+from bake.utils.constants import DEFAULT_FILE_NAME
 
 
 class TestRichMarkupMode:
@@ -54,28 +52,17 @@ class TestBakefileApp:
         assert "bakefile_object" in BakefileApp.__annotations__
 
 
-class TestBakeAppCallbackWithObj:
-    def test_returns_callable(self) -> None:
-        """bake_app_callback_with_obj should return a callable."""
-        obj = BakefileObject(
-            chdir=Path("."),
-            file_name=DEFAULT_FILE_NAME,
-            bakebook_name=DEFAULT_BAKEBOOK_NAME,
-        )
-        callback = bake_app_callback_with_obj(obj)
-        assert callable(callback)
+class TestValidateFileName:
+    def test_validate_file_name_valid(self) -> None:
+        """validate_file_name should return valid file names unchanged."""
+        result = validate_file_name(DEFAULT_FILE_NAME)
+        assert result == DEFAULT_FILE_NAME
 
-    def test_callback_sets_context_obj(self) -> None:
-        """Callback should set obj on context."""
-        obj = BakefileObject(
-            chdir=Path("."),
-            file_name=DEFAULT_FILE_NAME,
-            bakebook_name=DEFAULT_BAKEBOOK_NAME,
-        )
-        callback = bake_app_callback_with_obj(obj)
-
-        mock_ctx = MagicMock(spec=Context)
-        mock_ctx.invoked_subcommand = "build"
-
-        callback(mock_ctx)
-        assert mock_ctx.obj is obj
+    @pytest.mark.parametrize(
+        "file_name",
+        [f"some/path/{DEFAULT_FILE_NAME}", rf"some\path\{DEFAULT_FILE_NAME}", "bake.txt"],
+    )
+    def test_validate_file_name_invalid(self, file_name: str) -> None:
+        """validate_file_name should raise BadParameter for invalid file names."""
+        with pytest.raises(typer.BadParameter):
+            validate_file_name(file_name)

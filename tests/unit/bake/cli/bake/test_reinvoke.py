@@ -1,11 +1,13 @@
+import importlib
 from pathlib import Path
 from typing import NamedTuple
 from unittest.mock import patch
 
 import pytest
 
+from bake.cli.bake import reinvocation
 from bake.cli.bake.reinvocation import _reinvoke_with_detected_python
-from bake.utils.env import _BAKE_REINVOKED
+from bake.utils import ENV__BAKE_REINVOKED, settings
 
 
 class SubprocessCall(NamedTuple):
@@ -45,11 +47,12 @@ def test_reinvoke_with_detected_python(
     subprocess_mock: list[SubprocessCall],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test _reinvoke_with_detected_python behavior with different scenarios."""
     if marker_set:
-        monkeypatch.setenv(_BAKE_REINVOKED, "1")
+        monkeypatch.setenv(ENV__BAKE_REINVOKED, "1")
     else:
-        monkeypatch.delenv(_BAKE_REINVOKED, raising=False)
+        monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    importlib.reload(settings)
+    importlib.reload(reinvocation)
 
     with (
         patch("bake.manage.find_python.find_python_path", return_value=detected_python),
@@ -69,7 +72,7 @@ def test_reinvoke_with_detected_python(
         assert call.args[0] == str(detected_python)
         assert "-m" in call.args
         assert "bake.cli.bake" in call.args
-        assert call.env.get(_BAKE_REINVOKED) == "1"
+        assert call.env.get(ENV__BAKE_REINVOKED) == "1"
 
 
 def test_reinvoke_graceful_degradation_on_error(
@@ -77,7 +80,9 @@ def test_reinvoke_graceful_degradation_on_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that errors in find_python_path don't crash the process."""
-    monkeypatch.delenv(_BAKE_REINVOKED, raising=False)
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    importlib.reload(settings)
+    importlib.reload(reinvocation)
 
     with patch("bake.manage.find_python.find_python_path", side_effect=Exception("Failed")):
         _reinvoke_with_detected_python(Path("bakefile.py"))

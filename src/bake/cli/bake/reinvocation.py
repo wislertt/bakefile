@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from bake.utils.env import _BAKE_REINVOKED
+from bake.utils.settings import ENV__BAKE_REINVOKED, bake_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,11 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None) -> None:
     Returns:
         None. Either calls os.execve() (replaces process) or returns normally.
     """
+    # Access via module path so tests can reassign
+    # from bake.utils import settings
+
     # 1. Check marker to prevent infinite loops
-    if os.environ.get(_BAKE_REINVOKED):
+    if bake_settings.bake_reinvoked:
         logger.debug(
             "Re-invocation marker set, skipping Python check",
             extra={"sys.executable": sys.executable},
@@ -52,7 +55,7 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None) -> None:
         extra={"target_python": str(target_python)},
     )
     env = os.environ.copy()
-    env[_BAKE_REINVOKED] = "1"
+    env[ENV__BAKE_REINVOKED] = "1"
 
     sys.stdout.flush()
     sys.stderr.flush()

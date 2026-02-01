@@ -4,23 +4,54 @@ from typing import Any
 from beautysh import BashFormatter
 from rich.console import Console
 
+from bake.utils.settings import bake_settings
+
 out = Console(stderr=False)
 err = Console(stderr=True)
 
 BOLD_GREEN = "bold green"
 
 
-def _print(
-    console_obj: Console, emoji: str | None, label: str, style: str, message: str, **kwargs
-) -> None:
+def _format_prefix(
+    console_obj: Console,
+    emoji: str | None,
+    label: str,
+    style: str,
+    message: str,
+) -> str:
     formatted_label = f"[{label}]" if console_obj.no_color or out.color_system is None else label
-
     emoji = emoji + " " if emoji else ""
-    console_obj.print(f"[{style}]{emoji}{formatted_label}[/{style}] {message}", **kwargs)
+    return f"[{style}]{emoji}{formatted_label}[/{style}] {message}"
+
+
+def prefix_out(
+    message: str,
+    emoji: str | None = None,
+    label: str = "INFO",
+    style: str = "bold blue",
+    **kwargs,
+) -> None:
+    out.print(_format_prefix(out, emoji=emoji, label=label, style=style, message=message), **kwargs)
+
+
+def prefix_err(
+    message: str,
+    emoji: str | None = None,
+    label: str = "INFO",
+    style: str = "bold blue",
+    **kwargs,
+) -> None:
+    err.print(_format_prefix(err, emoji=emoji, label=label, style=style, message=message), **kwargs)
 
 
 def success(message: str, **kwargs) -> None:
-    _print(out, ":white_check_mark:", "SUCCESS", BOLD_GREEN, message, **kwargs)
+    prefix_out(
+        emoji=":white_check_mark:",
+        label="SUCCESS",
+        style=BOLD_GREEN,
+        message=message,
+        **kwargs,
+    )
 
 
 def echo(message: Any, **kwargs) -> None:
@@ -28,7 +59,7 @@ def echo(message: Any, **kwargs) -> None:
 
 
 def cmd(cmd_str: str, **kwargs) -> None:
-    err.print(f"[bold green]❯[/bold green] [default]{cmd_str}[/default]", **kwargs)  # noqa: RUF001
+    err.print(f"[{BOLD_GREEN}]❯[/{BOLD_GREEN}] [default]{cmd_str}[/default]", **kwargs)  # noqa: RUF001
 
 
 def script_block(title: str, script: str, **kwargs) -> None:
@@ -51,8 +82,20 @@ def script_block(title: str, script: str, **kwargs) -> None:
 
 
 def warning(message: str, **kwargs) -> None:
-    _print(err, ":warning-emoji: ", "WARNING", "bold yellow", message, **kwargs)
+    if bake_settings.github_actions:
+        err.print(f"::warning::{message}", **kwargs)
+    else:
+        prefix_err(
+            emoji=":warning-emoji: ",
+            label="WARNING",
+            style="bold yellow",
+            message=message,
+            **kwargs,
+        )
 
 
 def error(message: str, **kwargs) -> None:
-    _print(err, ":x:", "ERROR", "bold red", message, **kwargs)
+    if bake_settings.github_actions:
+        err.print(f"::error::{message}", **kwargs)
+    else:
+        prefix_err(emoji=":x:", label="ERROR", style="bold red", message=message, **kwargs)

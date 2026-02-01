@@ -1,10 +1,13 @@
 import itertools
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from bake import __version__
-from bake.utils.constants import CMD_BAKEFILE
+from bake import Context, __version__
+from bake.cli.bakefile.main import bakefile_app_callback_with_obj
+from bake.cli.common.obj import BakefileObject
+from bake.utils.constants import CMD_BAKEFILE, DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
 from tests.conftest import RunCli
 
 
@@ -35,9 +38,9 @@ class TestMain:
         assert "--book-name" in captured_out and "-b" in captured_out
         assert "--version" in captured_out
         assert "--verbose" in captured_out and "-v" in captured_out
-        assert "--chain" in captured_out and "-c" in captured_out
         assert "--dry-run" in captured_out and "-n" in captured_out
         assert "--help" in captured_out
+        # bakefile CLI does NOT have --chain option (only bake CLI does)
 
     @pytest.mark.parametrize(
         "dir_fixture,args",
@@ -57,3 +60,30 @@ class TestMain:
         captured = run_cli(command=CMD_BAKEFILE, dir_path=dir_path, args=args)
         assert captured.exit_code == 0
         assert __version__ in captured.out
+
+
+class TestBakefileAppCallbackWithObj:
+    def test_returns_callable(self) -> None:
+        """bakefile_app_callback_with_obj should return a callable."""
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+        )
+        callback = bakefile_app_callback_with_obj(obj)
+        assert callable(callback)
+
+    def test_callback_sets_context_obj(self) -> None:
+        """Callback should set obj on context."""
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+        )
+        callback = bakefile_app_callback_with_obj(obj)
+
+        mock_ctx = MagicMock(spec=Context)
+        mock_ctx.invoked_subcommand = "build"
+
+        callback(mock_ctx)
+        assert mock_ctx.obj is obj
