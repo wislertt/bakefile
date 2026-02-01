@@ -7,7 +7,7 @@ from pydantic import SecretStr
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.refreshable_cache import KeyringCache
+from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import BaseLibSpace, PublishResult
 
@@ -123,8 +123,11 @@ class TestBaseLibSpace:
         def fetch_token() -> str | None:
             return "dummy-token"
 
-        cached_publish_token = KeyringCache(
-            namespace="test-namespace", key="test-key", fetch_fn=fetch_token
+        cached_publish_token = ChainedCache(
+            backends=[KeyringCache, NullCache],
+            namespace="test-namespace",
+            key="test-key",
+            fetch_fn=fetch_token,
         )
         cached_publish_token.set("dummy-token")
 

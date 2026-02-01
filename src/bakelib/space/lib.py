@@ -10,7 +10,7 @@ from tenacity import stop_after_attempt
 
 from bake import Context, command, console
 from bake.ui.logger import strip_ansi
-from bakelib.refreshable_cache import KeyringCache
+from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
 from .base import BaseSpace
 from .utils import PlatformType, setup_rustup, setup_zerv
@@ -49,7 +49,7 @@ class BaseLibSpace(BaseSpace):
 
     def _get_cached_publish_token(
         self, ctx: Context, token: str | None, registry: str
-    ) -> KeyringCache[str | None]:
+    ) -> ChainedCache[str | None]:
         token_from_local = self._get_token_from_local(token)
         key = f"publish-token-{registry}"
         namespace = self.package_name(ctx)
@@ -59,8 +59,12 @@ class BaseLibSpace(BaseSpace):
 
         stop = stop_after_attempt(1) if token_from_local else None
 
-        cached_publish_token = KeyringCache(
-            namespace=namespace, key=key, fetch_fn=get_publish_token, stop=stop
+        cached_publish_token = ChainedCache(
+            backends=[KeyringCache, NullCache],
+            namespace=namespace,
+            key=key,
+            fetch_fn=get_publish_token,
+            stop=stop,
         )
 
         if token_from_local is not None:
@@ -118,7 +122,7 @@ class BaseLibSpace(BaseSpace):
         self._handle_publish_result(ctx, publish_result=publish_result)
 
     def _execute_publish(
-        self, ctx: Context, cached_publish_token: KeyringCache[str | None], registry: str
+        self, ctx: Context, cached_publish_token: ChainedCache[str | None], registry: str
     ) -> PublishResult:
         @cached_publish_token.catch_refresh
         def _publish() -> PublishResult:

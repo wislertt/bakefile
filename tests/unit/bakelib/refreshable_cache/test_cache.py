@@ -10,8 +10,10 @@ import pytest
 
 from bake.ui.logger import capsys_to_logs, has_messages_in_logs, setup_logging
 from bakelib.refreshable_cache import (
+    ChainedCache,
     KeyringCache,
     MemoryCache,
+    NullCache,
     RefreshableCache,
 )
 from bakelib.refreshable_cache.cache import DEFAULT_NAMESPACE
@@ -335,3 +337,272 @@ class TestRefreshableCacheAbstract:
             match="fetch_fn must have a return type annotation or cached_type must be provided",
         ):
             MemoryCache(KEY_NO_TYPE, lambda: "value")
+
+
+# Keys for ChainedCache tests
+KEY_CHAINED_A = TestKeyRegistry.create("chained-a")
+KEY_CHAINED_B = TestKeyRegistry.create("chained-b")
+KEY_CHAINED_FALLBACK = TestKeyRegistry.create("chained-fallback")
+
+
+class TestChainedCache:
+    """Tests for ChainedCache."""
+
+    def test_chained_cache_reads_from_first_backend(self):
+        fetch_counts = {"memory": 0, "keyring": 0}
+
+        def fetch_memory() -> str:
+            fetch_counts["memory"] += 1
+            return "from-memory"
+
+        def fetch_keyring() -> str:
+            fetch_counts["keyring"] += 1
+            return "from-keyring"
+
+        # Set up memory cache with value first
+        memory = MemoryCache(KEY_CHAINED_A, fetch_memory)
+        memory.get_value()
+        assert fetch_counts["memory"] == 1
+
+        # Create chained cache - memory should be tried first
+        cache = ChainedCache(
+            backends=[MemoryCache, KeyringCache],
+            key=KEY_CHAINED_A,
+            fetch_fn=fetch_keyring,
+        )
+
+        result = cache.get_value()
+        assert result == "from-memory"
+        assert fetch_counts["keyring"] == 0  # Never called
+
+    def test_chained_cache_falls_back_to_second_backend(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "fallback-value"
+
+        cache = ChainedCache(
+            backends=[KeyringCache, MemoryCache],
+            key=KEY_CHAINED_B,
+            fetch_fn=fetch_value,
+        )
+
+        # First call - cache miss, fetches value
+        result1 = cache.get_value()
+        assert result1 == "fallback-value"
+        assert fetch_count == 1
+
+        # Second call - should hit memory cache
+        result2 = cache.get_value()
+        assert result2 == "fallback-value"
+        assert fetch_count == 1
+
+    def test_chained_cache_writes_to_first_successful_backend(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "write-value"
+
+        cache = ChainedCache(
+            backends=[MemoryCache, KeyringCache],
+            key=KEY_CHAINED_FALLBACK,
+            fetch_fn=fetch_value,
+        )
+
+        cache.get_value()
+        assert fetch_count == 1
+
+        # Delete from memory to test keyring fallback
+        cache._backends[0].delete()
+
+        # Should fetch again (memory empty, keyring has it)
+        cache.get_value()
+        assert fetch_count == 2
+
+    def test_chained_cache_deletes_from_all_backends(self):
+        def fetch_value() -> str:
+            return "delete-test"
+
+        cache = ChainedCache(
+            backends=[MemoryCache, KeyringCache],
+            key=TestKeyRegistry.create("chained-delete"),
+            fetch_fn=fetch_value,
+        )
+
+        cache.get_value()
+        cache.delete()
+
+        # Both backends should be empty
+        for backend in cache._backends:
+            assert backend._get_entry() is None
+
+
+# Keys for NullCache tests
+KEY_NULL_A = TestKeyRegistry.create("null-a")
+KEY_NULL_B = TestKeyRegistry.create("null-b")
+
+
+class TestNullCache:
+    """Tests for NullCache."""
+
+    def test_null_cache_never_returns_cached_value(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "fetched-value"
+
+        cache = NullCache(KEY_NULL_A, fetch_value)
+
+        # First call - fetches
+        result1 = cache.get_value()
+        assert result1 == "fetched-value"
+        assert fetch_count == 1
+
+        # Second call - fetches again (no caching)
+        result2 = cache.get_value()
+        assert result2 == "fetched-value"
+        assert fetch_count == 2
+
+    def test_null_cache_set_does_nothing(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "value"
+
+        cache = NullCache(KEY_NULL_B, fetch_value)
+
+        cache.set("cached-value")
+        cache.get_value()
+
+        # Should still fetch (set did nothing)
+        assert fetch_count == 1
+
+    def test_null_cache_delete_does_nothing(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "value"
+
+        cache = NullCache(KEY_NULL_A, fetch_value)
+
+        cache.delete()
+        cache.get_value()
+
+        # Should still work (delete did nothing)
+        assert fetch_count == 1
+
+    def test_null_cache_with_chained_cache(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "chained-value"
+
+        cache = ChainedCache(
+            backends=[NullCache],
+            key=TestKeyRegistry.create("null-chained"),
+            fetch_fn=fetch_value,
+        )
+
+        # Should always fetch
+        cache.get_value()
+        assert fetch_count == 1
+
+        cache.get_value()
+        assert fetch_count == 2
+
+
+class FaultyCache(RefreshableCache):
+    """Faulty cache that always raises exceptions for testing."""
+
+    def _get_entry(self):
+        raise RuntimeError("Faulty backend")
+
+    def set(self, value):
+        _ = value
+        raise RuntimeError("Faulty backend")
+
+    def delete(self):
+        raise RuntimeError("Faulty backend")
+
+
+KEY_CHAINED_FAULTY_A = TestKeyRegistry.create("chained-faulty-a")
+KEY_CHAINED_FAULTY_B = TestKeyRegistry.create("chained-faulty-b")
+KEY_CHAINED_FAULTY_C = TestKeyRegistry.create("chained-faulty-c")
+
+
+class TestChainedCacheFaultyBackends:
+    """Tests for ChainedCache with faulty backends."""
+
+    def test_chained_cache_continues_on_get_exception(self):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "fallback-value"
+
+        cache = ChainedCache(
+            backends=[FaultyCache, MemoryCache],
+            key=KEY_CHAINED_FAULTY_A,
+            fetch_fn=fetch_value,
+        )
+
+        # FaultyCache raises, MemoryCache works
+        result = cache.get_value()
+        assert result == "fallback-value"
+        assert fetch_count == 1
+
+        # Second call should hit MemoryCache
+        result2 = cache.get_value()
+        assert result2 == "fallback-value"
+        assert fetch_count == 1
+
+    def test_chained_cache_continues_on_set_exception(self):
+        def fetch_value() -> str:
+            return "set-value"
+
+        cache = ChainedCache(
+            backends=[FaultyCache, MemoryCache],
+            key=KEY_CHAINED_FAULTY_B,
+            fetch_fn=fetch_value,
+        )
+
+        # FaultyCache raises on set, MemoryCache should succeed
+        cache.set("test-value")
+
+        # Value should be in MemoryCache
+        entry = cache._backends[1]._get_entry()
+        assert entry is not None
+        assert entry.value == "test-value"
+
+    def test_chained_cache_continues_on_delete_exception(self):
+        def fetch_value() -> str:
+            return "delete-value"
+
+        cache = ChainedCache(
+            backends=[FaultyCache, MemoryCache],
+            key=KEY_CHAINED_FAULTY_C,
+            fetch_fn=fetch_value,
+        )
+
+        cache.get_value()
+        cache._backends[1].set("to-delete")
+
+        # Delete should continue even though FaultyCache raises
+        cache.delete()
+
+        # MemoryCache should be deleted
+        entry = cache._backends[1]._get_entry()
+        assert entry is None

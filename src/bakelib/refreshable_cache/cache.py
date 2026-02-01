@@ -163,3 +163,88 @@ class MemoryCache(RefreshableCache[CachedT]):
 
     def delete(self) -> None:
         self._storage.pop(self._get_full_key(), None)
+
+
+class NullCache(RefreshableCache[CachedT]):
+    """Cache that doesn't cache anything (Null Object pattern).
+
+    Useful as a final fallback when you want to explicitly disable caching.
+    Reads always return None (triggering fetch), writes/deletes do nothing.
+    """
+
+    def _get_entry(self) -> CacheEntry[CachedT] | None:
+        return None
+
+    def set(self, value: CachedT) -> None:
+        pass
+
+    def delete(self) -> None:
+        pass
+
+
+class ChainedCache(RefreshableCache[CachedT]):
+    """Tries multiple backends in order.
+
+    Reads from the first backend that has data.
+    Writes to all backends (stops on first success).
+    """
+
+    _backends: list[RefreshableCache[CachedT]]
+
+    def __init__(
+        self,
+        backends: list[type[RefreshableCache[CachedT]]],
+        key: str,
+        fetch_fn: Callable[[], CachedT],
+        ttl: float | None = None,
+        namespace: str | None = None,
+        stop: "StopBaseT | None" = None,
+        wait: "WaitBaseT | None" = None,
+        cached_type: Any = None,
+    ) -> None:
+        super().__init__(
+            key=key,
+            fetch_fn=fetch_fn,
+            ttl=ttl,
+            namespace=namespace,
+            stop=stop,
+            wait=wait,
+            cached_type=cached_type,
+        )
+        self._backends = [
+            backend(
+                key=key,
+                fetch_fn=fetch_fn,
+                ttl=ttl,
+                namespace=namespace,
+                stop=stop,
+                wait=wait,
+                cached_type=cached_type,
+            )
+            for backend in backends
+        ]
+
+    def _get_entry(self) -> CacheEntry[CachedT] | None:
+        for backend in self._backends:
+            try:
+                entry = backend._get_entry()
+                if entry is not None:
+                    return entry
+            except Exception:
+                continue
+        return None
+
+    def set(self, value: CachedT) -> None:
+        for backend in self._backends:
+            try:
+                backend.set(value)
+                return
+            except Exception:
+                continue
+
+    def delete(self) -> None:
+        for backend in self._backends:
+            try:
+                backend.delete()
+            except Exception:
+                continue
