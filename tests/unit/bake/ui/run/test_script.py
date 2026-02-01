@@ -3,7 +3,7 @@ from textwrap import dedent
 import pytest
 
 from bake.ui.run import run_script
-from tests.utils.flaky import flaky_on_macos_ci
+from tests.utils.misc import flaky_on_macos_ci
 
 
 @pytest.mark.parametrize(

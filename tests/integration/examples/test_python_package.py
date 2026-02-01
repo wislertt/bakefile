@@ -2,7 +2,7 @@ from pathlib import Path
 
 from bake.ui import run
 from bake.ui.logger import strip_ansi
-from tests.utils.env_vars import get_project_env
+from tests.utils.fixtures import get_project_env
 
 
 def test_python_package(examples_python_package_dir: Path) -> None:

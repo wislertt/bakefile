@@ -4,6 +4,7 @@ from bake.manage.add_inline import read_inline
 from bake.ui import run_uv
 from bake.utils.constants import CMD_BAKEFILE, DEFAULT_FILE_NAME
 from tests.conftest import RunCli
+from tests.utils.cli import get_error_label
 
 
 def test_find_python_cli_success_with_inline_metadata(
@@ -38,7 +39,7 @@ def test_find_python_cli_error_no_bakefile(
     result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["find-python"])
 
     assert result.exit_code == 1
-    assert "ERROR" in result.err
+    assert get_error_label() in result.err
     assert "Bakefile not found at" in result.err
 
 
@@ -111,5 +112,5 @@ def test_find_python_cli_error_no_inline_metadata_no_project(
     )
 
     assert result.exit_code == 1
-    assert "ERROR" in result.err
+    assert get_error_label() in result.err
     assert "Could not find Python for" in result.err

@@ -3,7 +3,8 @@ from pathlib import Path
 from bake.manage.add_inline import read_inline
 from bake.utils.constants import CMD_ADD_INLINE, CMD_BAKEFILE, DEFAULT_FILE_NAME
 from tests.conftest import RunCli
-from tests.utils.string import remove_whitespace
+from tests.utils.cli import get_error_label
+from tests.utils.misc import remove_whitespace
 
 
 def test_add_inline_cli(
@@ -40,7 +41,7 @@ def test_add_inline_cli_nonexistent_bakefile(
     assert result.exit_code == 1
     result_err = result.err.replace("\n", "")
 
-    assert "ERROR" in result_err
+    assert get_error_label() in result_err
     assert "Bakefile not found at" in result_err
 
     assert remove_whitespace("Run `bakefile init --inline` to") in remove_whitespace(result_err)

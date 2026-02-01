@@ -3,6 +3,7 @@ from unittest import mock
 import pytest
 
 from bake.ui import console
+from tests.utils.cli import get_error_label, get_warning_label
 
 
 class TestSuccess:
@@ -33,7 +34,7 @@ class TestWarning:
     def test_warning_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.warning("File not found")
         captured = capsys.readouterr()
-        assert "WARNING" in captured.err
+        assert get_warning_label() in captured.err
         assert "File not found" in captured.err
         assert captured.out == ""
 
@@ -42,7 +43,7 @@ class TestError:
     def test_error_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.error("Failed to connect")
         captured = capsys.readouterr()
-        assert "ERROR" in captured.err
+        assert get_error_label() in captured.err
         assert "Failed to connect" in captured.err
         assert captured.out == ""
 

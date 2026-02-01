@@ -9,6 +9,7 @@ from bake.utils.constants import (
     DEFAULT_FILE_NAME,
 )
 from tests.conftest import RunCli
+from tests.utils.cli import get_error_label
 
 
 @pytest.mark.parametrize(
@@ -45,7 +46,7 @@ def test_init_fails_if_file_exists_without_force(tmp_path: Path, run_cli: RunCli
     captured = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=[CMD_INIT])
 
     assert captured.exit_code == 1
-    assert "ERROR" in captured.err
+    assert get_error_label() in captured.err
     assert "File already exists" in captured.err
     assert "--force" in captured.err
 

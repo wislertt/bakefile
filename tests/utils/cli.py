@@ -9,6 +9,7 @@ from bake.cli.bake.main import main as bake_main
 from bake.cli.bakefile.main import main as bakefile_main
 from bake.ui.logger import strip_ansi
 from bake.utils.constants import CMD_BAKE, CMD_BAKEFILE
+from bake.utils.settings import bake_settings
 
 COMMANDS: dict[str, Callable[[], None]] = {
     CMD_BAKE: bake_main,
@@ -55,3 +56,13 @@ class RunCli:
 @pytest.fixture
 def run_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> RunCli:
     return RunCli(monkeypatch, capsys)
+
+
+def get_error_label() -> str:
+    """Get the error label based on current environment."""
+    return "ERROR" if not bake_settings.github_actions else "::error::"
+
+
+def get_warning_label() -> str:
+    """Get the warning label based on current environment."""
+    return "WARNING" if not bake_settings.github_actions else "::warning::"

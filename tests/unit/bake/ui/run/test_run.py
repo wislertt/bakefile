@@ -15,7 +15,7 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
-from tests.utils.flaky import flaky_on_macos_ci
+from tests.utils.misc import flaky_on_macos_ci
 
 
 @flaky_on_macos_ci()
