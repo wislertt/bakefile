@@ -45,6 +45,28 @@ class BaseSpace(Bakebook):
     def test_all(self, ctx: Context) -> None:
         self._no_implementation(ctx)
 
+    def _clean(
+        self,
+        ctx: Context,
+        exclude_patterns: list[str] | None,
+        default_excludes: bool,
+        default_exclude_patterns: set[str],
+    ):
+        results = ctx.run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
+
+        exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
+
+        if default_excludes:
+            exclude_patterns |= default_exclude_patterns
+
+        console.err.print(f"Exclude pattens: {exclude_patterns}")
+
+        remove_git_clean_candidates(
+            git_clean_dry_run_output=results.stdout,
+            exclude_patterns=exclude_patterns,
+            dry_run=ctx.dry_run,
+        )
+
     @command(help="Clean gitignored files with optional exclusions")
     def clean(
         self,
@@ -62,19 +84,11 @@ class BaseSpace(Bakebook):
             typer.Option(help="Apply default exclude patterns (.env, .cache)"),
         ] = True,
     ) -> None:
-        results = ctx.run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
-
-        exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
-
-        if default_excludes:
-            exclude_patterns |= {".env", ".cache"}
-
-        console.err.print(f"Exclude pattens: {exclude_patterns}")
-
-        remove_git_clean_candidates(
-            git_clean_dry_run_output=results.stdout,
+        self._clean(
+            ctx=ctx,
             exclude_patterns=exclude_patterns,
-            dry_run=ctx.dry_run,
+            default_excludes=default_excludes,
+            default_exclude_patterns={".env", ".cache"},
         )
 
     @command(help="Clean all gitignored files")

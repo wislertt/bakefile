@@ -52,6 +52,15 @@ def setup_uv(ctx: Context) -> None:
     ctx.run("uv tool update-shell")
 
 
+def setup_rustup(ctx: Context) -> None:
+    ctx.run("brew install rustup")
+    ctx.run("rustup update")
+
+
+def setup_zerv(ctx: Context) -> None:
+    ctx.run("cargo install zerv")
+
+
 def setup_bun(ctx: Context) -> None:
     ctx.run("brew install oven-sh/bun/bun")
 
@@ -62,6 +71,7 @@ def setup_uv_tool(ctx: Context) -> None:
 
 
 HOMWBREW_BIN = Path("/opt/homebrew/bin")
+CARGO_BIN = Path.home() / ".cargo" / "bin"
 LOCAL_BIN = Path.home() / ".local" / "bin"
 VENV_BIN = Path.cwd() / ".venv" / "bin"
 

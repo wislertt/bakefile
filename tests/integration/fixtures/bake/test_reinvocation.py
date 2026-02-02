@@ -4,7 +4,7 @@ import pytest
 
 from bake.ui import run
 from bake.ui.logger import find_log, has_messages_in_logs, parse_pretty_log, strip_ansi
-from bake.utils.env import _BAKE_REINVOKED
+from bake.utils import ENV__BAKE_REINVOKED
 
 
 def test_reinvocation_actually_switches_python(
@@ -14,7 +14,7 @@ def test_reinvocation_actually_switches_python(
     _reinvoking_msg = "Re-invoking bake with detected Python:"
     _marker_set_msg = "Re-invocation marker set, skipping Python check"
 
-    monkeypatch.delenv(_BAKE_REINVOKED, raising=False)
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
     result = run(["bake", "-vv", "test-dep"], cwd=uv_project_folder_with_deps)
     assert result.returncode == 0
     assert "0 -> 1 -> 2" in strip_ansi(result.stdout).strip()

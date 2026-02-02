@@ -1,19 +1,25 @@
 from tests.utils.cli import CaptureOutput, RunCli, run_cli
-from tests.utils.configs import disable_colors
-from tests.utils.context import SimpleTestCommand, mock_ctx
-from tests.utils.env_vars import get_project_env, isolate_virtual_env, prevent_reinvocation
-from tests.utils.logger import reset_all_logger_state
-from tests.utils.paths import examples_python_package_dir, examples_simple_dir
-from tests.utils.projects import (
+from tests.utils.fixtures import (
     complex_vars_project,
+    disable_colors,
     empty_project_folder,
     empty_project_folder_no_inline,
+    get_project_env,
+    isolate_virtual_env,
     isolated_uv_cache,
     no_bakebook_dir,
     no_bakefile_dir,
+    prevent_reinvocation,
     uv_project_folder,
     uv_project_folder_with_deps,
     uv_project_folder_without_dep,
+)
+from tests.utils.misc import (
+    SimpleTestCommand,
+    examples_python_package_dir,
+    examples_simple_dir,
+    mock_ctx,
+    reset_all_logger_state,
 )
 
 __all__ = [

@@ -27,7 +27,6 @@ from bake.utils.constants import (
 )
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
 
-from .callback import validate_file_name
 from .exception_handler import typer_exception_handler
 from .params import (
     bakebook_name_option,
@@ -36,6 +35,7 @@ from .params import (
     file_name_option,
     is_chain_commands_option,
     remaining_args_argument,
+    validate_file_name,
     verbosity_option,
 )
 
@@ -112,8 +112,9 @@ class BakefileObject:
             console.echo(f"Searched in: {self.chdir.resolve()}\n")
 
     def setup_logging(self):
-        level_map = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
-        log_level = level_map.get(self.verbosity, logging.WARNING)
+        # Verbosity: 0=silent, 1=INFO, 2=DEBUG (CRITICAL+1 silences all logs)
+        level_map: dict[int, int] = {0: logging.CRITICAL + 1, 1: logging.INFO, 2: logging.DEBUG}
+        log_level = level_map.get(self.verbosity, logging.CRITICAL + 1)
         setup_logging(level_per_module={"": log_level}, is_pretty_log=True)
 
 

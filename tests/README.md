@@ -99,13 +99,13 @@ def test_reinvocation_actually_switches_python(
 
 ```bash
 # Run all unit tests (fast, default)
-make test
+bake test
 
 # Run all integration tests (slow)
-make test-integration
+bake test-integration
 
 # Run everything with coverage
-make test-all
+bake test-all
 ```
 
 ### Running Specific Tests
@@ -122,7 +122,7 @@ uv run pytest tests/unit/bakelib/space/test_space_base.py::test_recipe_with_bake
 # Run all unit tests in a directory
 uv run pytest tests/unit/bakelib/ -v
 
-# Run all unit tests (same as make test)
+# Run all unit tests (same as bake test)
 uv run pytest tests/unit/ --cov=src --cov-report=html
 ```
 
@@ -135,7 +135,7 @@ uv run pytest tests/integration/fixtures/bake/test_reinvocation.py -v
 # Run all integration tests in a category
 uv run pytest tests/integration/fixtures/ -v
 
-# Run all integration tests (same as make test-integration)
+# Run all integration tests (same as bake test-integration)
 uv run pytest tests/integration/ -v
 ```
 
@@ -158,10 +158,10 @@ uv run pytest tests/unit/bakelib/space/ -v
 
 ```bash
 # Run full unit test suite
-make test
+bake test
 
 # Run linting
-make lint
+bake lint
 ```
 
 ## Test Utilities
@@ -241,5 +241,5 @@ def test_real_command(uv_project_folder: Path):
 
 - Unit tests should cover core logic paths
 - Integration tests cover critical user workflows
-- Coverage reports are generated in `htmlcov/` after running `make test` or `make test-all`
+- Coverage reports are generated in `htmlcov/` after running `bake test` or `bake test-all`
 - Target: Maintain >90% coverage for core modules

@@ -48,6 +48,8 @@ jobs:
 
     pre-commit:
         uses: ./.github/workflows/pre-commit.yml
+        with:
+            python_version: "3.14"
 
     # ====================================================
     # Deployment
@@ -58,6 +60,7 @@ jobs:
         with:
             version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
             python_version: "3.14"
+            index: pypi
         secrets:
             PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 
@@ -67,6 +70,6 @@ jobs:
         with:
             version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
             python_version: "3.14"
-            repository_url: https://test.pypi.org/legacy/
+            index: testpypi
         secrets:
             PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}

@@ -26,7 +26,9 @@ dependencies = [
 
 [project.optional-dependencies]
 lib = [
-  "pathspec>=1.0.3"
+  "keyring>=25.7.0",
+  "pathspec>=1.0.3",
+  "tenacity>=9.1.2"
 ]
 
 [project.scripts]
@@ -78,6 +80,12 @@ select = [
 [tool.uv.build-backend]
 module-name = ["bake", "bakelib"]
 module-root = "src"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
 
 [tool.uv.sources]
 python-package = {path = "examples/python-package", editable = true}

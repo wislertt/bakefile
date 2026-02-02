@@ -4,7 +4,6 @@ from typing import Literal, overload
 
 from uv import find_uv_bin
 
-from bake.ui import console
 from bake.ui.run.run import run
 
 
@@ -59,14 +58,6 @@ def run_uv(
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     uv_bin = find_uv_bin()
 
-    # Build display string: "uv" + command parts (no full binary path)
-    display_cmd = "uv " + " ".join(cmd)
-
-    # Echo command to console if requested
-    if echo:
-        console.cmd(display_cmd)
-
-    # Call run with full uv binary path, echo=False (already displayed), pass through options
     return run(
         [uv_bin, *cmd],
         capture_output=capture_output,
@@ -74,7 +65,8 @@ def run_uv(
         cwd=cwd,
         stream=stream,
         shell=False,
-        echo=False,
+        echo=echo,
+        echo_cmd="uv " + " ".join(cmd) if echo else None,
         dry_run=dry_run,
         keep_temp_file=keep_temp_file,
         env=env,
