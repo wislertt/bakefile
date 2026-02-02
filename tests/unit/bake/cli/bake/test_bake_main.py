@@ -74,6 +74,15 @@ class TestMain:
         assert captured.exit_code == 0
         assert captured.out == "Hello world!\n"
 
+    def test_main_cwd_command(
+        self,
+        examples_simple_dir: Path,
+        run_cli: RunCli,
+    ) -> None:
+        captured = run_cli(command=CMD_BAKE, dir_path=examples_simple_dir, args=["cwd"])
+        assert captured.exit_code == 0
+        assert str(examples_simple_dir) == captured.out.strip()
+
     def test_main_hello_command_no_bakefile_dir(
         self,
         no_bakefile_dir: Path,

@@ -1,12 +1,18 @@
-from unittest.mock import MagicMock
+import sys
+from importlib import reload
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import click
 import pytest
 import typer
 
 from bake import Context
+from bake.cli.common import app as app_module
 from bake.cli.common.app import (
     BakefileApp,
+    call_app_with_chdir,
+    chdir,
     rich_markup_mode,
     show_help_if_no_command,
 )
@@ -66,3 +72,58 @@ class TestValidateFileName:
         """validate_file_name should raise BadParameter for invalid file names."""
         with pytest.raises(typer.BadParameter):
             validate_file_name(file_name)
+
+
+class TestChdir:
+    def test_chdir_changes_and_restores_directory(self, tmp_path: Path) -> None:
+        """chdir should change directory and restore original on exit."""
+        original = Path.cwd()
+        with chdir(tmp_path):
+            assert Path.cwd() == tmp_path
+        assert Path.cwd() == original
+
+    def test_chdir_restores_on_exception(self, tmp_path: Path) -> None:
+        """chdir should restore directory even when exception occurs."""
+        original = Path.cwd()
+        with pytest.raises(ValueError), chdir(tmp_path):
+            assert Path.cwd() == tmp_path
+            raise ValueError("test error")
+        assert Path.cwd() == original
+
+    def test_custom_chdir_fallback_on_python_310(self, tmp_path: Path) -> None:
+        """Custom chdir fallback should work on Python < 3.11."""
+        # Mock sys.version_info to simulate Python 3.10
+        with patch.object(sys, "version_info", (3, 10, 0)):
+            # Reload the module to trigger the conditional import
+            reload(app_module)
+            from bake.cli.common.app import chdir as custom_chdir
+
+            original = Path.cwd()
+            with custom_chdir(tmp_path):
+                assert Path.cwd() == tmp_path
+            assert Path.cwd() == original
+
+        # Reload again to restore normal behavior
+        reload(app_module)
+
+
+class TestCallAppWithChdir:
+    def test_calls_app_without_chdir_when_bakefile_path_is_none(self) -> None:
+        """call_app_with_chdir should call app directly when bakefile_path is None."""
+        mock_app = MagicMock()
+
+        call_app_with_chdir(mock_app, None, "prog_name", foo="bar")
+
+        mock_app.assert_called_once_with("prog_name", foo="bar")
+
+    def test_calls_app_with_chdir_when_bakefile_path_provided(self, tmp_path: Path) -> None:
+        """call_app_with_chdir should change to bakefile parent directory before calling app."""
+        mock_app = MagicMock()
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        original = Path.cwd()
+        call_app_with_chdir(mock_app, bakefile_path, "prog_name", foo="bar")
+
+        mock_app.assert_called_once_with("prog_name", foo="bar")
+        assert Path.cwd() == original

@@ -3,6 +3,7 @@ from collections.abc import Callable
 from bake.cli.common.app import (
     BakefileApp,
     add_completion,
+    call_app_with_chdir,
     rich_markup_mode,
     show_help_if_no_command,
 )
@@ -73,4 +74,4 @@ def main():
     bakefile_app.command(context_settings=uv_commands_context_settings)(uv.add)
     bakefile_app.command(context_settings=uv_commands_context_settings)(uv.pip)
     bakefile_app.bakefile_object = bakefile_obj
-    bakefile_app()
+    call_app_with_chdir(app=bakefile_app, bakefile_path=bakefile_obj.bakefile_path)

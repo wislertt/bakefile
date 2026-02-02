@@ -1,11 +1,17 @@
 import sys
 from collections.abc import Callable
 from contextlib import contextmanager
+from pathlib import Path
 
 import typer
 
 from bake.cli.bake.reinvocation import _reinvoke_with_detected_python
-from bake.cli.common.app import add_completion, rich_markup_mode, show_help_if_no_command
+from bake.cli.common.app import (
+    add_completion,
+    call_app_with_chdir,
+    rich_markup_mode,
+    show_help_if_no_command,
+)
 from bake.cli.common.context import Context
 from bake.cli.common.obj import BakefileObject, get_bakefile_object, is_bakebook_optional
 from bake.cli.common.params import (
@@ -54,13 +60,15 @@ def set_argv(argv: list[str]):
         sys.argv = original
 
 
-def _run_chain_commands(remaining_args: list[str], prog_name: str, bake_app: typer.Typer) -> int:
+def _run_chain_commands(
+    remaining_args: list[str], prog_name: str, bake_app: typer.Typer, bakefile_path: Path | None
+) -> int:
     exit_code = 0
     for cmd in remaining_args:
         try:
             with set_argv([prog_name, cmd]):
                 console.cmd(" ".join(sys.argv))
-                bake_app(prog_name=prog_name)
+                call_app_with_chdir(app=bake_app, bakefile_path=bakefile_path, prog_name=prog_name)
         except SystemExit as e:
             if e.code is not None and e.code != 0:
                 exit_code = e.code if isinstance(e.code, int) else 1
@@ -99,7 +107,10 @@ def main():
 
     if bakefile_obj.is_chain_commands and bakefile_obj.remaining_args:
         exit_code = _run_chain_commands(
-            remaining_args=bakefile_obj.remaining_args, prog_name=prog_name, bake_app=bake_app
+            remaining_args=bakefile_obj.remaining_args,
+            prog_name=prog_name,
+            bake_app=bake_app,
+            bakefile_path=bakefile_obj.bakefile_path,
         )
         raise SystemExit(exit_code)
-    bake_app(prog_name=prog_name)
+    call_app_with_chdir(app=bake_app, bakefile_path=bakefile_obj.bakefile_path, prog_name=prog_name)

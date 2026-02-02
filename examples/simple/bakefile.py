@@ -9,6 +9,7 @@
 # ///
 
 import logging
+from pathlib import Path
 
 import typer
 
@@ -40,3 +41,8 @@ def hello(name: str = typer.Option("world", help="Name to greet")) -> None:
     logger.warning(f"Hello {name}!")
     logger.error(f"Hello {name}!")
     console.echo(f"Hello {name}!")
+
+
+@bakebook.command()
+def cwd() -> None:
+    console.out.print(Path.cwd())
