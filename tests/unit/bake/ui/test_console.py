@@ -15,6 +15,21 @@ class TestSuccess:
         assert captured.err == ""
 
 
+class TestStart:
+    def test_start_prints_to_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.start("Updating dependencies")
+        captured = capsys.readouterr()
+        assert "START" in captured.out
+        assert "Updating dependencies" in captured.out
+        assert captured.err == ""
+
+    def test_start_adds_ellipsis_suffix(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.start("Running task")
+        captured = capsys.readouterr()
+        assert "Running task..." in captured.out
+        assert captured.err == ""
+
+
 class TestEcho:
     def test_echo_prints_to_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.echo("Processing data")
@@ -63,6 +78,7 @@ class TestOutputToCorrectStream:
         "func_name,stream_name",
         [
             ("success", "out"),
+            ("start", "out"),
             ("echo", "out"),
             ("warning", "err"),
             ("error", "err"),

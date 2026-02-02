@@ -65,6 +65,10 @@ def success(message: str, **kwargs) -> None:
     )
 
 
+def start(message: str, **kwargs) -> None:
+    prefix_out(emoji=None, label="START", style="cyan", message=f"{message}...", **kwargs)
+
+
 def echo(message: Any, **kwargs) -> None:
     out.print(message, **kwargs)
 

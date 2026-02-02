@@ -1,11 +1,31 @@
+from pathlib import Path
+
 from bake import Context, console
 from bakelib import PythonLibSpace
 
-bakebook = PythonLibSpace()
+
+class MyBakebook(PythonLibSpace):
+    def update(self, ctx: Context) -> None:
+        super().update(ctx)
+
+        examples_dir = Path("examples")
+        if examples_dir.exists():
+            for example_dir in sorted(examples_dir.iterdir()):
+                if not example_dir.is_dir():
+                    continue
+                console.start(f"Updating {example_dir}")
+                ctx.run("bake update", cwd=example_dir)
+
+        hooks_dir = Path(".claude/hooks")
+        console.start(f"Updating {hooks_dir}")
+        ctx.run("npm update --no-progress", cwd=hooks_dir)
+
+
+bakebook = MyBakebook()
 
 
 @bakebook.command()
-def print(ctx: Context):
+def print1(ctx: Context):
     # console.out.print(f"ci={bakebook.ci}")
     # console.out.print(f"github_actions={bakebook.github_actions}")
     console.error("test error message")
