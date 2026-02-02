@@ -64,6 +64,9 @@ jobs:
                       echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
                   fi
 
+            - name: debug-python
+              run: uv run python --version
+
             - name: run-tests
               run: bake test
 

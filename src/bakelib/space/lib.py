@@ -12,8 +12,8 @@ from bake import Context, command, console
 from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
-from .base import BaseSpace
-from .utils import PlatformType, setup_rustup, setup_zerv
+from .base import BaseSpace, ToolInfo
+from .utils import CARGO_BIN, PlatformType, get_expected_paths, setup_rustup, setup_zerv
 
 
 @dataclass
@@ -154,3 +154,8 @@ class BaseLibSpace(BaseSpace):
         schema_flag = f"--schema {schema}" if schema else ""
         result = ctx.run(f"zerv flow {schema_flag}", dry_run=False)
         return strip_ansi(result.stdout.strip())
+
+    def _get_tools(self) -> dict[str, ToolInfo]:
+        tools = super()._get_tools()
+        tools["zerv"] = ToolInfo(expected_paths=get_expected_paths("zerv", {CARGO_BIN}))
+        return tools

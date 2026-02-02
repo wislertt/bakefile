@@ -71,6 +71,7 @@ def setup_uv_tool(ctx: Context) -> None:
 
 
 HOMWBREW_BIN = Path("/opt/homebrew/bin")
+CARGO_BIN = Path.home() / ".cargo" / "bin"
 LOCAL_BIN = Path.home() / ".local" / "bin"
 VENV_BIN = Path.cwd() / ".venv" / "bin"
 
