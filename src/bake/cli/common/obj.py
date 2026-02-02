@@ -176,6 +176,11 @@ def _get_bakefile_object(
     dry_run: dry_run_option = False,
 ):
     _ = ctx
+    # # Change to the target directory if -C/--chdir was specified
+    # # Resolve to absolute path first to avoid issues with relative paths
+    # if chdir != DEFAULT_CHDIR:
+    #     chdir = chdir.resolve()
+    #     os.chdir(chdir)
     return BakefileObject(
         chdir=chdir,
         file_name=file_name,

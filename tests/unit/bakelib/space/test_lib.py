@@ -11,6 +11,7 @@ from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import BaseLibSpace, PublishResult
+from bakelib.space.utils import ToolInfo
 
 
 class MinimalTestLibSpace(BaseLibSpace):
@@ -207,3 +208,22 @@ class TestBaseLibSpaceSetupTools:
         assert "brew install rustup" in err
         assert "rustup update" in err
         assert "cargo install zerv" in err
+
+
+class TestBaseLibSpaceGetTools:
+    """Tests for BaseLibSpace._get_tools method."""
+
+    def test_get_tools_inherits_parent_tools(self) -> None:
+        space = MinimalTestLibSpace()
+        tools = space._get_tools()
+        # Parent tools from BaseSpace
+        assert "bun" in tools
+        assert "uv" in tools
+        assert "bakefile" in tools
+        assert "pre-commit" in tools
+
+    def test_get_tools_adds_zerv(self) -> None:
+        space = MinimalTestLibSpace()
+        tools = space._get_tools()
+        assert "zerv" in tools
+        assert isinstance(tools["zerv"], ToolInfo)

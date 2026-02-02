@@ -3,6 +3,7 @@ from unittest import mock
 import pytest
 
 from bake.ui import console
+from bake.ui.logger.capsys import strip_ansi
 from tests.utils.cli import get_error_label, get_warning_label
 
 
@@ -20,13 +21,13 @@ class TestStart:
         console.start("Updating dependencies")
         captured = capsys.readouterr()
         assert "START" in captured.out
-        assert "Updating dependencies" in captured.out
+        assert "Updating dependencies" in strip_ansi(captured.out)
         assert captured.err == ""
 
     def test_start_adds_ellipsis_suffix(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.start("Running task")
         captured = capsys.readouterr()
-        assert "Running task..." in captured.out
+        assert "Running task..." in strip_ansi(captured.out)
         assert captured.err == ""
 
 
