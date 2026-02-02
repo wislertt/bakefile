@@ -2,6 +2,7 @@
 
 import contextlib
 import logging
+import sys
 import time
 from typing import ClassVar
 
@@ -130,7 +131,9 @@ class TestCacheBasics:
         logs = capsys_to_logs(capsys)
         assert has_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
 
-        time.sleep(ttl + 0.01)
+        # Use larger buffer on Windows due to timing precision issues
+        buffer = 1 if sys.platform == "win32" else 0.01
+        time.sleep(ttl + buffer)
         cache.get_value()
 
         logs = capsys_to_logs(capsys)
