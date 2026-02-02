@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from bake import Context, params
@@ -16,10 +15,6 @@ def _get_python_version() -> str | None:
 
 
 class PythonSpace(BaseSpace):
-    def __init__(self) -> None:
-        super().__init__()
-        os.environ["UV_NO_PROGRESS"] = "true"
-
     def _get_tools(self) -> dict[str, ToolInfo]:
         tools = super()._get_tools()
         tools["python"] = ToolInfo(

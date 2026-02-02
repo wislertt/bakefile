@@ -410,6 +410,13 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
         merged_env.update(env)
     merged_env.setdefault("FORCE_COLOR", "1")
     merged_env.setdefault("CLICOLOR_FORCE", "1")
+
+    # Disable progress indicators for tools that support it
+    merged_env.setdefault("UV_NO_PROGRESS", "1")  # uv
+    merged_env.setdefault("NPM_CONFIG_PROGRESS", "false")  # npm
+    merged_env.setdefault("PIP_PROGRESS_BAR", "off")  # pip
+    merged_env.setdefault("CARGO_TERM_PROGRESS_WHEN", "never")  # cargo
+
     try:
         terminal_size = os.get_terminal_size()
         merged_env.setdefault("COLUMNS", str(terminal_size.columns))
