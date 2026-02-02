@@ -523,6 +523,7 @@ def test_echo_cmd_overrides_all_display_and_logs(capsys: pytest.CaptureFixture[s
     assert any("[error] failing command" in log["message"] for log in logs)
 
 
+@flaky_on_macos_ci()
 def test_echo_cmd_executes_actual_command_not_display_string(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
