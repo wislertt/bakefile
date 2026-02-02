@@ -662,7 +662,7 @@ run_script("Install", "uv pip install requests")
 run_script("Build", """
     set -e
     echo "Building..."
-    make build
+    uv build
     echo "Done"
 """)
 

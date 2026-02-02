@@ -9,6 +9,7 @@ from bakelib.environ import (
 )
 from bakelib.space.base import BaseSpace
 from bakelib.space.python import PythonSpace
+from bakelib.space.python_lib import PythonLibSpace
 
 __all__ = [
     "BaseEnv",
@@ -17,6 +18,7 @@ __all__ = [
     "EnvBakebook",
     "GcpLandingZoneEnv",
     "ProdEnvBakebook",
+    "PythonLibSpace",
     "PythonSpace",
     "StagingEnvBakebook",
     "get_bakebook",

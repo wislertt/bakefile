@@ -119,3 +119,38 @@ def complex_vars_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
     bakefile_path = tmp_path / DEFAULT_FILE_NAME
     shutil.copy(COMPLEX_VARS_BAKEBOOK_PATH, bakefile_path)
     return tmp_path
+
+
+@pytest.fixture(autouse=True, scope="function")
+def disable_colors():
+    from bake.utils import ENV_NO_COLOR
+
+    os.environ[ENV_NO_COLOR] = "1"
+
+
+def get_project_env(project_dir: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    venv_bin = str(project_dir / ".venv" / "bin")
+    env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+    env["VIRTUAL_ENV"] = str(project_dir / ".venv")
+    return env
+
+
+@pytest.fixture
+def isolate_virtual_env(monkeypatch: pytest.MonkeyPatch):
+    old_virtual_env = os.environ.get("VIRTUAL_ENV")
+    if "VIRTUAL_ENV" in os.environ:
+        monkeypatch.delenv("VIRTUAL_ENV")
+    yield
+    if old_virtual_env is not None:
+        monkeypatch.setenv("VIRTUAL_ENV", old_virtual_env)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def prevent_reinvocation():
+    from bake.utils.settings import bake_settings
+
+    old_value = bake_settings.bake_reinvoked
+    bake_settings.bake_reinvoked = True
+    yield
+    bake_settings.bake_reinvoked = old_value

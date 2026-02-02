@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 
 from bake import Context, params
+from bake.ui.logger import strip_ansi
 
 from .base import BaseSpace, ToolInfo
 from .utils import VENV_BIN, get_expected_paths
@@ -14,6 +16,10 @@ def _get_python_version() -> str | None:
 
 
 class PythonSpace(BaseSpace):
+    def __init__(self) -> None:
+        super().__init__()
+        os.environ["UV_NO_PROGRESS"] = "true"
+
     def _get_tools(self) -> dict[str, ToolInfo]:
         tools = super()._get_tools()
         tools["python"] = ToolInfo(
@@ -87,3 +93,14 @@ class PythonSpace(BaseSpace):
         super().update(ctx=ctx)
         ctx.run("uv lock --upgrade")
         ctx.run("uv sync --all-extras --all-groups")
+
+    def _uv_version(self, ctx: Context) -> tuple[str, str]:
+        result = ctx.run("uv version", stream=False, dry_run=False, echo=False)
+        package_name, original_version = strip_ansi(result.stdout.strip()).split()
+        return package_name, original_version
+
+    def package_name(self, ctx: Context) -> str:
+        return self._uv_version(ctx)[0]
+
+    def current_version(self, ctx: Context) -> str:
+        return self._uv_version(ctx)[1]

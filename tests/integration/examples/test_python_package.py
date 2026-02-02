@@ -1,17 +1,10 @@
-import shutil
 from pathlib import Path
-
-import pytest
 
 from bake.ui import run
 from bake.ui.logger import strip_ansi
-from tests.utils.env_vars import get_project_env
+from tests.utils.fixtures import get_project_env
 
 
-@pytest.mark.skipif(
-    shutil.which("brew") is None,
-    reason="brew command not found (optional macOS dependency)",
-)
 def test_python_package(examples_python_package_dir: Path) -> None:
     env = get_project_env(examples_python_package_dir)
 

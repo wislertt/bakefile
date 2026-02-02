@@ -20,17 +20,17 @@ Guidance for Claude Code (claude.ai/code) working on this repository.
 ## Essential Commands
 
 ```bash
-make test              # Run unit tests with coverage (fast)
-make test-integration  # Run integration tests (slow, real subprocess)
-make test-all          # Run all tests with coverage
-make lint              # Run linters and formatters
+bake test              # Run unit tests with coverage (fast)
+bake test-integration  # Run integration tests (slow, real subprocess)
+bake test-all          # Run all tests with coverage
+bake lint              # Run linters and formatters
 ```
 
 **Verification workflow:**
 
 1. Make changes
-2. Run `make lint` to check code quality
-3. Run `make test` to verify unit tests pass
+2. Run `bake lint` to check code quality
+3. Run `bake test` to verify unit tests pass
 4. Commit when both pass
 
 **Development workflow:**
@@ -48,7 +48,7 @@ uv run pytest tests/unit/bakelib/space/test_space_base.py::test_recipe_with_bake
 uv run pytest tests/unit/bakelib/ -v
 ```
 
-**IMPORTANT:** The developer will run `make test` before committing. During development, only run targeted tests for speed.
+**IMPORTANT:** The developer will run `bake test` before committing. During development, only run targeted tests for speed.
 
 **IMPORTANT:** Read `.claude/BEST_PRACTICES.md` before adding/editing code.
 
@@ -79,7 +79,7 @@ bakefile.py      # Example bakefile
 
 - Use mocks to avoid subprocess calls
 - Test individual functions and classes in isolation
-- Run with `make test` (completes in ~50 seconds)
+- Run with `bake test` (completes in ~50 seconds)
 - 824 tests currently
 
 **Integration Tests (`tests/integration/`)** - Slow, real-world tests
@@ -89,7 +89,7 @@ bakefile.py      # Example bakefile
 - Two categories:
     - `examples/` - Tests against real examples in `@examples/`
     - `fixtures/` - Tests using temporary fixture folders
-- Run with `make test-integration`
+- Run with `bake test-integration`
 
 **When to write unit vs integration tests:**
 

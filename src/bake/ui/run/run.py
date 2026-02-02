@@ -68,7 +68,8 @@ def _run_with_temp_file(
     stream: bool,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
-    _encoding: str = "utf-8",
+    _encoding: str | None = None,
+    echo_cmd: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run multi-line script using temp file with shebang support.
@@ -83,6 +84,9 @@ def _run_with_temp_file(
     _encoding : str, optional
         Encoding to use for subprocess output. Defaults to "utf-8" to ensure
         cross-platform UTF-8 support for temp file scripts.
+    echo_cmd : str | None, optional
+        Override the command string displayed in logs and console output.
+        Default is None (show actual command).
 
     Notes
     -----
@@ -122,6 +126,7 @@ def _run_with_temp_file(
             cwd=cwd,
             stream=stream,
             echo=False,
+            echo_cmd=echo_cmd,
             env=env,
             _encoding=_encoding,
             **kwargs,
@@ -147,6 +152,7 @@ def run(
     stream: bool = True,
     shell: bool | None = None,
     echo: bool = True,
+    echo_cmd: str | None = None,
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
@@ -165,6 +171,7 @@ def run(
     stream: bool = True,
     shell: bool | None = None,
     echo: bool = True,
+    echo_cmd: str | None = None,
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
@@ -182,6 +189,7 @@ def run(
     stream: bool = True,
     shell: bool | None = None,
     echo: bool = True,
+    echo_cmd: str | None = None,
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
@@ -215,6 +223,11 @@ def run(
     echo : bool, optional
         Display command before execution using console.cmd().
         Default is True. Set to False for silent execution.
+    echo_cmd : str | None, optional
+        Override the command string displayed in logs and console output.
+        The actual command is still executed, but this string is shown instead.
+        Useful for hiding complex binary paths or secrets in commands.
+        Default is None (show actual command).
     dry_run : bool, optional
         Display command without executing (dry-run mode).
         Default is False. Does NOT auto-echo; combine with echo=True
@@ -249,16 +262,18 @@ def run(
     >>> run("echo hello", echo=True, dry_run=True)  # Show but don't run
     >>> run("ls *.py | wc -l")                # Pipes and wildcards
     >>> run(["echo", "hello"])                # List for direct execution
+    >>> run("/path/to/binary arg", echo_cmd="binary arg")  # Override display
     """
     _validate_params(stream=stream, capture_output=capture_output)
     shell = _detect_shell(cmd=cmd, shell=shell)
     cmd_str = _format_cmd_str(cmd=cmd)
+    cmd_str_for_display = echo_cmd if echo_cmd is not None else cmd_str
 
     if echo:
-        console.cmd(cmd_str)
+        console.cmd(cmd_str_for_display)
 
     if dry_run:
-        return _dry_run_result(cmd=cmd, capture_output=capture_output, cwd=cwd)
+        return _dry_run_result(cmd=cmd, capture_output=capture_output, cwd=cwd, echo_cmd=echo_cmd)
 
     # Handle multi-line scripts that require temp file approach:
     # - Windows: Any multi-line script with shell=True (cmd.exe limitation)
@@ -287,10 +302,12 @@ def run(
             stream=stream,
             keep_temp_file=keep_temp_file,
             env=env,
+            _encoding=_encoding,
+            echo_cmd=echo_cmd,
             **kwargs,
         )
 
-    logger.debug(f"[run] {cmd_str}", extra={"cwd": cwd})
+    logger.debug(f"[run] {cmd_str_for_display}", extra={"cwd": cwd})
     start = time.perf_counter()
 
     _run = _run_with_stream if stream else _run_without_stream
@@ -305,9 +322,9 @@ def run(
         **kwargs,
     )
 
-    _check_exit_code(returncode=result.returncode, check=check, cmd_str=cmd_str)
+    _check_exit_code(result=result, check=check, cmd_str_for_display=cmd_str_for_display)
 
-    _log_completion(cmd_str=cmd_str, result=result, start=start)
+    _log_completion(cmd_str_for_display=cmd_str_for_display, result=result, start=start)
     return result
 
 
@@ -330,9 +347,11 @@ def _dry_run_result(
     cmd: str | list[str] | tuple[str, ...],
     capture_output: bool,
     cwd: Path | str | None,
+    echo_cmd: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     cmd_str = _format_cmd_str(cmd)
-    logger.debug(f"[dry-run] {cmd_str}", extra={"cwd": cwd})
+    cmd_str_for_display = echo_cmd if echo_cmd is not None else cmd_str
+    logger.debug(f"[dry-run] {cmd_str_for_display}", extra={"cwd": cwd})
     return subprocess.CompletedProcess(
         args=cmd,
         returncode=0,
@@ -341,10 +360,21 @@ def _dry_run_result(
     )
 
 
-def _check_exit_code(returncode: int, check: bool, cmd_str: str) -> None:
-    if check and returncode != 0:
-        logger.debug(f"[error] {cmd_str}", extra={"returncode": returncode})
-        raise typer.Exit(returncode)
+def _check_exit_code(
+    result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None],
+    check: bool,
+    cmd_str_for_display: str,
+) -> None:
+    if check and result.returncode != 0:
+        logger.debug(
+            f"[error] {cmd_str_for_display}",
+            extra={
+                "returncode": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            },
+        )
+        raise typer.Exit(result.returncode)
 
 
 def _process_stream_output(
@@ -533,10 +563,12 @@ def _run_without_stream(
     return result
 
 
-def _log_completion(cmd_str: str, result: subprocess.CompletedProcess, start: float) -> None:
+def _log_completion(
+    cmd_str_for_display: str, result: subprocess.CompletedProcess, start: float
+) -> None:
     elapsed_seconds = time.perf_counter() - start
     logger.debug(
-        f"[done] {cmd_str}",
+        f"[done] {cmd_str_for_display}",
         extra={
             "returncode": result.returncode,
             "stdout": result.stdout,

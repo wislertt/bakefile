@@ -6,6 +6,7 @@ import orjson
 from bake.ui.logger import setup_logging
 from bake.utils.constants import CMD_BAKEFILE
 from tests.conftest import RunCli
+from tests.utils.cli import get_error_label
 
 
 class TestBakefilePip:
@@ -35,7 +36,7 @@ class TestBakefilePip:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["pip", "list"])
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "Bakefile not found at" in result.err
 
     def test_invalid_uv_args(self, uv_project_folder: Path, run_cli: RunCli) -> None:
@@ -70,7 +71,7 @@ class TestBakefileAdd:
         )
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "requires PEP 723 inline metadata" in result.err
         assert "add-inline" in result.err
 
@@ -78,7 +79,7 @@ class TestBakefileAdd:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["add", "requests"])
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "Bakefile not found at" in result.err
 
 
@@ -102,7 +103,7 @@ class TestBakefileLock:
         )
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "requires PEP 723 inline metadata" in result.err
         assert "add-inline" in result.err
 
@@ -110,7 +111,7 @@ class TestBakefileLock:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["lock"])
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "Bakefile not found at" in result.err
 
 
@@ -137,7 +138,7 @@ class TestBakefileSync:
         )
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "requires PEP 723 inline metadata" in result.err
         assert "add-inline" in result.err
 
@@ -145,5 +146,5 @@ class TestBakefileSync:
         result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["sync"])
 
         assert result.exit_code == 1
-        assert "ERROR" in result.err
+        assert get_error_label() in result.err
         assert "Bakefile not found at" in result.err
