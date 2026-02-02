@@ -24,7 +24,7 @@ class MyBakebook(PythonLibSpace):
     def _update_hooks(self, ctx: Context) -> None:
         hooks_dir = Path(".claude/hooks")
         console.start(f"Updating {hooks_dir}")
-        ctx.run("npm update --no-progress", cwd=hooks_dir)
+        ctx.run("npm update", cwd=hooks_dir)
 
 
 bakebook = MyBakebook()

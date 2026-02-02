@@ -28,13 +28,12 @@ jobs:
             - name: checkout
               uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-            - name: setup-python
-              uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-              with:
-                  python-version: ${{ inputs.python_version }}
-
             - name: setup-uv
               uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # v7.2.1
+              with:
+                  python-version: ${{ inputs.python_version }}
+                  version: "latest"
+                  enable-cache: true
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
