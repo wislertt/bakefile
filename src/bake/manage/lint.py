@@ -88,7 +88,7 @@ def run_ty_check(
     echo: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     ty_bin = find_ty_bin()
-    cmd = ["check", "--error-on-warning", "--python", str(python_path)]
+    cmd = ["check", "--error-on-warning", "--no-progress", "--python", str(python_path)]
     if only_bakefile:
         cmd.append(bakefile_path.name)
 

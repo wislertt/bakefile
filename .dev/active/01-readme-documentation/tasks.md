@@ -65,9 +65,9 @@ Examples:
 
 ---
 
-## Phase 4: Usage - bakefile CLI & bakelib ⏳ NOT STARTED
+## Phase 4: Usage - bakefile CLI & bakelib 🟡 IN PROGRESS
 
-- [ ] Task 4.1: Write bakefile CLI docs
+- [x] Task 4.1: Write bakefile CLI docs
     - Document init command
     - Document lint command
     - Document uv subcommands
@@ -107,15 +107,15 @@ Examples:
 | Phase 1: Foundation                 | ✅ Complete        | 2/2      |
 | Phase 2: Quick Start & Concepts     | ✅ Complete        | 2/2      |
 | Phase 3: Bakebook API & bake CLI    | ✅ Complete        | 2/2      |
-| Phase 4: bakefile CLI & bakelib     | ⏳ Not Started     | 0/2      |
+| Phase 4: bakefile CLI & bakelib     | 🟡 In Progress     | 1/2      |
 | Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
-| **Total**                           | **🟡 In Progress** | **6/10** |
+| **Total**                           | **🟡 In Progress** | **7/10** |
 
 ---
 
 ## Quick Resume
 
-**Current Status:** Phase 3 (Usage - Bakebook API & bake CLI) is complete. README.md currently contains:
+**Current Status:** Phase 4 (Usage - bakefile CLI & bakelib) is in progress (1/2 complete). README.md currently contains:
 
 - All existing badges
 - Overview paragraph
@@ -125,5 +125,6 @@ Examples:
 - Core Concepts section (Two CLIs, Bakebook with bullets + example, PEP 723)
 - Usage section - Bakebook API (Creating, @command patterns, Context API, Pydantic settings)
 - Usage section - bake CLI (Basic execution, dry-run, verbosity, chaining, options)
+- Usage section - bakefile CLI (init, add-inline, lint, uv-based commands, find-python, export)
 
-**Next Step:** Awaiting user instruction to proceed with Phase 4 (bakefile CLI & bakelib) or other task.
+**Next Step:** Awaiting user instruction to proceed with Task 4.2 (bakelib section) or other task.

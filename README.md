@@ -296,3 +296,73 @@ bake -f tasks.py build                   # Custom filename
 bake -b my_bakebook build                # Custom bakebook object name
 bake -C /path/to/project build           # Run from different directory
 ```
+
+---
+
+### `bakefile` CLI - Managing bakefile.py
+
+The `bakefile` command (short: `bf`) manages your `bakefile.py`.
+
+#### init
+
+Create a new `bakefile.py`:
+
+```bash
+bakefile init           # Basic bakefile
+bakefile init --inline  # With PEP 723 inline metadata
+bakefile init --force   # Force overwrite existing bakefile
+```
+
+#### add-inline
+
+Add PEP 723 inline metadata to an existing bakefile:
+
+```bash
+bakefile add-inline
+```
+
+#### lint
+
+Lint `bakefile.py` (or entire project) with ruff and ty:
+
+```bash
+bakefile lint                   # Lint bakefile.py and all Python files
+bakefile lint --only-bakefile   # Lint only bakefile.py
+bakefile lint --no-ty           # Skip type checking
+```
+
+#### uv-based commands (PEP 723 bakefile.py only)
+
+Convenience wrappers around `uv` commands with `--script bakefile.py` added. For PEP 723 bakefile.py files only. For normal Python projects, use your preferred dependency manager (pip, poetry, uv, etc.).
+
+```bash
+bakefile sync                   # = uv sync --script bakefile.py
+bakefile lock                   # = uv lock --script bakefile.py
+bakefile add requests           # = uv add --script bakefile.py requests
+bakefile pip install            # = uv pip install --python <bakefile-python-path>
+```
+
+#### find-python
+
+Find the Python interpreter path for the bakefile:
+
+```bash
+bakefile find-python
+```
+
+#### export
+
+Export bakebook variables to external formats:
+
+```bash
+bakefile export                     # Shell format (default)
+bakefile export -f sh               # Shell format
+bakefile export -f dotenv           # .env format
+bakefile export -f json             # JSON format
+bakefile export -f yaml             # YAML format
+bakefile export -o config.sh        # Write to file
+
+# Examples:
+bakefile export -f dotenv -o .env       # .env file
+bakefile export -f json -o config.json  # JSON file
+```
