@@ -10,4 +10,10 @@
 
 # bakefile
 
-🚧 **Note:** This project is under active development. 🚧
+An OOP task runner in Python. Like a Makefile, but with tasks as Python class methods—so you can inherit, compose, and reuse them across projects.
+
+## Why bakefile?
+
+- **Reusable** - Makefile/Justfile work well, but reusing tasks across projects is hard. bakefile uses OOP class methods—inherit, compose, and share them
+- **Python** - Use Python instead of DSL syntax. Access the full ecosystem with Python's language features, tooling, and type safety (ruff/ty)—with subprocess support for normal CLI commands
+- **Language-agnostic** - Write tasks in Python, run commands for any language (Go, Rust, JS, etc.)

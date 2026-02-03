@@ -2,11 +2,21 @@
 
 **Last Updated:** 2025-02-03
 
+## IMPORTANT: Proceed Exactly as Requested
+
+**When user specifies a task number (e.g., "1.1" or "Task 1.1"), ONLY complete that specific task.** Do not proceed to other tasks unless explicitly asked. This prevents over-delivering and allows for review/feedback between tasks.
+
+Examples:
+
+- User says "proceed 1.1" → Only do Task 1.1
+- User says "do 1.2 and 1.3" → Only do Tasks 1.2 and 1.3
+- User says "continue" → Ask which task to proceed with
+
 ---
 
-## Phase 1: Foundation ⏳ NOT STARTED
+## Phase 1: Foundation 🟡 IN PROGRESS
 
-- [ ] Task 1.1: Write Header & Overview
+- [x] Task 1.1: Write Header & Overview
     - Keep existing badges
     - Write 2-3 sentence overview
     - Write "Why bakefile?" section
@@ -95,21 +105,21 @@
 
 | Phase                               | Status             | Tasks    |
 | ----------------------------------- | ------------------ | -------- |
-| Phase 1: Foundation                 | ⏳ Not Started     | 0/2      |
+| Phase 1: Foundation                 | 🟡 In Progress     | 1/2      |
 | Phase 2: Quick Start & Concepts     | ⏳ Not Started     | 0/2      |
 | Phase 3: Bakebook API & bake CLI    | ⏳ Not Started     | 0/2      |
 | Phase 4: bakefile CLI & bakelib     | ⏳ Not Started     | 0/2      |
 | Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
-| **Total**                           | **⏳ Not Started** | \*\*0/10 |
+| **Total**                           | **🟡 In Progress** | **1/10** |
 
 ---
 
 ## Quick Resume
 
-To continue working on the README:
+**Current Status:** Task 1.1 (Header & Overview) is complete. README.md currently contains:
 
-1. Start with Phase 1, Task 1.1 (Header & Overview)
-2. Follow the task order sequentially
-3. Check off tasks as completed
-4. Update this file when tasks are done
-5. Refer to `plan.md` for detailed acceptance criteria
+- All existing badges
+- Overview paragraph
+- "Why bakefile?" section
+
+**Next Step:** Awaiting user instruction to proceed with Task 1.2 (Installation) or other task.
