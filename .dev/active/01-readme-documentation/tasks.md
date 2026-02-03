@@ -47,7 +47,7 @@ Examples:
 
 ---
 
-## Phase 3: Usage - Bakebook API & bake CLI 🟡 IN PROGRESS
+## Phase 3: Usage - Bakebook API & bake CLI ✅ COMPLETE
 
 - [x] Task 3.1: Write Bakebook API
     - Creating a Bakebook class
@@ -57,7 +57,7 @@ Examples:
     - Code examples
     - **Acceptance:** User can define bakebooks with all features
 
-- [ ] Task 3.2: Write bake CLI docs
+- [x] Task 3.2: Write bake CLI docs
     - Document all CLI options
     - Provide examples for each
     - Show common patterns
@@ -106,16 +106,16 @@ Examples:
 | ----------------------------------- | ------------------ | -------- |
 | Phase 1: Foundation                 | ✅ Complete        | 2/2      |
 | Phase 2: Quick Start & Concepts     | ✅ Complete        | 2/2      |
-| Phase 3: Bakebook API & bake CLI    | 🟡 In Progress     | 1/2      |
+| Phase 3: Bakebook API & bake CLI    | ✅ Complete        | 2/2      |
 | Phase 4: bakefile CLI & bakelib     | ⏳ Not Started     | 0/2      |
 | Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
-| **Total**                           | **🟡 In Progress** | **5/10** |
+| **Total**                           | **🟡 In Progress** | **6/10** |
 
 ---
 
 ## Quick Resume
 
-**Current Status:** Task 3.1 (Bakebook API) is complete. README.md currently contains:
+**Current Status:** Phase 3 (Usage - Bakebook API & bake CLI) is complete. README.md currently contains:
 
 - All existing badges
 - Overview paragraph
@@ -124,5 +124,6 @@ Examples:
 - Quick Start section (bakefile.py example, bakefile init tip, run commands)
 - Core Concepts section (Two CLIs, Bakebook with bullets + example, PEP 723)
 - Usage section - Bakebook API (Creating, @command patterns, Context API, Pydantic settings)
+- Usage section - bake CLI (Basic execution, dry-run, verbosity, chaining, options)
 
-**Next Step:** Awaiting user instruction to proceed with Task 3.2 (bake CLI docs) or other task.
+**Next Step:** Awaiting user instruction to proceed with Phase 4 (bakefile CLI & bakelib) or other task.

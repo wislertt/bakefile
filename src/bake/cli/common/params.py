@@ -38,7 +38,7 @@ file_name_option = Annotated[
     typer.Option(
         "--file-name",
         "-f",
-        help="Path to bakefile.py",
+        help="Name of bakefile.py",
         callback=validate_file_name,
     ),
 ]

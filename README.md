@@ -239,3 +239,60 @@ class MyBakebook(Bakebook):
 ```
 
 Settings are loaded from environment variables, `.env` files, or defaults.
+
+---
+
+### `bake` CLI - Running Tasks
+
+The `bake` command runs tasks from your `bakefile.py`. Run `bake --help` to see all available commands and options.
+
+#### Basic Execution
+
+```bash
+bake <command> [args]
+```
+
+```bash
+bake hello
+bake build
+bake test --verbose
+```
+
+#### Dry-Run Mode
+
+Preview what would happen without executing:
+
+```bash
+bake -n build
+bake --dry-run deploy
+```
+
+#### Verbosity Levels
+
+Control output verbosity:
+
+```bash
+bake build              # Silent (errors only)
+bake -v build           # Info level
+bake -vv build          # Debug level
+```
+
+#### Chaining Commands
+
+Run multiple commands sequentially:
+
+```bash
+bake -c lint test build
+```
+
+If any command fails, the chain stops.
+
+#### Options
+
+Override defaults when running bake:
+
+```bash
+bake -f tasks.py build                   # Custom filename
+bake -b my_bakebook build                # Custom bakebook object name
+bake -C /path/to/project build           # Run from different directory
+```
