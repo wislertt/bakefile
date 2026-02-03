@@ -144,3 +144,98 @@ def hello():
 ```
 
 **Use case:** Ideal for non-Python projects without `pyproject.toml`. For Python projects, add bakefile to your project's dependencies instead.
+
+---
+
+## Usage
+
+### Bakebook API
+
+#### Creating a Bakebook
+
+**Tip:** Generate a bakefile automatically with `bakefile init` or `bakefile add-inline`.
+
+Create a bakebook by inheriting from `Bakebook` or instantiating it:
+
+```python
+from bake import Bakebook
+
+bakebook = Bakebook()
+```
+
+#### @command Decorator
+
+- **Pattern 1: Before instantiating** - Use `@command()` on class methods
+- **Pattern 2: After instantiating** - Use `@bakebook.command()` on standalone functions
+- **Accepts all Typer options** - `name`, `help`, `deprecated`, etc.
+
+```python
+from bake import Bakebook, command, Context, console
+from typing import Annotated
+import typer
+
+# Pattern 1: On class
+class MyBakebook(Bakebook):
+    @command()
+    def task1(self, ctx: Context) -> None:
+        console.echo("Task 1")
+
+bakebook = MyBakebook()
+
+# Pattern 2: On instance (with Typer options)
+@bakebook.command(name="deploy", help="Deploy application")
+def deploy(
+    env: Annotated[str, typer.Option("dev", help="Environment to deploy")],
+):
+    console.echo(f"Deploying to {env}...")
+```
+
+#### Context API
+
+The `Context` object extends Typer's Context with command execution:
+
+```python
+@bakebook.command()
+def my_command(ctx: Context) -> None:
+    # Run a command
+    ctx.run("echo hello")
+
+    # Run with options
+    ctx.run(
+        "pytest",
+        capture_output=False,  # Stream to terminal
+        check=True,            # Raise on error
+        cwd="/tmp",           # Working directory
+        env={"KEY": "value"}, # Environment variables
+    )
+
+    # Run a multi-line script
+    ctx.run_script(
+        title="Setup",
+        script="""
+            echo "Step 1"
+            echo "Step 2"
+        """,
+    )
+```
+
+#### Pydantic Settings
+
+Bakebooks extend Pydantic's `BaseSettings` for configuration:
+
+```python
+from bake import Bakebook
+from pydantic import Field
+
+class MyBakebook(Bakebook):
+    # Defaults
+    database_url: str = "sqlite:///db.sqlite3"
+
+    # With environment variable mapping
+    api_key: str = Field(default="default-key", env="API_KEY")
+
+    # With validation
+    port: int = Field(default=8000, ge=1, le=65535)
+```
+
+Settings are loaded from environment variables, `.env` files, or defaults.

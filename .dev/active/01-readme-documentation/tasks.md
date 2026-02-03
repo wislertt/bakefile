@@ -47,9 +47,9 @@ Examples:
 
 ---
 
-## Phase 3: Usage - Bakebook API & bake CLI ⏳ NOT STARTED
+## Phase 3: Usage - Bakebook API & bake CLI 🟡 IN PROGRESS
 
-- [ ] Task 3.1: Write Bakebook API
+- [x] Task 3.1: Write Bakebook API
     - Creating a Bakebook class
     - @command decorator parameters
     - Context API (run, run_script, properties)
@@ -106,16 +106,16 @@ Examples:
 | ----------------------------------- | ------------------ | -------- |
 | Phase 1: Foundation                 | ✅ Complete        | 2/2      |
 | Phase 2: Quick Start & Concepts     | ✅ Complete        | 2/2      |
-| Phase 3: Bakebook API & bake CLI    | ⏳ Not Started     | 0/2      |
+| Phase 3: Bakebook API & bake CLI    | 🟡 In Progress     | 1/2      |
 | Phase 4: bakefile CLI & bakelib     | ⏳ Not Started     | 0/2      |
 | Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
-| **Total**                           | **🟡 In Progress** | **4/10** |
+| **Total**                           | **🟡 In Progress** | **5/10** |
 
 ---
 
 ## Quick Resume
 
-**Current Status:** Phase 2 (Quick Start & Core Concepts) is complete. README.md currently contains:
+**Current Status:** Task 3.1 (Bakebook API) is complete. README.md currently contains:
 
 - All existing badges
 - Overview paragraph
@@ -123,5 +123,6 @@ Examples:
 - Installation section (pip, uv add, uv tool install)
 - Quick Start section (bakefile.py example, bakefile init tip, run commands)
 - Core Concepts section (Two CLIs, Bakebook with bullets + example, PEP 723)
+- Usage section - Bakebook API (Creating, @command patterns, Context API, Pydantic settings)
 
-**Next Step:** Awaiting user instruction to proceed with Phase 3 (Usage) or other task.
+**Next Step:** Awaiting user instruction to proceed with Task 3.2 (bake CLI docs) or other task.
