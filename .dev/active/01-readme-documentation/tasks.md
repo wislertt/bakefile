@@ -1,0 +1,115 @@
+# README Documentation - Task Checklist
+
+**Last Updated:** 2025-02-03
+
+---
+
+## Phase 1: Foundation ⏳ NOT STARTED
+
+- [ ] Task 1.1: Write Header & Overview
+    - Keep existing badges
+    - Write 2-3 sentence overview
+    - Write "Why bakefile?" section
+    - **Acceptance:** Reader understands what bakefile is and why to use it
+
+- [ ] Task 1.2: Write Installation
+    - pip install instructions
+    - uv add instructions
+    - PEP 723 standalone option
+    - **Acceptance:** User can install bakefile
+
+---
+
+## Phase 2: Quick Start & Core Concepts ⏳ NOT STARTED
+
+- [ ] Task 2.1: Write Quick Start
+    - Show minimal bakefile.py
+    - Show how to run it
+    - Show expected output
+    - **Acceptance:** User can copy-paste and run
+
+- [ ] Task 2.2: Write Core Concepts
+    - Explain Bakebook (OOP container)
+    - Explain @command decorator
+    - Explain Context object
+    - Explain PEP 723 inline metadata
+    - Explain Spaces (position bakelib as optional)
+    - **Acceptance:** User understands the mental model
+
+---
+
+## Phase 3: Usage - Bakebook API & bake CLI ⏳ NOT STARTED
+
+- [ ] Task 3.1: Write Bakebook API
+    - Creating a Bakebook class
+    - @command decorator parameters
+    - Context API (run, run_script, properties)
+    - Pydantic variables/settings
+    - Code examples
+    - **Acceptance:** User can define bakebooks with all features
+
+- [ ] Task 3.2: Write bake CLI docs
+    - Document all CLI options
+    - Provide examples for each
+    - Show common patterns
+    - **Acceptance:** User can use all bake CLI features
+
+---
+
+## Phase 4: Usage - bakefile CLI & bakelib ⏳ NOT STARTED
+
+- [ ] Task 4.1: Write bakefile CLI docs
+    - Document init command
+    - Document lint command
+    - Document uv subcommands
+    - Document add-inline, find-python, export
+    - **Acceptance:** User can manage bakefile projects
+
+- [ ] Task 4.2: Write bakelib section
+    - Position as optional/opinionated
+    - Show BaseSpace example
+    - Show PythonSpace example
+    - Show custom space creation
+    - Link to source for details
+    - **Acceptance:** User understands bakelib is optional
+
+---
+
+## Phase 5: Development & Contributing ⏳ NOT STARTED
+
+- [ ] Task 5.1: Write Development section
+    - Dev environment setup
+    - Test commands (unit, integration, all)
+    - Code quality commands
+    - **Acceptance:** Contributor can run tests and lint
+
+- [ ] Task 5.2: Write Contributing & License
+    - Contributing guidelines
+    - Link to CLAUDE.md
+    - License section
+    - **Acceptance:** README is complete
+
+---
+
+## Overall Progress
+
+| Phase                               | Status             | Tasks    |
+| ----------------------------------- | ------------------ | -------- |
+| Phase 1: Foundation                 | ⏳ Not Started     | 0/2      |
+| Phase 2: Quick Start & Concepts     | ⏳ Not Started     | 0/2      |
+| Phase 3: Bakebook API & bake CLI    | ⏳ Not Started     | 0/2      |
+| Phase 4: bakefile CLI & bakelib     | ⏳ Not Started     | 0/2      |
+| Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
+| **Total**                           | **⏳ Not Started** | \*\*0/10 |
+
+---
+
+## Quick Resume
+
+To continue working on the README:
+
+1. Start with Phase 1, Task 1.1 (Header & Overview)
+2. Follow the task order sequentially
+3. Check off tasks as completed
+4. Update this file when tasks are done
+5. Refer to `plan.md` for detailed acceptance criteria
