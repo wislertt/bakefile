@@ -92,11 +92,15 @@ class BaseLibSpace(BaseSpace):
     def _version_schema(self) -> str | None:
         return None
 
+    @property
+    def _version_output_format(self) -> str | None:
+        return None
+
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         return result.returncode != 0
 
     def _determine_version(self, ctx: Context, version: str | None) -> str:
-        return version if version else self.zerv_versioning(ctx, schema=self._version_schema)
+        return version if version else self.zerv_versioning(ctx)
 
     @command(help="Build and publish the package")
     def publish(
@@ -150,9 +154,16 @@ class BaseLibSpace(BaseSpace):
                 "set the BAKE_PUBLISH_TOKEN environment variable"
             )
 
-    def zerv_versioning(self, ctx: Context, *, schema: str | None = None) -> str:
-        schema_flag = f"--schema {schema}" if schema else ""
-        result = ctx.run(f"zerv flow {schema_flag}", dry_run=False)
+    def zerv_versioning(
+        self, ctx: Context, *, schema: str | None = None, output_format: str | None = None
+    ) -> str:
+        schema = schema if schema is not None else self._version_schema
+        output_format = output_format if output_format is not None else self._version_output_format
+
+        schema_flag = f" --schema {schema}" if schema else ""
+        output_format_flag = f" --output-format {output_format}" if output_format else ""
+
+        result = ctx.run(f"zerv flow{schema_flag}{output_format_flag}", dry_run=False)
         return strip_ansi(result.stdout.strip())
 
     def _get_tools(self) -> dict[str, ToolInfo]:

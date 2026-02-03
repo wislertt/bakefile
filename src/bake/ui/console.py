@@ -4,6 +4,7 @@ from typing import Any
 
 from beautysh import BashFormatter
 from rich.console import Console
+from rich.text import Text
 
 from bake.utils.settings import bake_settings
 
@@ -75,7 +76,9 @@ def echo(message: Any, **kwargs) -> None:
 
 def cmd(cmd_str: str, **kwargs) -> None:
     arrow = "❯" if _supports_unicode() else ">"  # noqa: RUF001
-    err.print(f"[{BOLD_GREEN}]{arrow}[/{BOLD_GREEN}] [default]{cmd_str}[/default]", **kwargs)
+    arrow_text = Text(arrow, style=BOLD_GREEN)
+    cmd_text = Text(f"{cmd_str}")
+    err.print(arrow_text, cmd_text, **kwargs)
 
 
 def script_block(title: str, script: str, **kwargs) -> None:

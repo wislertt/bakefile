@@ -168,7 +168,7 @@ class TestBaseLibSpace:
         version = space._determine_version(mock_ctx, None)
 
         assert version == "0.1.0"
-        mock_run.assert_called_once_with("zerv flow ", dry_run=False)
+        mock_run.assert_called_once_with("zerv flow", dry_run=False)
 
 
 class TestBaseLibSpaceDefaults:
