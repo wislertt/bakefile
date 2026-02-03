@@ -13,6 +13,10 @@ class TestPythonLibSpace:
         space = PythonLibSpace()
         assert space._version_schema == "standard-base-prerelease-post-dev"
 
+    def test_version_output_format_returns_pep440(self):
+        space = PythonLibSpace()
+        assert space._version_output_format == "pep440"
+
     def test_registry_to_index_returns_valid_indices(self):
         space = PythonLibSpace()
         assert space._registry_to_index("testpypi") == "testpypi"

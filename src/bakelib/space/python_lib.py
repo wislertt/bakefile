@@ -18,6 +18,10 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
     def _version_schema(self) -> str | None:
         return "standard-base-prerelease-post-dev"
 
+    @property
+    def _version_output_format(self) -> str | None:
+        return "pep440"
+
     def _registry_to_index(self, registry: str) -> PublishIndex:
         valid_indices = get_args(PublishIndex)
         if registry not in valid_indices:

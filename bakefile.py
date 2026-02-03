@@ -1,6 +1,9 @@
 from pathlib import Path
+from typing import Annotated
 
-from bake import Context, console
+import typer
+
+from bake import Context, command, console
 from bakelib import PythonLibSpace
 
 
@@ -26,5 +29,35 @@ class MyBakebook(PythonLibSpace):
         console.start(f"Updating {hooks_dir}")
         ctx.run("npm update", cwd=hooks_dir)
 
+    @command()
+    def uvx_install_bake_local(
+        self,
+        ctx: Context,
+        editable: Annotated[
+            bool, typer.Option("--editable", "-e", help="Install in editable mode")
+        ] = False,
+    ):
+        new_version = self.zerv_versioning(ctx)
+        with self._version_bump_context(ctx, new_version):
+            editable_flag = "-e " if editable else ""
+            ctx.run(f"uv tool install {editable_flag}.[lib] --reinstall --force")
+
 
 bakebook = MyBakebook()
+
+
+@bakebook.command()
+def uvx_install_bake(ctx: Context):
+    ctx.run("uv tool install 'bakefile[lib]' --reinstall")
+
+
+@bakebook.command()
+def uvx_install_bake_test(ctx: Context):
+    ctx.run(
+        "uv tool install bakefile[lib] "
+        "--index-url https://test.pypi.org/simple/ "
+        "--extra-index-url https://pypi.org/simple "
+        "--prerelease allow "
+        "--reinstall "
+        "--index-strategy unsafe-best-match"
+    )
