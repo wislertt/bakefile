@@ -17,3 +17,130 @@ An OOP task runner in Python. Like a Makefile, but with tasks as Python class me
 - **Reusable** - Makefile/Justfile work well, but reusing tasks across projects is hard. bakefile uses OOP class methods—inherit, compose, and share them
 - **Python** - Use Python instead of DSL syntax. Access the full ecosystem with Python's language features, tooling, and type safety (ruff/ty)—with subprocess support for normal CLI commands
 - **Language-agnostic** - Write tasks in Python, run commands for any language (Go, Rust, JS, etc.)
+
+---
+
+## Installation
+
+Install via pip:
+
+```bash
+pip install bakefile
+```
+
+Or via uv:
+
+```bash
+uv add bakefile          # as a project dependency
+uv tool install bakefile # as a global tool
+```
+
+---
+
+## Quick Start
+
+Create a file named `bakefile.py`:
+
+```python
+from bake import Bakebook, command, Context, console
+
+class MyBakebook(Bakebook):
+    @command()
+    def build(self, ctx: Context) -> None:
+        console.echo("Building...")
+        # Add your build commands here
+
+bakebook = MyBakebook()
+
+@bakebook.command()
+def hello(name: str = "world"):
+    console.echo(f"Hello {name}!")
+```
+
+**Tip:** Or generate a bakefile automatically:
+
+```bash
+bakefile init           # Basic bakefile
+bakefile init --inline  # With PEP 723 standalone dependencies
+```
+
+Run your tasks:
+
+```bash
+bake hello              # Hello world!
+bake hello --name Alice # Hello Alice!
+bake build              # Building...
+```
+
+---
+
+## Core Concepts
+
+### Two CLIs
+
+bakefile provides two command-line tools:
+
+- **`bake`** - Runs tasks from your `bakefile.py`
+- **`bakefile`** - Manages your `bakefile.py` (init, add-inline, lint, find-python, export, sync, lock, add, pip)
+
+Detailed CLI documentation in [Usage](#usage).
+
+### Bakebook
+
+A class in `bakefile.py` that holds your tasks:
+
+- **Inherit and reuse** - Create base classes with common tasks, extend them across projects
+- **Extends Pydantic's `BaseSettings`** - Define configuration as class attributes
+- **Uses `@command()` decorator** - Same syntax as Typer for defining CLI commands
+- **Provides `ctx.run()`** - Execute CLI commands (built on Python's subprocess) from your tasks
+
+```python
+from bake import Bakebook, command, Context, console
+from pydantic import Field
+from typing import Annotated
+import typer
+
+class MyBakebook(Bakebook):
+    # Pydantic configuration
+    api_url: str = Field(default="https://api.example.com", env="API_URL")
+
+    @command()
+    def fetch(self, ctx: Context) -> None:
+        # Run CLI commands
+        ctx.run(f"curl {self.api_url}")
+
+bakebook = MyBakebook()
+
+# Standalone functions also work
+@bakebook.command()
+def test(
+    ctx: Context,
+    verbose: Annotated[bool, typer.Option(False, "--verbose", "-v")] = False,
+):
+    if verbose:
+        console.echo("Running tests...")
+    ctx.run("pytest")
+```
+
+### PEP 723 Support
+
+bakefile supports [PEP 723](https://peps.python.org/pep-0723/) inline script metadata—your `bakefile.py` can declare its own dependencies. Add PEP 723 metadata to an existing bakefile with `bakefile add-inline`:
+
+```python
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "bakefile>=0.0.0",
+# ]
+# ///
+
+from bake import Bakebook, command, console
+
+bakebook = Bakebook()
+
+@bakebook.command()
+def hello():
+    console.echo("Hello from standalone bakefile!")
+```
+
+**Use case:** Ideal for non-Python projects without `pyproject.toml`. For Python projects, add bakefile to your project's dependencies instead.

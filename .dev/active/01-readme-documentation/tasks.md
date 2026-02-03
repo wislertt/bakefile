@@ -14,7 +14,7 @@ Examples:
 
 ---
 
-## Phase 1: Foundation 🟡 IN PROGRESS
+## Phase 1: Foundation ✅ COMPLETE
 
 - [x] Task 1.1: Write Header & Overview
     - Keep existing badges
@@ -22,28 +22,27 @@ Examples:
     - Write "Why bakefile?" section
     - **Acceptance:** Reader understands what bakefile is and why to use it
 
-- [ ] Task 1.2: Write Installation
+- [x] Task 1.2: Write Installation
     - pip install instructions
     - uv add instructions
-    - PEP 723 standalone option
+    - uv tool install option
     - **Acceptance:** User can install bakefile
 
 ---
 
-## Phase 2: Quick Start & Core Concepts ⏳ NOT STARTED
+## Phase 2: Quick Start & Core Concepts ✅ COMPLETE
 
-- [ ] Task 2.1: Write Quick Start
+- [x] Task 2.1: Write Quick Start
     - Show minimal bakefile.py
     - Show how to run it
     - Show expected output
+    - Show bakefile init options
     - **Acceptance:** User can copy-paste and run
 
-- [ ] Task 2.2: Write Core Concepts
-    - Explain Bakebook (OOP container)
-    - Explain @command decorator
-    - Explain Context object
+- [x] Task 2.2: Write Core Concepts
+    - Two CLIs (bake, bakefile)
+    - Explain Bakebook (inherit, Pydantic, @command, ctx.run)
     - Explain PEP 723 inline metadata
-    - Explain Spaces (position bakelib as optional)
     - **Acceptance:** User understands the mental model
 
 ---
@@ -105,21 +104,24 @@ Examples:
 
 | Phase                               | Status             | Tasks    |
 | ----------------------------------- | ------------------ | -------- |
-| Phase 1: Foundation                 | 🟡 In Progress     | 1/2      |
-| Phase 2: Quick Start & Concepts     | ⏳ Not Started     | 0/2      |
+| Phase 1: Foundation                 | ✅ Complete        | 2/2      |
+| Phase 2: Quick Start & Concepts     | ✅ Complete        | 2/2      |
 | Phase 3: Bakebook API & bake CLI    | ⏳ Not Started     | 0/2      |
 | Phase 4: bakefile CLI & bakelib     | ⏳ Not Started     | 0/2      |
 | Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
-| **Total**                           | **🟡 In Progress** | **1/10** |
+| **Total**                           | **🟡 In Progress** | **4/10** |
 
 ---
 
 ## Quick Resume
 
-**Current Status:** Task 1.1 (Header & Overview) is complete. README.md currently contains:
+**Current Status:** Phase 2 (Quick Start & Core Concepts) is complete. README.md currently contains:
 
 - All existing badges
 - Overview paragraph
-- "Why bakefile?" section
+- "Why bakefile?" section (3 bullets)
+- Installation section (pip, uv add, uv tool install)
+- Quick Start section (bakefile.py example, bakefile init tip, run commands)
+- Core Concepts section (Two CLIs, Bakebook with bullets + example, PEP 723)
 
-**Next Step:** Awaiting user instruction to proceed with Task 1.2 (Installation) or other task.
+**Next Step:** Awaiting user instruction to proceed with Phase 3 (Usage) or other task.
