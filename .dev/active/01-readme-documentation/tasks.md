@@ -65,7 +65,7 @@ Examples:
 
 ---
 
-## Phase 4: Usage - bakefile CLI & bakelib 🟡 IN PROGRESS
+## Phase 4: Usage - bakefile CLI & bakelib ✅ COMPLETE
 
 - [x] Task 4.1: Write bakefile CLI docs
     - Document init command
@@ -74,7 +74,7 @@ Examples:
     - Document add-inline, find-python, export
     - **Acceptance:** User can manage bakefile projects
 
-- [ ] Task 4.2: Write bakelib section
+- [x] Task 4.2: Write bakelib section
     - Position as optional/opinionated
     - Show BaseSpace example
     - Show PythonSpace example
@@ -107,15 +107,15 @@ Examples:
 | Phase 1: Foundation                 | ✅ Complete        | 2/2      |
 | Phase 2: Quick Start & Concepts     | ✅ Complete        | 2/2      |
 | Phase 3: Bakebook API & bake CLI    | ✅ Complete        | 2/2      |
-| Phase 4: bakefile CLI & bakelib     | 🟡 In Progress     | 1/2      |
+| Phase 4: bakefile CLI & bakelib     | ✅ Complete        | 2/2      |
 | Phase 5: Development & Contributing | ⏳ Not Started     | 0/2      |
-| **Total**                           | **🟡 In Progress** | **7/10** |
+| **Total**                           | **🟡 In Progress** | **8/10** |
 
 ---
 
 ## Quick Resume
 
-**Current Status:** Phase 4 (Usage - bakefile CLI & bakelib) is in progress (1/2 complete). README.md currently contains:
+**Current Status:** Phase 4 (Usage - bakefile CLI & bakelib) is complete. README.md currently contains:
 
 - All existing badges
 - Overview paragraph
@@ -126,5 +126,6 @@ Examples:
 - Usage section - Bakebook API (Creating, @command patterns, Context API, Pydantic settings)
 - Usage section - bake CLI (Basic execution, dry-run, verbosity, chaining, options)
 - Usage section - bakefile CLI (init, add-inline, lint, uv-based commands, find-python, export)
+- Usage section - bakelib (BaseSpace, PythonSpace, custom space creation, source link)
 
-**Next Step:** Awaiting user instruction to proceed with Task 4.2 (bakelib section) or other task.
+**Next Step:** Awaiting user instruction to proceed with Phase 5 (Development & Contributing) or other task.

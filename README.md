@@ -366,3 +366,104 @@ bakefile export -o config.sh        # Write to file
 bakefile export -f dotenv -o .env       # .env file
 bakefile export -f json -o config.json  # JSON file
 ```
+
+---
+
+### `bakelib` - Optional Helpers
+
+**bakelib** is an optional collection of opinionated helpers built on top of Bakebook. Includes Spaces (pre-configured tasks) and Environ (multi-environment support).
+
+Install with:
+
+```bash
+pip install bakefile[lib]
+```
+
+**Note:** bakelib is optional—you can use bakefile without it. Create your own Bakebook classes if you prefer different conventions.
+
+#### PythonSpace
+
+PythonSpace provides common tasks for Python projects:
+
+```python
+from bakelib import PythonSpace
+
+bakebook = PythonSpace()
+```
+
+Available commands:
+
+- `bake lint` - Run prettier, toml-sort, ruff format, ruff check, ty, deptry
+- `bake test` - Run pytest with coverage on `tests/unit/`
+- `bake test-integration` - Run integration tests from `tests/integration/`
+- `bake test-all` - Run all tests
+- `bake clean` - Clean gitignored files (with exclusions)
+- `bake clean-all` - Clean all gitignored files
+- `bake setup-dev` - Setup Python development environment
+- `bake tools` - List development tools
+- `bake update` - Upgrade dependencies (includes uv lock --upgrade)
+
+#### Creating Custom Spaces
+
+Create custom spaces by inheriting from BaseSpace:
+
+```python
+from bakelib import BaseSpace
+from bake import Context
+
+class MySpace(BaseSpace):
+    def test(self, ctx: Context) -> None:
+        ctx.run("npm test")
+
+bakebook = MySpace()
+```
+
+BaseSpace provides these tasks (override as needed):
+
+- `lint()` - Run prettier
+- `clean()` / `clean_all()` - Clean gitignored files
+- `setup_dev()` - Setup development environment
+- `tools()` - List development tools
+- `update()` - Upgrade dependencies
+
+#### Multi-Environment Bakebooks
+
+For projects with multiple environments (dev, staging, prod), use environment bakebooks:
+
+```python
+from bakelib.environ import (
+    DevEnvBakebook,
+    StagingEnvBakebook,
+    ProdEnvBakebook,
+    get_bakebook,
+)
+
+bakebook_dev = DevEnvBakebook()
+bakebook_staging = StagingEnvBakebook()
+bakebook_prod = ProdEnvBakebook()
+
+# Select bakebook based on ENV environment variable
+bakebook = get_bakebook([bakebook_dev, bakebook_staging, bakebook_prod])
+```
+
+```bash
+ENV=prod bake deploy    # Uses prod bakebook
+ENV=dev bake deploy     # Uses dev bakebook
+bake deploy             # Defaults to dev (lowest priority)
+```
+
+Create custom environments by inheriting from `BaseEnv`:
+
+```python
+from bakelib.environ import BaseEnv, EnvBakebook
+
+class MyEnv(BaseEnv):
+    ENV_ORDER = ["dev", "sit", "qa", "uat", "prod"]
+
+class MyEnvBakebook(EnvBakebook):
+    env_: MyEnv = MyEnv("local")
+```
+
+For more details, see the [bakelib source](https://github.com/wislertt/bakefile/tree/main/src/bakelib).
+
+---
