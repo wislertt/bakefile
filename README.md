@@ -467,3 +467,70 @@ class MyEnvBakebook(EnvBakebook):
 For more details, see the [bakelib source](https://github.com/wislertt/bakefile/tree/main/src/bakelib).
 
 ---
+
+## Development
+
+### Environment Setup
+
+Clone and install the project:
+
+```bash
+git clone https://github.com/wislertt/bakefile.git
+cd bakefile
+
+# Install bakefile as a global tool
+uv tool install bakefile
+
+# Setup development environment (macOS only)
+# Installs brew, bun, uv, and pre-commit hooks
+bake setup-dev
+
+# Verify development environment is setup correctly
+# Checks tool locations and runs lint + test
+bake assert-setup-dev
+```
+
+**Note:** `bake setup-dev` only supports macOS. For other platforms, run `bake --dry-run setup-dev` to see the commands and follow platform-specific alternatives.
+
+The project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+
+### Testing
+
+Run tests using the bake commands:
+
+```bash
+bake test              # Unit tests (fast)
+bake test-integration  # Integration tests (slow, real subprocess)
+bake test-all          # All tests with coverage
+```
+
+### Code Quality
+
+Run linters and formatters before committing:
+
+```bash
+bake lint              # Run prettier, toml-sort, ruff format, ruff check, ty, deptry
+```
+
+**Verification workflow:**
+
+1. Make changes
+2. Run `bake lint` to check code quality
+3. Run `bake test` to verify unit tests pass
+4. Commit when both pass
+
+---
+
+## Contributing
+
+Contributions are welcome! Please see [CLAUDE.md](/.claude/CLAUDE.md) for development guidelines, including:
+
+- Project structure and testing conventions
+- Code quality standards
+- Development workflow
+
+---
+
+## License
+
+Licensed under the Apache License 2.0. See [LICENSE](/LICENSE) for the full text.
