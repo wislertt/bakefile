@@ -18,8 +18,6 @@ An OOP task runner in Python. Like a Makefile, but with tasks as Python class me
 - **Python** - Use Python instead of DSL syntax. Access the full ecosystem with Python's language features, tooling, and type safety (ruff/ty)—with subprocess support for normal CLI commands
 - **Language-agnostic** - Write tasks in Python, run commands for any language (Go, Rust, JS, etc.)
 
----
-
 ## Installation
 
 Install via pip:
@@ -34,8 +32,6 @@ Or via uv:
 uv add bakefile          # as a project dependency
 uv tool install bakefile # as a global tool
 ```
-
----
 
 ## Quick Start
 
@@ -71,8 +67,6 @@ bake hello              # Hello world!
 bake hello --name Alice # Hello Alice!
 bake build              # Building...
 ```
-
----
 
 ## Core Concepts
 
@@ -144,8 +138,6 @@ def hello():
 ```
 
 **Use case:** Ideal for non-Python projects without `pyproject.toml`. For Python projects, add bakefile to your project's dependencies instead.
-
----
 
 ## Usage
 
@@ -240,8 +232,6 @@ class MyBakebook(Bakebook):
 
 Settings are loaded from environment variables, `.env` files, or defaults.
 
----
-
 ### `bake` CLI - Running Tasks
 
 The `bake` command runs tasks from your `bakefile.py`. Run `bake --help` to see all available commands and options.
@@ -296,8 +286,6 @@ bake -f tasks.py build                   # Custom filename
 bake -b my_bakebook build                # Custom bakebook object name
 bake -C /path/to/project build           # Run from different directory
 ```
-
----
 
 ### `bakefile` CLI - Managing bakefile.py
 
@@ -366,8 +354,6 @@ bakefile export -o config.sh        # Write to file
 bakefile export -f dotenv -o .env       # .env file
 bakefile export -f json -o config.json  # JSON file
 ```
-
----
 
 ### `bakelib` - Optional Helpers
 
@@ -466,8 +452,6 @@ class MyEnvBakebook(EnvBakebook):
 
 For more details, see the [bakelib source](https://github.com/wislertt/bakefile/tree/main/src/bakelib).
 
----
-
 ## Development
 
 ### Environment Setup
@@ -519,8 +503,6 @@ bake lint              # Run prettier, toml-sort, ruff format, ruff check, ty, d
 3. Run `bake test` to verify unit tests pass
 4. Commit when both pass
 
----
-
 ## Contributing
 
 Contributions are welcome! Please see [CLAUDE.md](/.claude/CLAUDE.md) for development guidelines, including:
@@ -528,8 +510,6 @@ Contributions are welcome! Please see [CLAUDE.md](/.claude/CLAUDE.md) for develo
 - Project structure and testing conventions
 - Code quality standards
 - Development workflow
-
----
 
 ## License
 
