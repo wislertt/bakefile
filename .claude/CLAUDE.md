@@ -56,6 +56,7 @@ uv run pytest tests/unit/bakelib/ -v
 
 - **Docstrings**: Do NOT add docstrings by default. The developer adds them manually when needed. See BEST_PRACTICES.md → "Docstring Policy"
 - **No automatic commits**: Do NOT make git commits automatically. The developer will commit when ready.
+- **Task-by-task execution**: When working from dev docs task lists, proceed exactly as requested. If user says "1.1" or "Task 1.1", ONLY complete that specific task—do not proceed to other tasks unless explicitly asked. This allows for review and feedback between tasks.
 
 ## Project Structure
 
