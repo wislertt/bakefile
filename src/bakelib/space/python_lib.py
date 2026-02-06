@@ -10,7 +10,7 @@ from bake import Context
 from .lib import BaseLibSpace, PublishResult
 from .python import PythonSpace
 
-PublishIndex = Literal["testpypi", "pypi"]
+PyPIRegistry = Literal["testpypi", "pypi"]
 
 
 class PythonLibSpace(PythonSpace, BaseLibSpace):
@@ -22,23 +22,23 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
     def _version_output_format(self) -> str | None:
         return "pep440"
 
-    def _registry_to_index(self, registry: str) -> PublishIndex:
-        valid_indices = get_args(PublishIndex)
+    def _validate_pypi_registry(self, registry: str) -> PyPIRegistry:
+        valid_indices = get_args(PyPIRegistry)
         if registry not in valid_indices:
             raise ValueError(f"Invalid registry: {registry!r}. Expected one of {valid_indices}.")
-        return cast(PublishIndex, registry)
+        return cast(PyPIRegistry, registry)
 
     def _get_publish_token_from_remote(self, registry: str) -> str | None:
-        index = self._registry_to_index(registry)
-        _ = index
+        pypi_registry = self._validate_pypi_registry(registry)
+        _ = pypi_registry
         return None
 
     def _build_for_publish(self, ctx: Context):
         ctx.run("uv build")
 
     def _publish_with_token(self, ctx: Context, token: str | None, registry: str) -> PublishResult:
-        index = self._registry_to_index(registry)
-        index_flag = f"--index {index} " if index == "testpypi" else ""
+        pypi_registry = self._validate_pypi_registry(registry)
+        index_flag = f"--index {pypi_registry} " if pypi_registry == "testpypi" else ""
         dry_run_flag = "" if token is not None else "--dry-run "
         is_dry_run = token is None
 
@@ -74,8 +74,12 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
     def publish(
         self,
         ctx: Context,
-        index: Annotated[PublishIndex, typer.Option(help="Publish index")] = "testpypi",
+        *,
+        registry: Annotated[
+            str, typer.Option(help="Publish registry (testpypi or pypi)")
+        ] = "testpypi",
         token: Annotated[str | None, typer.Option(help="Publish token")] = None,
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
     ):
-        return super().publish(ctx=ctx, registry=index, token=token, version=version)
+        self._validate_pypi_registry(registry)
+        return super().publish(ctx=ctx, registry=registry, token=token, version=version)

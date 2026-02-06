@@ -98,8 +98,19 @@ def _run_with_temp_file(
     - Node.js: env={"NODE_OPTIONS": "--input-type=module"} or similar
     - Other interpreters: consult their documentation for UTF-8 environment variables
     """
-    # Create temp file with appropriate extension
-    suffix = ".bat" if sys.platform == "win32" else ".sh"
+    # Determine temp file extension and shell for Windows
+    if sys.platform == "win32":
+        sh_path = shutil.which("sh.exe")
+        if not sh_path:
+            raise RuntimeError(
+                "sh.exe not found. Please install Git for Windows to use shell "
+                "commands on Windows. See https://git-scm.com/download/win"
+            )
+        suffix = ".sh"
+    else:
+        sh_path = None
+        suffix = ".sh"
+
     fd, path = tempfile.mkstemp(suffix=suffix)
 
     try:
@@ -113,7 +124,10 @@ def _run_with_temp_file(
         # Determine command based on platform
         if sys.platform == "win32":
             # Windows: Parse shebang and use interpreter explicitly
-            cmd_to_run: list[str] = [interpreter, path] if interpreter else ["cmd.exe", "/c", path]
+            if interpreter:
+                cmd_to_run: list[str] = [interpreter, path]
+            else:
+                cmd_to_run = [sh_path, path]
         else:
             # Unix: Make file executable and run directly (kernel handles shebang)
             os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
@@ -278,6 +292,7 @@ def run(
     # Handle multi-line scripts that require temp file approach:
     # - Windows: Any multi-line script with shell=True (cmd.exe limitation)
     # - Any platform: Scripts with shebang (need file for kernel/interpreter)
+    # IMPORTANT: Check shebang BEFORE _use_sh_on_windows() since that converts cmd to list
     cmd_str_for_shebang = cmd if isinstance(cmd, str) else ""
     has_shebang = cmd_str_for_shebang.strip().startswith("#!")
 
@@ -306,6 +321,10 @@ def run(
             echo_cmd=echo_cmd,
             **kwargs,
         )
+
+    # Apply Windows shell conversion only if NOT going to temp file path
+    # (temp file path handles shebangs and multi-line scripts separately)
+    cmd, shell = _use_sh_on_windows(cmd=cmd, shell=shell)
 
     logger.debug(f"[run] {cmd_str_for_display}", extra={"cwd": cwd})
     start = time.perf_counter()
@@ -337,6 +356,22 @@ def _detect_shell(cmd: str | list[str] | tuple[str, ...], shell: bool | None) ->
     if shell is None:
         return isinstance(cmd, str)
     return shell
+
+
+def _use_sh_on_windows(
+    cmd: str | list[str] | tuple[str, ...],
+    shell: bool,
+) -> tuple[str | list[str] | tuple[str, ...], bool]:
+    if not (sys.platform == "win32" and shell and isinstance(cmd, str)):
+        return cmd, shell
+
+    sh_path = shutil.which("sh.exe")
+    if not sh_path:
+        raise RuntimeError(
+            "sh.exe not found. Please install Git for Windows to use shell "
+            "commands on Windows. See https://git-scm.com/download/win"
+        )
+    return [sh_path, "-c", cmd], False
 
 
 def _format_cmd_str(cmd: str | list[str] | tuple[str, ...]) -> str:
