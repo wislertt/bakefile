@@ -5,8 +5,7 @@ on:
         inputs:
             python_versions:
                 type: string
-                # default: "['3.10', '3.11', '3.12', '3.13', '3.14']"
-                default: "['3.14']"
+                default: "['3.10', '3.11', '3.12', '3.13', '3.14']"
                 description: "JSON array of Python versions to test"
             target_python_version:
                 type: string
@@ -27,8 +26,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                os: [windows-latest]
-                # os: [ubuntu-latest, windows-latest, macos-latest]
+                os: [ubuntu-latest, windows-latest, macos-latest]
                 python-version: ${{ fromJson(inputs.python_versions) }}
         runs-on: ${{ matrix.os }}
 
@@ -65,36 +63,6 @@ jobs:
                   else
                       echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
                   fi
-
-            # add debug step
-            - name: debug-shell-availability
-              shell: bash
-              run: |
-                  echo "=== Shell Availability Check ==="
-                  echo "Runner OS: $RUNNER_OS"
-                  echo ""
-                  echo "Checking for sh.exe:"
-                  if command -v sh.exe &> /dev/null; then
-                      echo "  sh.exe found: $(which sh.exe)"
-                      sh.exe --version | head -n 1
-                  else
-                      echo "  sh.exe NOT found"
-                  fi
-                  echo ""
-                  echo "Checking for bash:"
-                  if command -v bash &> /dev/null; then
-                      echo "  bash found: $(which bash)"
-                      bash --version | head -n 1
-                  else
-                      echo "  bash NOT found"
-                  fi
-                  echo ""
-                  echo "=== Testing inline env var syntax ==="
-                  echo "Testing: TEST_VAR=hello sh.exe -c 'echo \$TEST_VAR'"
-                  TEST_VAR=hello sh.exe -c 'echo $TEST_VAR' || echo "  FAILED with sh.exe"
-                  echo ""
-                  echo "Testing: TEST_VAR=hello bash -c 'echo \$TEST_VAR'"
-                  TEST_VAR=hello bash -c 'echo $TEST_VAR' || echo "  FAILED with bash"
 
             - name: run-tests
               run: bake test
