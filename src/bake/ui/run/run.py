@@ -98,8 +98,19 @@ def _run_with_temp_file(
     - Node.js: env={"NODE_OPTIONS": "--input-type=module"} or similar
     - Other interpreters: consult their documentation for UTF-8 environment variables
     """
-    # Create temp file with appropriate extension
-    suffix = ".bat" if sys.platform == "win32" else ".sh"
+    # Determine temp file extension and shell for Windows
+    if sys.platform == "win32":
+        sh_path = shutil.which("sh.exe")
+        if not sh_path:
+            raise RuntimeError(
+                "sh.exe not found. Please install Git for Windows to use shell "
+                "commands on Windows. See https://git-scm.com/download/win"
+            )
+        suffix = ".sh"
+    else:
+        sh_path = None
+        suffix = ".sh"
+
     fd, path = tempfile.mkstemp(suffix=suffix)
 
     try:
@@ -113,7 +124,10 @@ def _run_with_temp_file(
         # Determine command based on platform
         if sys.platform == "win32":
             # Windows: Parse shebang and use interpreter explicitly
-            cmd_to_run: list[str] = [interpreter, path] if interpreter else ["cmd.exe", "/c", path]
+            if interpreter:
+                cmd_to_run: list[str] = [interpreter, path]
+            else:
+                cmd_to_run = [sh_path, path]
         else:
             # Unix: Make file executable and run directly (kernel handles shebang)
             os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
@@ -266,6 +280,7 @@ def run(
     """
     _validate_params(stream=stream, capture_output=capture_output)
     shell = _detect_shell(cmd=cmd, shell=shell)
+    cmd, shell = _use_sh_on_windows(cmd=cmd, shell=shell)
     cmd_str = _format_cmd_str(cmd=cmd)
     cmd_str_for_display = echo_cmd if echo_cmd is not None else cmd_str
 
@@ -337,6 +352,22 @@ def _detect_shell(cmd: str | list[str] | tuple[str, ...], shell: bool | None) ->
     if shell is None:
         return isinstance(cmd, str)
     return shell
+
+
+def _use_sh_on_windows(
+    cmd: str | list[str] | tuple[str, ...],
+    shell: bool,
+) -> tuple[str | list[str] | tuple[str, ...], bool]:
+    if not (sys.platform == "win32" and shell and isinstance(cmd, str)):
+        return cmd, shell
+
+    sh_path = shutil.which("sh.exe")
+    if not sh_path:
+        raise RuntimeError(
+            "sh.exe not found. Please install Git for Windows to use shell "
+            "commands on Windows. See https://git-scm.com/download/win"
+        )
+    return [sh_path, "-c", cmd], False
 
 
 def _format_cmd_str(cmd: str | list[str] | tuple[str, ...]) -> str:
