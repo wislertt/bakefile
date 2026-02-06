@@ -71,9 +71,10 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
     def _pre_publish_cleanup(self, _ctx: Context):
         shutil.rmtree("dist", ignore_errors=True)
 
-    def publish(
+    def publish(  # type: ignore[invalid-method-override]
         self,
         ctx: Context,
+        *,
         index: Annotated[PublishIndex, typer.Option(help="Publish index")] = "testpypi",
         token: Annotated[str | None, typer.Option(help="Publish token")] = None,
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,

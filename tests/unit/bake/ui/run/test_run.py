@@ -574,3 +574,68 @@ def test_echo_cmd_edge_cases(
     assert any(expected_log_prefix in log["message"] for log in logs)
     if check_console_echo:
         assert "echo hello" in capture.err
+
+
+# ============================================================================
+# Windows CI Tests
+# ============================================================================
+
+
+class TestCrossPlatformSubprocess:
+    """Tests for cross-platform subprocess execution.
+
+    These tests verify that commands with inline environment variables and
+    quoted glob patterns work correctly across all platforms (Unix and Windows).
+
+    On Windows CI, these tests reproduce issues with:
+    - Inline env vars: `'RUST_BACKTRACE' is not recognized as a command`
+    - Quoted patterns: double quotes appear around `'**/tests/**'`
+    """
+
+    def test_inline_env_var_with_shell(self) -> None:
+        """Test inline environment variables work with shell=True.
+
+        Uses Unix-style syntax `VAR=value command` which should work on all
+        platforms when shell=True. On Windows CI, this reproduces the
+        `'VAR' is not recognized as a command` error.
+        """
+        # Test inline env var using Python's os.environ
+        cmd = (
+            "TEST_VAR=hello_world python -c "
+            "\"import os; print(os.environ.get('TEST_VAR', 'NOT_SET'))\""
+        )
+        result = run(cmd, shell=True, check=False, echo=False)
+
+        # Should succeed and print the variable value
+        assert result.returncode == 0, (
+            f"Inline env var command failed. stdout: {result.stdout}, stderr: {result.stderr}"
+        )
+        assert "hello_world" in result.stdout, (
+            f"Expected 'hello_world' in stdout, got: {result.stdout}"
+        )
+
+    def test_quoted_glob_pattern_arg(self) -> None:
+        """Test quoted glob patterns are passed correctly.
+
+        Verifies that quoted args like `'pattern'` are passed to subprocess
+        without extra quotes. On Windows CI, this reproduces the double
+        quote issue where `'**/tests/**'` becomes `''**/tests/**''`.
+        """
+        # Test that quoted args are passed correctly using Python's sys.argv
+        cmd = "python -c \"import sys; print(sys.argv[1])\" '**/tests/**'"
+        result = run(cmd, shell=True, check=False, echo=False)
+
+        # Should succeed and print the pattern without extra quotes
+        assert result.returncode == 0, (
+            f"Quoted glob pattern command failed. stdout: {result.stdout}, stderr: {result.stderr}"
+        )
+
+        # The pattern should be printed without double quotes wrapping it
+        # Correct: **/tests/**  Wrong: '**/tests/**' or ''**/tests/**''
+        stdout_clean = result.stdout.strip()
+        assert stdout_clean == "**/tests/**", (
+            f"Expected '**/tests/**' in stdout, got: {stdout_clean!r}"
+        )
+        # Should NOT have extra quotes wrapping it
+        assert not stdout_clean.startswith("'"), f"Pattern has leading quote: {stdout_clean!r}"
+        assert not stdout_clean.endswith("'"), f"Pattern has trailing quote: {stdout_clean!r}"

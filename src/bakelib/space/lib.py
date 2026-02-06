@@ -106,6 +106,7 @@ class BaseLibSpace(BaseSpace):
     def publish(
         self,
         ctx: Context,
+        *,
         registry: Annotated[str, typer.Option(help="Publish registry")] = "default",
         token: Annotated[str | None, typer.Option(help="Publish token")] = None,
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
