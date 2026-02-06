@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import typer
@@ -639,3 +640,23 @@ class TestCrossPlatformSubprocess:
         # Should NOT have extra quotes wrapping it
         assert not stdout_clean.startswith("'"), f"Pattern has leading quote: {stdout_clean!r}"
         assert not stdout_clean.endswith("'"), f"Pattern has trailing quote: {stdout_clean!r}"
+
+    def test_sh_exe_not_found_error(self) -> None:
+        """Test that RuntimeError is raised when sh.exe is not found on Windows."""
+        # Mock Windows platform and sh.exe not found
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value=None),
+            pytest.raises(RuntimeError, match=r"sh\.exe not found"),
+        ):
+            run("echo test", shell=True, echo=False)
+
+    def test_sh_exe_not_found_multiline_script(self) -> None:
+        """Test that RuntimeError is raised for multi-line scripts when sh.exe not found."""
+        # Mock Windows platform and sh.exe not found
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value=None),
+            pytest.raises(RuntimeError, match=r"sh\.exe not found"),
+        ):
+            run("echo line1\necho line2", shell=True, echo=False)
