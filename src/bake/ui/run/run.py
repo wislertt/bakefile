@@ -280,7 +280,6 @@ def run(
     """
     _validate_params(stream=stream, capture_output=capture_output)
     shell = _detect_shell(cmd=cmd, shell=shell)
-    cmd, shell = _use_sh_on_windows(cmd=cmd, shell=shell)
     cmd_str = _format_cmd_str(cmd=cmd)
     cmd_str_for_display = echo_cmd if echo_cmd is not None else cmd_str
 
@@ -293,6 +292,7 @@ def run(
     # Handle multi-line scripts that require temp file approach:
     # - Windows: Any multi-line script with shell=True (cmd.exe limitation)
     # - Any platform: Scripts with shebang (need file for kernel/interpreter)
+    # IMPORTANT: Check shebang BEFORE _use_sh_on_windows() since that converts cmd to list
     cmd_str_for_shebang = cmd if isinstance(cmd, str) else ""
     has_shebang = cmd_str_for_shebang.strip().startswith("#!")
 
@@ -321,6 +321,10 @@ def run(
             echo_cmd=echo_cmd,
             **kwargs,
         )
+
+    # Apply Windows shell conversion only if NOT going to temp file path
+    # (temp file path handles shebangs and multi-line scripts separately)
+    cmd, shell = _use_sh_on_windows(cmd=cmd, shell=shell)
 
     logger.debug(f"[run] {cmd_str_for_display}", extra={"cwd": cwd})
     start = time.perf_counter()
