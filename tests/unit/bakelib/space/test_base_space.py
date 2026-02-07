@@ -217,3 +217,21 @@ class TestBaseSpace:
         err = strip_ansi(captured.err)
         assert f"Platform '{platform}' is not supported" in err
         assert "Running in dry-run mode" in err
+
+    def test_not_implemented_raises_not_implemented_error(self) -> None:
+        base_space = BaseSpace()
+        with pytest.raises(NotImplementedError) as exc_info:
+            base_space._not_implemented("test_method")
+        assert "BaseSpace must implement test_method()" in str(exc_info.value)
+
+    def test_package_name_raises_not_implemented_error(self, mock_ctx: Context) -> None:
+        base_space = BaseSpace()
+        with pytest.raises(NotImplementedError) as exc_info:
+            base_space.package_name(mock_ctx)
+        assert "BaseSpace must implement package_name()" in str(exc_info.value)
+
+    def test_current_version_raises_not_implemented_error(self, mock_ctx: Context) -> None:
+        base_space = BaseSpace()
+        with pytest.raises(NotImplementedError) as exc_info:
+            base_space.current_version(mock_ctx)
+        assert "BaseSpace must implement current_version()" in str(exc_info.value)

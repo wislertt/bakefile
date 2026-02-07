@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NoReturn
 
 import orjson
 import typer
@@ -28,6 +28,9 @@ class BaseSpace(Bakebook):
         _ = ctx, args, kwargs
         console.error("No implementation")
         raise typer.Exit(1)
+
+    def _not_implemented(self, method_name: str) -> NoReturn:
+        raise NotImplementedError(f"{self.__class__.__name__} must implement {method_name}()")
 
     @command(help="Run linters and formatters")
     def lint(self, ctx: Context) -> None:
@@ -200,3 +203,11 @@ class BaseSpace(Bakebook):
     def update(self, ctx: Context) -> None:
         ctx.run("uv python upgrade")
         ctx.run("uv tool upgrade --all")
+
+    def package_name(self, ctx: Context) -> str:
+        _ = ctx
+        self._not_implemented("package_name")
+
+    def current_version(self, ctx: Context) -> str:
+        _ = ctx
+        self._not_implemented("current_version")

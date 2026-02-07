@@ -17,6 +17,9 @@ from bakelib.space.utils import ToolInfo
 class MinimalTestLibSpace(BaseLibSpace):
     """Minimal concrete implementation of BaseLibSpace for testing default methods."""
 
+    def _validate_registry(self, registry: str) -> str:
+        return registry
+
     def _get_publish_token_from_remote(self, registry: str) -> str | None:
         _ = registry
         return None

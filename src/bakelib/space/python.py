@@ -42,13 +42,17 @@ class PythonSpace(BaseSpace):
         tests_paths: str | list[str],
         verbose: bool = False,
         coverage_report: bool = True,
+        coverage_path: str = "src",
     ) -> None:
         paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
 
         cmd = f"uv run pytest {paths}"
 
         if coverage_report:
-            cmd += " --cov=src --cov-report=html --cov-report=term-missing --cov-report=xml"
+            cmd += (
+                f" --cov={coverage_path} --cov-report=html"
+                " --cov-report=term-missing --cov-report=xml"
+            )
 
         if verbose:
             cmd += " -s -v"

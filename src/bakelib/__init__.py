@@ -10,6 +10,8 @@ from bakelib.environ import (
 from bakelib.space.base import BaseSpace
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
+from bakelib.space.rust import RustSpace
+from bakelib.space.rust_lib import RustLibSpace
 
 __all__ = [
     "BaseEnv",
@@ -20,6 +22,8 @@ __all__ = [
     "ProdEnvBakebook",
     "PythonLibSpace",
     "PythonSpace",
+    "RustLibSpace",
+    "RustSpace",
     "StagingEnvBakebook",
     "get_bakebook",
 ]
