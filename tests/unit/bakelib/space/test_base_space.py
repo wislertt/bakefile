@@ -99,7 +99,8 @@ class TestBaseSpace:
         base_space = BaseSpace()
         mock_ctx.dry_run = True
         tool_info = ToolInfo(expected_paths=[])
-        result = base_space._assert_which_path(mock_ctx, "test", tool_info)
+        with base_space._set_ctx(mock_ctx):
+            result = base_space._assert_which_path("test", tool_info)
         assert result is True
 
     def test_assert_which_path_returns_true_when_path_matches(
@@ -116,7 +117,8 @@ class TestBaseSpace:
         mock_result.stdout = str(expected_path) + "\n"
 
         with patch.object(mock_ctx, "run", return_value=mock_result):
-            result = base_space._assert_which_path(mock_ctx, "test", tool_info)
+            with base_space._set_ctx(mock_ctx):
+                result = base_space._assert_which_path("test", tool_info)
             assert result is True
 
             captured = capsys.readouterr()
@@ -139,7 +141,8 @@ class TestBaseSpace:
         mock_result.stdout = str(actual_path) + "\n"
 
         with patch.object(mock_ctx, "run", return_value=mock_result):
-            result = base_space._assert_which_path(mock_ctx, "test", tool_info)
+            with base_space._set_ctx(mock_ctx):
+                result = base_space._assert_which_path("test", tool_info)
             assert result is False
 
             captured = capsys.readouterr()
@@ -226,12 +229,12 @@ class TestBaseSpace:
 
     def test_package_name_raises_not_implemented_error(self, mock_ctx: Context) -> None:
         base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info:
-            base_space.package_name(mock_ctx)
+        with pytest.raises(NotImplementedError) as exc_info, base_space._set_ctx(mock_ctx):
+            base_space.package_name()
         assert "BaseSpace must implement package_name()" in str(exc_info.value)
 
     def test_current_version_raises_not_implemented_error(self, mock_ctx: Context) -> None:
         base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info:
-            base_space.current_version(mock_ctx)
+        with pytest.raises(NotImplementedError) as exc_info, base_space._set_ctx(mock_ctx):
+            base_space.current_version()
         assert "BaseSpace must implement current_version()" in str(exc_info.value)

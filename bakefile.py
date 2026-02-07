@@ -37,10 +37,11 @@ class MyBakebook(PythonLibSpace):
             bool, typer.Option("--editable", "-e", help="Install in editable mode")
         ] = False,
     ):
-        new_version = self.zerv_versioning(ctx)
-        with self._version_bump_context(ctx, new_version):
-            editable_flag = "-e " if editable else ""
-            ctx.run(f"uv tool install {editable_flag}.[lib] --reinstall --force")
+        with self._set_ctx(ctx):
+            new_version = self.zerv_versioning()
+            with self._version_bump_context(new_version):
+                editable_flag = "-e " if editable else ""
+                ctx.run(f"uv tool install {editable_flag}.[lib] --reinstall --force")
 
 
 bakebook = MyBakebook()

@@ -84,22 +84,22 @@ class PythonSpace(BaseSpace):
         else:
             self._no_implementation(ctx)
 
-    def setup_project(self, ctx: Context) -> None:
-        super().setup_project(ctx=ctx)
-        ctx.run("uv sync --all-extras --all-groups --frozen")
+    def setup_project(self) -> None:
+        super().setup_project()
+        self.ctx.run("uv sync --all-extras --all-groups --frozen")
 
     def update(self, ctx: Context) -> None:
         super().update(ctx=ctx)
         ctx.run("uv lock --upgrade")
         ctx.run("uv sync --all-extras --all-groups")
 
-    def _uv_version(self, ctx: Context) -> tuple[str, str]:
-        result = ctx.run("uv version", stream=False, dry_run=False, echo=False)
+    def _uv_version(self) -> tuple[str, str]:
+        result = self.ctx.run("uv version", stream=False, dry_run=False, echo=False)
         package_name, original_version = strip_ansi(result.stdout.strip()).split()
         return package_name, original_version
 
-    def package_name(self, ctx: Context) -> str:
-        return self._uv_version(ctx)[0]
+    def package_name(self) -> str:
+        return self._uv_version()[0]
 
-    def current_version(self, ctx: Context) -> str:
-        return self._uv_version(ctx)[1]
+    def current_version(self) -> str:
+        return self._uv_version()[1]

@@ -30,14 +30,13 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         return cast(PyPIRegistry, registry)
 
     def _get_publish_token_from_remote(self, registry: str) -> str | None:
-        pypi_registry = self._validate_registry(registry)
-        _ = pypi_registry
+        self._validate_registry(registry)
         return None
 
-    def _build_for_publish(self, ctx: Context):
-        ctx.run("uv build")
+    def _build_for_publish(self):
+        self.ctx.run("uv build")
 
-    def _publish_with_token(self, ctx: Context, token: str | None, registry: str) -> PublishResult:
+    def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         pypi_registry = self._validate_registry(registry)
         index_flag = f"--index {pypi_registry} " if pypi_registry == "testpypi" else ""
         dry_run_flag = "" if token is not None else "--dry-run "
@@ -47,7 +46,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
             "UV_PUBLISH_TOKEN": token if token is not None else self._dummy_publish_token
         }
 
-        result = ctx.run(
+        result = self.ctx.run(
             f"uv publish {dry_run_flag}{index_flag}",
             stream=True,
             env=env,
@@ -63,15 +62,15 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         return result.returncode != 0 and auth_error_message in result.stderr
 
     @contextmanager
-    def _version_bump_context(self, ctx: Context, version: str):
-        original_version = self.current_version(ctx)
-        ctx.run(f"uv version {version}")
+    def _version_bump_context(self, version: str):
+        original_version = self.current_version()
+        self.ctx.run(f"uv version {version}")
         try:
             yield
         finally:
-            ctx.run(f"uv version {original_version}")
+            self.ctx.run(f"uv version {original_version}")
 
-    def _pre_publish_cleanup(self, _ctx: Context):
+    def _pre_publish_cleanup(self):
         shutil.rmtree("dist", ignore_errors=True)
 
     def publish(

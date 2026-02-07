@@ -33,10 +33,10 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         self._validate_registry(registry)
         return None
 
-    def _build_for_publish(self, ctx: Context):
+    def _build_for_publish(self):
         pass
 
-    def _publish_with_token(self, ctx: Context, token: str | None, registry: str) -> PublishResult:
+    def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         self._validate_registry(registry)
         dry_run_flag = "" if token is not None else "--dry-run "
         is_dry_run = token is None
@@ -45,12 +45,24 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         if token is not None:
             env["CARGO_REGISTRY_TOKEN"] = token
 
-        result = ctx.run(
+        result = self.ctx.run(
             f"cargo publish --allow-dirty {dry_run_flag}",
             stream=True,
             env=env,
             check=False,
         )
+
+        # Check if version already exists (idempotent publish)
+        # Cargo writes all errors to stderr (verified in cargo source code)
+        already_exists_msg = "already exists on crates.io"
+        if result.returncode != 0 and already_exists_msg in result.stderr:
+            console.success("Version already exists on crates.io, skipping publish.")
+            result = subprocess.CompletedProcess(
+                args=result.args,
+                returncode=0,
+                stdout=result.stdout,
+                stderr=result.stderr,
+            )
 
         return PublishResult(
             result=result,
@@ -63,15 +75,15 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         return result.returncode != 0 and any(msg in result.stderr for msg in auth_error_messages)
 
     @contextmanager
-    def _version_bump_context(self, ctx: Context, version: str):
-        original_version = self.current_version(ctx)
-        self._set_version(ctx, version)
+    def _version_bump_context(self, version: str):
+        original_version = self.current_version()
+        self._set_version(version)
         try:
             yield
         finally:
-            self._set_version(ctx, original_version)
+            self._set_version(original_version)
 
-    def _pre_publish_cleanup(self, _ctx: Context):
+    def _pre_publish_cleanup(self):
         shutil.rmtree("target/package", ignore_errors=True)
 
     def publish(

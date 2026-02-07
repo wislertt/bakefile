@@ -50,7 +50,8 @@ class TestPythonSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
-        python_space.setup_project(mock_ctx)
+        with python_space._set_ctx(mock_ctx):
+            python_space.setup_project()
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv sync" in capture_err

@@ -29,6 +29,7 @@ class RustSpace(BaseSpace):
 
     def lint(self, ctx: Context) -> None:
         super().lint(ctx=ctx)
+
         ctx.run("cargo +nightly check --tests")
         ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
         ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")
@@ -42,17 +43,15 @@ class RustSpace(BaseSpace):
         cargo_toml = Path("Cargo.toml")
         return tomllib.loads(cargo_toml.read_text())
 
-    def package_name(self, ctx: Context) -> str:
-        _ = ctx
+    def package_name(self) -> str:
         return self._get_cargo()["package"]["name"]
 
-    def current_version(self, ctx: Context) -> str:
-        _ = ctx
+    def current_version(self) -> str:
         return self._get_cargo()["package"]["version"]
 
-    def _set_version(self, ctx: Context, version: str) -> None:
+    def _set_version(self, version: str) -> None:
         cargo_toml = Path("Cargo.toml")
-        original_version = self.current_version(ctx)
+        original_version = self.current_version()
         content = cargo_toml.read_text()
         content = re.sub(
             r'(^version\s*=\s*)"[^"]*"',
@@ -62,4 +61,4 @@ class RustSpace(BaseSpace):
             flags=re.MULTILINE,
         )
         cargo_toml.write_text(content)
-        console.echo(f"{self.package_name(ctx)}-version {original_version} => {version}")
+        console.echo(f"{self.package_name()}-version {original_version} => {version}")

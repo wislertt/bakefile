@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn
 
@@ -24,8 +25,24 @@ from .utils import (
 
 
 class BaseSpace(Bakebook):
-    def _no_implementation(self, ctx: Context | None = None, *args, **kwargs):
-        _ = ctx, args, kwargs
+    _ctx: Context | None = None
+
+    @property
+    def ctx(self) -> Context:
+        if self._ctx is None:
+            raise RuntimeError("ctx not set - use with _set_ctx() context manager")
+        return self._ctx
+
+    @contextmanager
+    def _set_ctx(self, ctx: Context):
+        self._ctx = ctx
+        try:
+            yield
+        finally:
+            self._ctx = None
+
+    def _no_implementation(self, *args, **kwargs):
+        _ = args, kwargs
         console.error("No implementation")
         raise typer.Exit(1)
 
@@ -34,28 +51,30 @@ class BaseSpace(Bakebook):
 
     @command(help="Run linters and formatters")
     def lint(self, ctx: Context) -> None:
-        ctx.run('bunx prettier@latest --write "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md\'}"')
+        ctx.run('bunx prettier@latest --write "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"')
 
     @command(help="Run unit tests")
     def test(self, ctx: Context) -> None:
-        self._no_implementation(ctx)
+        with self._set_ctx(ctx):
+            self._no_implementation()
 
     @command(help="Run integration tests")
     def test_integration(self, ctx: Context) -> None:
-        self._no_implementation(ctx)
+        with self._set_ctx(ctx):
+            self._no_implementation()
 
     @command(help="Run all tests")
     def test_all(self, ctx: Context) -> None:
-        self._no_implementation(ctx)
+        with self._set_ctx(ctx):
+            self._no_implementation()
 
     def _clean(
         self,
-        ctx: Context,
         exclude_patterns: list[str] | None,
         default_excludes: bool,
         default_exclude_patterns: set[str],
     ):
-        results = ctx.run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
+        results = self.ctx.run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
 
         exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
 
@@ -67,7 +86,7 @@ class BaseSpace(Bakebook):
         remove_git_clean_candidates(
             git_clean_dry_run_output=results.stdout,
             exclude_patterns=exclude_patterns,
-            dry_run=ctx.dry_run,
+            dry_run=self.ctx.dry_run,
         )
 
     @command(help="Clean gitignored files with optional exclusions")
@@ -87,29 +106,29 @@ class BaseSpace(Bakebook):
             typer.Option(help="Apply default exclude patterns (.env, .cache)"),
         ] = True,
     ) -> None:
-        self._clean(
-            ctx=ctx,
-            exclude_patterns=exclude_patterns,
-            default_excludes=default_excludes,
-            default_exclude_patterns={".env", ".cache"},
-        )
+        with self._set_ctx(ctx):
+            self._clean(
+                exclude_patterns=exclude_patterns,
+                default_excludes=default_excludes,
+                default_exclude_patterns={".env", ".cache"},
+            )
 
     @command(help="Clean all gitignored files")
     def clean_all(self, ctx: Context) -> None:
         ctx.run("git clean -fdX")
 
-    def setup_tool_managers(self, ctx: Context, platform: PlatformType) -> None:
+    def setup_tool_managers(self, platform: PlatformType) -> None:
         _ = platform
-        setup_brew(ctx)
+        setup_brew(self.ctx)
 
-    def setup_tools(self, ctx: Context, platform: PlatformType) -> None:
+    def setup_tools(self, platform: PlatformType) -> None:
         _ = platform
-        setup_bun(ctx)
-        setup_uv(ctx)
-        setup_uv_tool(ctx)
+        setup_bun(self.ctx)
+        setup_uv(self.ctx)
+        setup_uv_tool(self.ctx)
 
-    def setup_project(self, ctx: Context) -> None:
-        ctx.run("uv run pre-commit install")
+    def setup_project(self) -> None:
+        self.ctx.run("uv run pre-commit install")
 
     @command(help="Setup development environment")
     def setup_dev(self, ctx: Context) -> None:
@@ -123,19 +142,20 @@ class BaseSpace(Bakebook):
             overridden_dry_run = ctx.dry_run
 
         with ctx.override_dry_run(overridden_dry_run):
-            self.clean(ctx=ctx)
-            self.setup_tool_managers(ctx=ctx, platform=platform)
-            self.setup_tools(ctx=ctx, platform=platform)
-            self.setup_project(ctx=ctx)
+            self.clean(ctx=ctx, exclude_patterns=None, default_excludes=True)
+
+        with ctx.override_dry_run(overridden_dry_run), self._set_ctx(ctx):
+            self.setup_tool_managers(platform=platform)
+            self.setup_tools(platform=platform)
+            self.setup_project()
 
     def _assert_which_path(
         self,
-        ctx: Context,
         tool_name: str,
         tool_info: ToolInfo,
     ) -> bool:
-        result = ctx.run(f"which {tool_name}", stream=False)
-        if ctx.dry_run:
+        result = self.ctx.run(f"which {tool_name}", stream=False)
+        if self.ctx.dry_run:
             return True
         actual_path = Path(result.stdout.strip())
 
@@ -191,23 +211,22 @@ class BaseSpace(Bakebook):
             ),
         ] = False,
     ) -> None:
-        tools = self._get_tools()
-        for tool_name, tool_info in tools.items():
-            self._assert_which_path(ctx, tool_name, tool_info)
+        with self._set_ctx(ctx):
+            tools = self._get_tools()
+            for tool_name, tool_info in tools.items():
+                self._assert_which_path(tool_name, tool_info)
 
-        self.lint(ctx)
-        if not skip_test:
-            self.test(ctx)
+            self.lint(ctx)
+            if not skip_test:
+                self.test(ctx)
 
     @command(help="Upgrade all dependencies")
     def update(self, ctx: Context) -> None:
         ctx.run("uv python upgrade")
         ctx.run("uv tool upgrade --all")
 
-    def package_name(self, ctx: Context) -> str:
-        _ = ctx
+    def package_name(self) -> str:
         self._not_implemented("package_name")
 
-    def current_version(self, ctx: Context) -> str:
-        _ = ctx
+    def current_version(self) -> str:
         self._not_implemented("current_version")

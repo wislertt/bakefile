@@ -1,4 +1,3 @@
-import contextlib
 import functools
 import inspect
 import logging
@@ -133,18 +132,39 @@ class KeyringCache(RefreshableCache[CachedT]):
     """Cache using system keyring for persistent storage."""
 
     def _get_entry(self) -> CacheEntry[CachedT] | None:
+        logger.debug(f"Keyring: getting entry for namespace='{self._namespace}', key='{self._key}'")
         data = kr.get_password(self._namespace, self._key)
         if data is None:
+            logger.debug(
+                f"Keyring: cache miss for namespace='{self._namespace}', key='{self._key}'"
+            )
             return None
+        logger.debug(f"Keyring: cache hit for namespace='{self._namespace}', key='{self._key}'")
         return self._deserialize_entry(data.encode())
 
     def set(self, value: CachedT) -> None:
+        logger.debug(f"Keyring: setting entry for namespace='{self._namespace}', key='{self._key}'")
         data = self._serialize_entry(value).decode()
         kr.set_password(self._namespace, self._key, data)
+        logger.debug(
+            f"Keyring: successfully set entry for namespace='{self._namespace}', key='{self._key}'"
+        )
 
     def delete(self) -> None:
-        with contextlib.suppress(PasswordDeleteError):
+        logger.debug(
+            f"Keyring: deleting entry for namespace='{self._namespace}', key='{self._key}'"
+        )
+        try:
             kr.delete_password(self._namespace, self._key)
+            logger.debug(
+                "Keyring: successfully deleted entry for "
+                f"namespace='{self._namespace}', key='{self._key}'"
+            )
+        except PasswordDeleteError:
+            logger.debug(
+                "Keyring: entry not found for deletion "
+                f"(namespace='{self._namespace}', key='{self._key}')"
+            )
 
 
 class MemoryCache(RefreshableCache[CachedT]):

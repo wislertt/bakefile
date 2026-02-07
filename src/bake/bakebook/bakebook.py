@@ -42,7 +42,11 @@ class Bakebook(BaseSettings):
             name for name in dir(self) if not name.startswith("_") and name not in base_names
         ]
         for name in method_names:
-            bound_method = getattr(self, name)
+            try:
+                bound_method = getattr(self, name)
+            except Exception:
+                continue
+
             if not isinstance(bound_method, types.MethodType):
                 continue
 
