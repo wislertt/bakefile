@@ -1,4 +1,5 @@
 import inspect
+import re
 import types
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from tests.unit.bake.bakebook.utils import (
     assert_commands,
     assert_signature_matches_typer,
 )
+from tests.utils.cli import CMD_BAKE, RunCli
 
 
 def test_bakebook_command_signature_matches_typer() -> None:
@@ -279,37 +281,22 @@ class TestBakebookCtxProperty:
             assert result is mock_ctx
             assert isinstance(result, Context)
 
-    def test_ctx_parameter_injection_matches_self_ctx(self, mock_ctx: Context) -> None:
-        """Verify that Typer's context injection matches self.ctx.
+    def test_ctx_parameter_injection_matches_self_ctx(
+        self, ctx_test_project: Path, run_cli: RunCli
+    ) -> None:
+        result = run_cli(
+            command=CMD_BAKE,
+            dir_path=ctx_test_project,
+            args=["verify-ctx"],
+        )
 
-        When a command method has `ctx: Context` as a parameter, Typer injects
-        the Click context. This test simulates what happens when Typer calls
-        a command method and verifies the injected ctx matches self.ctx.
-        """
-        # TODO: !!!
+        assert result.exit_code == 0
 
-        # Create a dummy Bakebook with a command that uses ctx parameter
-        class TestBakebook(Bakebook):
-            injected_ctx: Context | None = None
-            self_ctx: Context | None = None
+        assert "SUCCESS - ctx matches self.ctx" in result.out
 
-            @command()
-            def test_cmd(self, ctx: Context) -> None:
-                # Capture both the injected ctx and self.ctx
-                self.injected_ctx = ctx
-                self.self_ctx = self.ctx
-
-        bakebook = TestBakebook()
-
-        # Simulate what Typer does when calling a command:
-        # 1. Click context is made available via click.get_current_context()
-        # 2. Typer injects that context as the ctx parameter
-        # This is exactly what happens when bake commands are invoked
-        with mock_ctx:
-            bakebook.test_cmd(mock_ctx)
-
-        # Verify both are the same object (mock_ctx)
-        assert bakebook.injected_ctx is mock_ctx
-        assert bakebook.self_ctx is mock_ctx
-        # Most importantly: the injected ctx IS self.ctx
-        assert bakebook.injected_ctx is bakebook.self_ctx
+        # Extract both IDs and verify they're equal
+        pattern = r"ctx_id: (\d+), self_ctx_id: (\d+)"
+        match = re.search(pattern, result.out)
+        assert match, f"Expected pattern not found in: {result.out}"
+        ctx_id, self_ctx_id = match.groups()
+        assert ctx_id == self_ctx_id

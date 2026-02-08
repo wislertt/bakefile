@@ -108,6 +108,46 @@ class TestRustLibSpace:
         capture_err = strip_ansi(captured.err)
         assert "cargo publish" in capture_err
 
+    def test_publish_handles_version_already_exists(
+        self,
+        mock_ctx: Context,
+        capsys: pytest.CaptureFixture,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test that publish handles idempotent case when version already exists."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text(_CARGO_TOML_CONTENT)
+        monkeypatch.chdir(tmp_path)
+
+        space = RustLibSpace()
+
+        # Mock ctx.run to simulate cargo publish failing due to version already existing
+        failed_result = subprocess.CompletedProcess(
+            args=["cargo", "publish", "--allow-dirty", "--dry-run"],
+            returncode=1,
+            stdout="",
+            stderr=(
+                "error: failed to publish to registry `crates-io`\n\n"
+                "Caused by:\n  the crate `test-package` v1.0.0 "
+                "already exists on crates.io"
+            ),
+        )
+
+        # Create a properly typed mock function
+        def mock_run(*_, **__) -> subprocess.CompletedProcess[str]:
+            return failed_result
+
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+        with mock_ctx:
+            result = space._publish_with_token(token=None, registry="crates")
+
+        # Verify the result was converted to success (idempotent publish)
+        assert result.result is not None
+        assert result.result.returncode == 0
+        captured = capsys.readouterr()
+        assert "already exists on crates.io" in captured.out
+
 
 class TestCratesRegistry:
     def test_crates_registry_literal_contains_crates(self):
