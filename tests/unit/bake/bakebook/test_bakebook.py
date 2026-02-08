@@ -278,3 +278,38 @@ class TestBakebookCtxProperty:
             result = bakebook.ctx
             assert result is mock_ctx
             assert isinstance(result, Context)
+
+    def test_ctx_parameter_injection_matches_self_ctx(self, mock_ctx: Context) -> None:
+        """Verify that Typer's context injection matches self.ctx.
+
+        When a command method has `ctx: Context` as a parameter, Typer injects
+        the Click context. This test simulates what happens when Typer calls
+        a command method and verifies the injected ctx matches self.ctx.
+        """
+        # TODO: !!!
+
+        # Create a dummy Bakebook with a command that uses ctx parameter
+        class TestBakebook(Bakebook):
+            injected_ctx: Context | None = None
+            self_ctx: Context | None = None
+
+            @command()
+            def test_cmd(self, ctx: Context) -> None:
+                # Capture both the injected ctx and self.ctx
+                self.injected_ctx = ctx
+                self.self_ctx = self.ctx
+
+        bakebook = TestBakebook()
+
+        # Simulate what Typer does when calling a command:
+        # 1. Click context is made available via click.get_current_context()
+        # 2. Typer injects that context as the ctx parameter
+        # This is exactly what happens when bake commands are invoked
+        with mock_ctx:
+            bakebook.test_cmd(mock_ctx)
+
+        # Verify both are the same object (mock_ctx)
+        assert bakebook.injected_ctx is mock_ctx
+        assert bakebook.self_ctx is mock_ctx
+        # Most importantly: the injected ctx IS self.ctx
+        assert bakebook.injected_ctx is bakebook.self_ctx

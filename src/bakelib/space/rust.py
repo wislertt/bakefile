@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from bake import Context, console
+from bake import console
 
 from .base import BaseSpace, ToolInfo
 from .utils import CARGO_BIN, HOMWBREW_BIN, get_expected_paths
@@ -27,17 +27,17 @@ class RustSpace(BaseSpace):
         )
         return tools
 
-    def lint(self, ctx: Context) -> None:
-        super().lint(ctx=ctx)
+    def lint(self) -> None:
+        super().lint()
 
-        ctx.run("cargo +nightly check --tests")
-        ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
-        ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")
+        self.ctx.run("cargo +nightly check --tests")
+        self.ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
+        self.ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")
 
-    def update(self, ctx: Context) -> None:
-        super().update(ctx)
-        ctx.run("rustup update")
-        ctx.run("cargo update")
+    def update(self) -> None:
+        super().update()
+        self.ctx.run("rustup update")
+        self.ctx.run("cargo update")
 
     def _get_cargo(self) -> dict[str, Any]:
         cargo_toml = Path("Cargo.toml")

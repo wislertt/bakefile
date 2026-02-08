@@ -8,7 +8,7 @@ import typer
 from pydantic import SecretStr
 from tenacity import stop_after_attempt
 
-from bake import Context, command, console
+from bake import command, console
 from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
@@ -103,25 +103,23 @@ class BaseLibSpace(BaseSpace):
     @command(help="Build and publish the package")
     def publish(
         self,
-        ctx: Context,
         *,
         registry: Annotated[str, typer.Option(help="Publish registry")] = "default",
         token: Annotated[str | None, typer.Option(help="Publish token")] = None,
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
     ):
-        with self._set_ctx(ctx):
-            cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)
-            version = self._determine_version(version)
+        cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)
+        version = self._determine_version(version)
 
-            self._pre_publish_cleanup()
+        self._pre_publish_cleanup()
 
-            with self._version_bump_context(version):
-                self._build_for_publish()
-                publish_result = self._execute_publish(
-                    cached_publish_token=cached_publish_token, registry=registry
-                )
+        with self._version_bump_context(version):
+            self._build_for_publish()
+            publish_result = self._execute_publish(
+                cached_publish_token=cached_publish_token, registry=registry
+            )
 
-            self._handle_publish_result(publish_result=publish_result)
+        self._handle_publish_result(publish_result=publish_result)
 
     def _execute_publish(
         self, cached_publish_token: ChainedCache[str | None], registry: str

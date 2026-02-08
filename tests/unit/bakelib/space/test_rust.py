@@ -7,6 +7,12 @@ from bake import Context
 from bakelib.space.base import BaseSpace
 from bakelib.space.rust import RustSpace
 
+_CARGO_TOML_CONTENT = """\
+[package]
+name = "test-package"
+version = "1.2.3"
+"""
+
 
 def test_rust_space_is_base_space() -> None:
     assert issubclass(RustSpace, BaseSpace)
@@ -15,7 +21,8 @@ def test_rust_space_is_base_space() -> None:
 class TestRustSpace:
     def test_lint_runs_all_commands(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
         space = RustSpace()
-        space.lint(mock_ctx)
+        with mock_ctx:
+            space.lint()
         captured = capsys.readouterr()
         assert "cargo +nightly check --tests" in captured.err
         assert "cargo +nightly fmt" in captured.err
@@ -25,7 +32,8 @@ class TestRustSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = RustSpace()
-        space.update(mock_ctx)
+        with mock_ctx:
+            space.update()
         captured = capsys.readouterr()
         assert "rustup update" in captured.err
         assert "cargo update" in captured.err
@@ -38,7 +46,7 @@ class TestRustSpace:
 
     def test_package_name_returns_cargo_package_name(self, tmp_path: Path) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
-        cargo_toml.write_text('[package]\nname = "test-package"\nversion = "1.2.3"\n')
+        cargo_toml.write_text(_CARGO_TOML_CONTENT)
 
         space = RustSpace()
         with mock.patch("bakelib.space.rust.Path", return_value=cargo_toml):
@@ -46,7 +54,7 @@ class TestRustSpace:
 
     def test_current_version_returns_cargo_version(self, tmp_path: Path) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
-        cargo_toml.write_text('[package]\nname = "test-package"\nversion = "1.2.3"\n')
+        cargo_toml.write_text(_CARGO_TOML_CONTENT)
 
         space = RustSpace()
         with mock.patch("bakelib.space.rust.Path", return_value=cargo_toml):
@@ -56,15 +64,12 @@ class TestRustSpace:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
-        cargo_toml.write_text('[package]\nname = "test-package"\nversion = "1.0.0"\n')
+        cargo_toml.write_text(_CARGO_TOML_CONTENT)
 
         space = RustSpace()
-        mock_ctx = mock.Mock()
-
         monkeypatch.chdir(tmp_path)
 
-        with space._set_ctx(mock_ctx):
-            space._set_version("2.0.0")
+        space._set_version("2.0.0")
 
         result = cargo_toml.read_text()
         assert 'version = "2.0.0"' in result

@@ -17,7 +17,8 @@ def test_python_space_is_base_space() -> None:
 class TestPythonSpace:
     def test_lint_runs_all_commands(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
         python_space = PythonSpace()
-        python_space.lint(mock_ctx)
+        with mock_ctx:
+            python_space.lint()
         captured = capsys.readouterr()
         assert "toml-sort" in captured.err
         assert "ruff format" in captured.err
@@ -29,7 +30,8 @@ class TestPythonSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
-        python_space.test(mock_ctx)
+        with mock_ctx:
+            python_space.test()
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "pytest" in capture_err
@@ -38,7 +40,8 @@ class TestPythonSpace:
 
     def test_setup_dev_runs_uv_sync(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
         python_space = PythonSpace()
-        python_space.setup_dev(mock_ctx)
+        with mock_ctx:
+            python_space.setup_dev()
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv sync" in capture_err
@@ -50,7 +53,7 @@ class TestPythonSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
-        with python_space._set_ctx(mock_ctx):
+        with mock_ctx:
             python_space.setup_project()
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
@@ -95,7 +98,8 @@ class TestPythonSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
-        python_space.update(mock_ctx)
+        with mock_ctx:
+            python_space.update()
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv lock --upgrade" in capture_err
@@ -107,7 +111,8 @@ class TestPythonSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
-        python_space.test_integration(mock_ctx, verbose=True)
+        with mock_ctx:
+            python_space.test_integration(verbose=True)
         captured = capsys.readouterr()
         assert "-s -v" in captured.err
 
@@ -115,7 +120,8 @@ class TestPythonSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
-        python_space.test_integration(mock_ctx, verbose=False)
+        with mock_ctx:
+            python_space.test_integration(verbose=False)
         captured = capsys.readouterr()
         assert "-s -v" not in captured.err
 
@@ -125,8 +131,8 @@ class TestPythonSpace:
         python_space = PythonSpace()
         with patch("bakelib.space.python.Path") as mock_path:
             mock_path.return_value.exists.return_value = False
-            with pytest.raises(typer.Exit):
-                python_space.test_integration(mock_ctx, verbose=False)
+            with mock_ctx, pytest.raises(typer.Exit):
+                python_space.test_integration(verbose=False)
         captured = capsys.readouterr()
         assert "No implementation" in captured.err
 
@@ -136,7 +142,8 @@ class TestPythonSpace:
         python_space = PythonSpace()
         with patch("bakelib.space.python.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
-            python_space.test_all(mock_ctx)
+            with mock_ctx:
+                python_space.test_all()
         captured = capsys.readouterr()
         assert "tests/" in captured.err
 
@@ -146,7 +153,7 @@ class TestPythonSpace:
         python_space = PythonSpace()
         with patch("bakelib.space.python.Path") as mock_path:
             mock_path.return_value.exists.return_value = False
-            with pytest.raises(typer.Exit):
-                python_space.test_all(mock_ctx)
+            with mock_ctx, pytest.raises(typer.Exit):
+                python_space.test_all()
         captured = capsys.readouterr()
         assert "No implementation" in captured.err

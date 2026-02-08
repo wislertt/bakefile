@@ -17,16 +17,15 @@ def test_base_space_is_bakebook() -> None:
 class TestBaseSpace:
     def test_lint_runs_prettier(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
         base_space = BaseSpace()
-        base_space.lint(mock_ctx)
+        with mock_ctx:
+            base_space.lint()
         captured = capsys.readouterr()
         assert "bunx prettier@latest" in captured.err
 
-    def test_shows_no_implementation_error(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_shows_no_implementation_error(self, capsys: pytest.CaptureFixture) -> None:
         base_space = BaseSpace()
         with pytest.raises(typer.Exit):
-            base_space.test(mock_ctx)
+            base_space.test()
         captured = capsys.readouterr()
         assert "No implementation" in captured.err
 
@@ -34,7 +33,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.setup_dev(mock_ctx)
+        with mock_ctx:
+            base_space.setup_dev()
         captured = capsys.readouterr()
         assert "brew install uv" in captured.err
 
@@ -42,7 +42,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.clean(mock_ctx)
+        with mock_ctx:
+            base_space.clean()
         captured = capsys.readouterr()
         assert "git clean -fdX -n" in captured.err
         assert ".env" in captured.err
@@ -52,7 +53,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.clean(mock_ctx, exclude_patterns=["*.log", "*.tmp"])
+        with mock_ctx:
+            base_space.clean(exclude_patterns=["*.log", "*.tmp"])
         captured = capsys.readouterr()
         assert "git clean -fdX -n" in captured.err
         assert "*.log" in captured.err or "*.tmp" in captured.err
@@ -61,7 +63,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.clean(mock_ctx, default_excludes=False)
+        with mock_ctx:
+            base_space.clean(default_excludes=False)
         captured = capsys.readouterr()
         assert "git clean -fdX -n" in captured.err
 
@@ -69,7 +72,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.clean_all(mock_ctx)
+        with mock_ctx:
+            base_space.clean_all()
         captured = capsys.readouterr()
         assert "git clean -fdX" in captured.err
 
@@ -77,7 +81,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.tools(mock_ctx)
+        with mock_ctx:
+            base_space.tools()
         captured = capsys.readouterr()
         output = json.loads(strip_ansi(captured.out))
         assert isinstance(output, dict)
@@ -88,7 +93,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.tools(mock_ctx, format="names")
+        with mock_ctx:
+            base_space.tools(format="names")
         captured = capsys.readouterr()
         names = captured.out.strip().split("\n")
         assert "bun" in names
@@ -99,7 +105,7 @@ class TestBaseSpace:
         base_space = BaseSpace()
         mock_ctx.dry_run = True
         tool_info = ToolInfo(expected_paths=[])
-        with base_space._set_ctx(mock_ctx):
+        with mock_ctx:
             result = base_space._assert_which_path("test", tool_info)
         assert result is True
 
@@ -117,7 +123,7 @@ class TestBaseSpace:
         mock_result.stdout = str(expected_path) + "\n"
 
         with patch.object(mock_ctx, "run", return_value=mock_result):
-            with base_space._set_ctx(mock_ctx):
+            with mock_ctx:
                 result = base_space._assert_which_path("test", tool_info)
             assert result is True
 
@@ -141,7 +147,7 @@ class TestBaseSpace:
         mock_result.stdout = str(actual_path) + "\n"
 
         with patch.object(mock_ctx, "run", return_value=mock_result):
-            with base_space._set_ctx(mock_ctx):
+            with mock_ctx:
                 result = base_space._assert_which_path("test", tool_info)
             assert result is False
 
@@ -163,8 +169,8 @@ class TestBaseSpace:
     ) -> None:
         base_space = BaseSpace()
         mock_ctx.dry_run = True
-        with pytest.raises(typer.Exit) as exc_info:
-            base_space.assert_setup_dev(mock_ctx, skip_test=False)
+        with mock_ctx, pytest.raises(typer.Exit) as exc_info:
+            base_space.assert_setup_dev(skip_test=False)
         assert exc_info.value.exit_code == 1
         captured = capsys.readouterr()
         assert "prettier" in captured.err
@@ -174,7 +180,8 @@ class TestBaseSpace:
     ) -> None:
         base_space = BaseSpace()
         mock_ctx.dry_run = True
-        base_space.assert_setup_dev(mock_ctx, skip_test=True)
+        with mock_ctx:
+            base_space.assert_setup_dev(skip_test=True)
         captured = capsys.readouterr()
         assert "prettier" in captured.err
 
@@ -182,7 +189,8 @@ class TestBaseSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        base_space.update(mock_ctx)
+        with mock_ctx:
+            base_space.update()
         captured = capsys.readouterr()
         assert "uv python upgrade" in captured.err
         assert "uv tool upgrade --all" in captured.err
@@ -195,8 +203,8 @@ class TestBaseSpace:
         self, method_name: str, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = BaseSpace()
-        with pytest.raises(typer.Exit):
-            getattr(base_space, method_name)(mock_ctx)
+        with mock_ctx, pytest.raises(typer.Exit):
+            getattr(base_space, method_name)()
         captured = capsys.readouterr()
         assert "No implementation" in captured.err
 
@@ -214,8 +222,8 @@ class TestBaseSpace:
     ) -> None:
         mock_get_platform.return_value = platform
         base_space = BaseSpace()
-        with patch.object(mock_ctx, "override_dry_run"):
-            base_space.setup_dev(mock_ctx)
+        with mock_ctx, patch.object(mock_ctx, "override_dry_run"):
+            base_space.setup_dev()
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
         assert f"Platform '{platform}' is not supported" in err
@@ -229,12 +237,12 @@ class TestBaseSpace:
 
     def test_package_name_raises_not_implemented_error(self, mock_ctx: Context) -> None:
         base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info, base_space._set_ctx(mock_ctx):
+        with pytest.raises(NotImplementedError) as exc_info, mock_ctx:
             base_space.package_name()
         assert "BaseSpace must implement package_name()" in str(exc_info.value)
 
     def test_current_version_raises_not_implemented_error(self, mock_ctx: Context) -> None:
         base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info, base_space._set_ctx(mock_ctx):
+        with pytest.raises(NotImplementedError) as exc_info, mock_ctx:
             base_space.current_version()
         assert "BaseSpace must implement current_version()" in str(exc_info.value)

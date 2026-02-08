@@ -5,7 +5,7 @@ from typing import Annotated, Literal, cast, get_args
 
 import typer
 
-from bake import Context, console
+from bake import console
 
 from .lib import BaseLibSpace, PublishResult
 from .rust import RustSpace
@@ -88,11 +88,10 @@ class RustLibSpace(RustSpace, BaseLibSpace):
 
     def publish(
         self,
-        ctx: Context,
         *,
         registry: Annotated[str, typer.Option(help="Publish registry (crates)")] = "crates",
         token: Annotated[str | None, typer.Option(help="Publish token")] = None,
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
     ):
         self._validate_registry(registry)
-        return super().publish(ctx=ctx, registry=registry, token=token, version=version)
+        return super().publish(registry=registry, token=token, version=version)

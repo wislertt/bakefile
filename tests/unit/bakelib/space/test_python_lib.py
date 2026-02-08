@@ -60,7 +60,8 @@ class TestPythonLibSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
-        space.publish(mock_ctx, registry="testpypi", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="testpypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
@@ -70,7 +71,8 @@ class TestPythonLibSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
-        space.publish(mock_ctx, registry="pypi", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="pypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
@@ -81,7 +83,8 @@ class TestPythonLibSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
-        space.publish(mock_ctx, registry="testpypi", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="testpypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err

@@ -10,6 +10,12 @@ from bake.ui.logger import strip_ansi
 from bakelib.space.lib import PublishResult
 from bakelib.space.rust_lib import CratesRegistry, RustLibSpace
 
+_CARGO_TOML_CONTENT = """\
+[package]
+name = "test-package"
+version = "1.0.0"
+"""
+
 
 class TestRustLibSpace:
     def test_version_schema_returns_standard_base_prerelease_post_dev(self):
@@ -74,11 +80,12 @@ class TestRustLibSpace:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
-        cargo_toml.write_text('[package]\nname = "test-package"\nversion = "1.0.0"\n')
+        cargo_toml.write_text(_CARGO_TOML_CONTENT)
         monkeypatch.chdir(tmp_path)
 
         space = RustLibSpace()
-        space.publish(mock_ctx, registry="crates", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="crates", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "cargo publish" in capture_err
@@ -91,11 +98,12 @@ class TestRustLibSpace:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
-        cargo_toml.write_text('[package]\nname = "test-package"\nversion = "1.0.0"\n')
+        cargo_toml.write_text(_CARGO_TOML_CONTENT)
         monkeypatch.chdir(tmp_path)
 
         space = RustLibSpace()
-        space.publish(mock_ctx, registry="crates", token="test-token", version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="crates", token="test-token", version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "cargo publish" in capture_err
