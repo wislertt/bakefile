@@ -1,4 +1,7 @@
 from pathlib import Path
+from unittest.mock import patch
+
+import typer
 
 from bake.utils.constants import CMD_BAKEFILE, CMD_LINT
 from tests.conftest import RunCli
@@ -86,3 +89,18 @@ def test_lint_no_bakefile(tmp_path: Path, run_cli: RunCli) -> None:
 
     assert result.exit_code == 1
     assert "Bakefile not found" in result.err
+
+
+def test_lint_reports_error_when_linter_fails(empty_project_folder: Path, run_cli: RunCli) -> None:
+    """Test that lint reports error when a linter raises typer.Exit with non-zero exit code."""
+
+    def mock_run_ruff_check(*_, **__):
+        raise typer.Exit(code=1)
+
+    with patch("bake.cli.bakefile.lint.run_ruff_check", side_effect=mock_run_ruff_check):
+        result = run_cli(
+            command=CMD_BAKEFILE, dir_path=empty_project_folder, args=["--dry-run", CMD_LINT]
+        )
+
+    assert result.exit_code == 1
+    assert "Linting failed" in result.err
