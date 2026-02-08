@@ -38,13 +38,14 @@ uv tool install bakefile # as a global tool
 Create a file named `bakefile.py`:
 
 ```python
-from bake import Bakebook, command, Context, console
+from bake import Bakebook, command, console
 
 class MyBakebook(Bakebook):
     @command()
-    def build(self, ctx: Context) -> None:
+    def build(self) -> None:
         console.echo("Building...")
-        # Add your build commands here
+        # Use self.ctx to run commands
+        self.ctx.run("cargo build")
 
 bakebook = MyBakebook()
 
@@ -99,21 +100,20 @@ class MyBakebook(Bakebook):
     api_url: str = Field(default="https://api.example.com", env="API_URL")
 
     @command()
-    def fetch(self, ctx: Context) -> None:
-        # Run CLI commands
-        ctx.run(f"curl {self.api_url}")
+    def fetch(self) -> None:
+        # Run CLI commands via self.ctx
+        self.ctx.run(f"curl {self.api_url}")
 
 bakebook = MyBakebook()
 
 # Standalone functions also work
 @bakebook.command()
 def test(
-    ctx: Context,
     verbose: Annotated[bool, typer.Option(False, "--verbose", "-v")] = False,
 ):
     if verbose:
         console.echo("Running tests...")
-    ctx.run("pytest")
+    bakebook.ctx.run("pytest")
 ```
 
 ### PEP 723 Support
@@ -162,53 +162,56 @@ bakebook = Bakebook()
 - **Accepts all Typer options** - `name`, `help`, `deprecated`, etc.
 
 ```python
-from bake import Bakebook, command, Context, console
+from bake import Bakebook, command, console
 from typing import Annotated
 import typer
 
-# Pattern 1: On class
+# Pattern 1: On class (use self.ctx for context access)
 class MyBakebook(Bakebook):
     @command()
-    def task1(self, ctx: Context) -> None:
+    def task1(self) -> None:
         console.echo("Task 1")
+        self.ctx.run("echo 'Task 1 complete'")
 
 bakebook = MyBakebook()
 
-# Pattern 2: On instance (with Typer options)
+# Pattern 2: On instance (use bakebook.ctx for context access)
 @bakebook.command(name="deploy", help="Deploy application")
 def deploy(
     env: Annotated[str, typer.Option("dev", help="Environment to deploy")],
 ):
     console.echo(f"Deploying to {env}...")
+    bakebook.ctx.run(f"kubectl apply -f {env}.yaml")
 ```
 
 #### Context API
 
-The `Context` object extends Typer's Context with command execution:
+The `Bakebook` class provides a `.ctx` property for accessing CLI context:
 
 ```python
-@bakebook.command()
-def my_command(ctx: Context) -> None:
-    # Run a command
-    ctx.run("echo hello")
+class MyBakebook(Bakebook):
+    @command()
+    def my_command(self) -> None:
+        # Run a command
+        self.ctx.run("echo hello")
 
-    # Run with options
-    ctx.run(
-        "pytest",
-        capture_output=False,  # Stream to terminal
-        check=True,            # Raise on error
-        cwd="/tmp",           # Working directory
-        env={"KEY": "value"}, # Environment variables
-    )
+        # Run with options
+        self.ctx.run(
+            "pytest",
+            capture_output=False,  # Stream to terminal
+            check=True,            # Raise on error
+            cwd="/tmp",           # Working directory
+            env={"KEY": "value"}, # Environment variables
+        )
 
-    # Run a multi-line script
-    ctx.run_script(
-        title="Setup",
-        script="""
-            echo "Step 1"
-            echo "Step 2"
-        """,
-    )
+        # Run a multi-line script
+        self.ctx.run_script(
+            title="Setup",
+            script="""
+                echo "Step 1"
+                echo "Step 2"
+            """,
+        )
 ```
 
 #### Pydantic Settings
@@ -395,11 +398,10 @@ Create custom spaces by inheriting from BaseSpace:
 
 ```python
 from bakelib import BaseSpace
-from bake import Context
 
 class MySpace(BaseSpace):
-    def test(self, ctx: Context) -> None:
-        ctx.run("npm test")
+    def test(self) -> None:
+        self.ctx.run("npm test")
 
 bakebook = MySpace()
 ```

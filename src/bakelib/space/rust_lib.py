@@ -34,6 +34,7 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         return None
 
     def _build_for_publish(self):
+        # cargo publish handles compilation automatically
         pass
 
     def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:

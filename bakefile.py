@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from bake import Context, command, console
+from bake import command, console
 from bakelib import PythonLibSpace
 
 
@@ -46,13 +46,13 @@ bakebook = MyBakebook()
 
 
 @bakebook.command()
-def uvx_install_bake(ctx: Context):
-    ctx.run("uv tool install 'bakefile[lib]' --reinstall")
+def uvx_install_bake():
+    bakebook.ctx.run("uv tool install 'bakefile[lib]' --reinstall")
 
 
 @bakebook.command()
-def uvx_install_bake_test(ctx: Context):
-    ctx.run(
+def uvx_install_bake_test():
+    bakebook.ctx.run(
         "uv tool install bakefile[lib] "
         "--index-url https://test.pypi.org/simple/ "
         "--extra-index-url https://pypi.org/simple "
