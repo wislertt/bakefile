@@ -60,5 +60,8 @@ class RustSpace(BaseSpace):
             count=1,
             flags=re.MULTILINE,
         )
-        cargo_toml.write_text(content)
-        console.echo(f"{self.package_name()}-version {original_version} => {version}")
+        if not self.ctx.dry_run:
+            cargo_toml.write_text(content)
+        console.echo(
+            f"{self.package_name()}-version {original_version} => {version}", highlight=False
+        )
