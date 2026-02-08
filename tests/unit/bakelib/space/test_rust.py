@@ -61,7 +61,7 @@ class TestRustSpace:
             assert space.current_version() == "1.2.3"
 
     def test_set_version_updates_cargo_toml(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_ctx: Context
     ) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text(_CARGO_TOML_CONTENT)
@@ -69,7 +69,9 @@ class TestRustSpace:
         space = RustSpace()
         monkeypatch.chdir(tmp_path)
 
-        space._set_version("2.0.0")
+        with mock_ctx:
+            mock_ctx.obj.dry_run = False
+            space._set_version("2.0.0")
 
         result = cargo_toml.read_text()
         assert 'version = "2.0.0"' in result

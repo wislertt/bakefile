@@ -111,6 +111,10 @@ class BaseLibSpace(BaseSpace):
         cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)
         version = self._determine_version(version)
 
+        console.start(
+            f"Publishing [bold green]{version}[/bold green] "
+            f"[dim]({self._version_output_format})[/dim] to [bold cyan]{registry}[/bold cyan]"
+        )
         self._pre_publish_cleanup()
 
         with self._version_bump_context(version):
