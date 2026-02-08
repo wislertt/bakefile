@@ -15,3 +15,7 @@ class BakefileNotFoundError(BakebookError):
 
 class PythonNotFoundError(BaseBakefileError):
     """Exception raised when Python executable cannot be found or created."""
+
+
+class ContextNotAvailableError(BakebookError, RuntimeError):
+    """Exception raised when accessing context outside of a bake command."""

@@ -2,12 +2,14 @@ import inspect
 import types
 from pathlib import Path
 
+import click
 import pytest
 import typer
 from pydantic_settings import SettingsConfigDict
 
-from bake import Bakebook, command
+from bake import Bakebook, Context, command
 from bake.utils.constants import BAKE_COMMAND_KWARGS
+from bake.utils.exceptions import ContextNotAvailableError
 from tests.unit.bake.bakebook.utils import (
     ExpectedCommand,
     assert_commands,
@@ -247,3 +249,32 @@ def test_command_with_name_and_help() -> None:
     assert command_info.help == "Build the release package"
     assert isinstance(command_info.callback, types.MethodType)
     assert command_info.callback.__name__ == "build"
+
+
+class TestBakebookCtxProperty:
+    def test_ctx_raises_when_no_click_context(self) -> None:
+        bakebook = Bakebook()
+
+        with pytest.raises(ContextNotAvailableError, match="Command context not available"):
+            _ = bakebook.ctx
+
+    def test_ctx_raises_when_wrong_context_type(self) -> None:
+        bakebook = Bakebook()
+
+        # Create a plain click.Context (not bake.Context)
+        plain_ctx = click.Context(command=click.Command("test"))
+
+        expected_msg = (
+            r"Expected <class 'bake\.cli\.common\.context\.Context'>, "
+            r"got <class 'click\.core\.Context'>"
+        )
+        with plain_ctx, pytest.raises(ContextNotAvailableError, match=expected_msg):
+            _ = bakebook.ctx
+
+    def test_ctx_returns_context_when_available(self, mock_ctx: Context) -> None:
+        bakebook = Bakebook()
+
+        with mock_ctx:
+            result = bakebook.ctx
+            assert result is mock_ctx
+            assert isinstance(result, Context)
