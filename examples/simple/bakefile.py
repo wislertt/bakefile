@@ -13,7 +13,7 @@ from pathlib import Path
 
 import typer
 
-from bake import Bakebook, Context, command, console
+from bake import Bakebook, command, console
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ class MyBakebook(Bakebook):
         console.echo(f"Doing foo with {self.foo_url}")
 
     @command()
-    def update(self, ctx: Context) -> None:
-        ctx.run("bakefile lock --upgrade")
-        ctx.run("bakefile sync")
+    def update(self) -> None:
+        self.ctx.run("bakefile lock --upgrade")
+        self.ctx.run("bakefile sync")
 
 
 bakebook = MyBakebook()

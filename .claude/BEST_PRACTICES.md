@@ -344,6 +344,8 @@ def build(
 ):
     """Build the project."""
     console.success(f"Building{' (prod)' if prod else ''}...")
+    # Access context via self.ctx in class-based bakebooks
+    # For standalone commands, ctx is available through the command context
 
 @bakebook.command()
 def test(
@@ -351,11 +353,14 @@ def test(
 ):
     """Run tests."""
     console.echo("Running tests...")
+    if coverage:
+        bakebook.ctx.run("pytest --cov")
 
 @bakebook.command()
 def lint():
     """Run linters."""
     console.echo("Running linters...")
+    bakebook.ctx.run("ruff check .")
 ```
 
 ### Environment Variables with Bakebook
@@ -386,6 +391,7 @@ Users can define methods as commands with `@bake.command()`:
 
 ```python
 from bake import Bakebook, command
+from bake.ui import console
 
 class MyBakebook(Bakebook):
     database_url: str = "sqlite:///default.db"
@@ -393,8 +399,10 @@ class MyBakebook(Bakebook):
 
     @command()
     def migrate(self):
-        """Run migrations - has access to self.database_url"""
+        """Run migrations - has access to self.database_url and self.ctx"""
         console.echo(f"Migrating {self.database_url}")
+        # Use self.ctx to run commands
+        self.ctx.run("alembic upgrade head")
 
     @command(name="deploy-prod")
     def deploy(self):
@@ -403,6 +411,7 @@ class MyBakebook(Bakebook):
             console.echo("Debug mode - skipping deployment")
         else:
             console.echo("Deploying...")
+            self.ctx.run("kubectl apply -f deployment.yaml")
 
     def helper_method(self):
         """Internal helper - NOT a command"""
@@ -415,6 +424,7 @@ bakebook = MyBakebook()
 
 - Methods decorated with `@bake.command()` become CLI commands
 - Methods have full access to `self` (instance properties, helper methods)
+- Use `self.ctx` to access CLI context (run commands, dry_run mode, verbosity)
 - Use `@command(name="custom")` for custom command names
 - Undecorated methods remain as helper methods (not exposed as commands)
 
@@ -430,15 +440,17 @@ bakebook = Bakebook()
 
 @bakebook.command()
 def standalone_task():
-    """This still works."""
-    pass
+    """This still works - use bakebook.ctx to access context."""
+    # Access context via bakebook instance
+    bakebook.ctx.run("echo 'Hello'")
 
-# New way: class methods
+# New way: class methods (recommended for context access)
 class MyBakebook(Bakebook):
     @command()
     def method_task(self):
-        """This is new."""
-        pass
+        """This is new - use self.ctx for direct context access."""
+        # Direct context access via self
+        self.ctx.run("echo 'Hello'")
 ```
 
 ### Running Commands
@@ -508,6 +520,64 @@ from bake import Bakebook
 def process_bakebook(bakebook: Bakebook) -> None:
     """Process a bakebook instance."""
     pass
+```
+
+**Public Properties:**
+
+| Property | Purpose                                 |
+| -------- | --------------------------------------- |
+| `ctx`    | Access CLI context (run, dry_run, etc.) |
+
+### Bakebook Context Property
+
+The `Bakebook` class provides a `.ctx` property that gives commands access to the CLI context. This means you **do NOT need to pass `ctx` as an argument** to your commands.
+
+```python
+from bake import Bakebook
+
+class MyBakebook(Bakebook):
+    @command()
+    def build(self):
+        """Build the project - has access to self.ctx"""
+        # Run shell commands
+        self.ctx.run("cargo build")
+
+        # Check dry_run mode
+        if self.ctx.dry_run:
+            console.echo("Dry run mode - skipping deployment")
+
+        # Access verbosity level
+        if self.ctx.verbosity >= 2:
+            console.echo("Verbose output enabled")
+
+bakebook = MyBakebook()
+```
+
+**Key points:**
+
+- `self.ctx` is only available within command execution (raises `ContextNotAvailableError` otherwise)
+- Access context features: `ctx.run()`, `ctx.dry_run`, `ctx.verbosity`, `ctx.bakebook`
+- No need to pass `ctx: Context` as a parameter in your command functions
+
+**Context API:**
+
+```python
+# Run commands
+self.ctx.run("cargo test")
+self.ctx.run("npm install", check=False)
+
+# Dry run mode
+if self.ctx.dry_run:
+    # Handle dry run behavior
+    pass
+
+# Override dry run temporarily
+with self.ctx.override_dry_run(True):
+    # Commands in this block respect the override
+    self.ctx.run("echo 'This is a dry run'")
+
+# Verbosity level
+self.ctx.verbosity  # 0=WARNING, 1=INFO, 2=DEBUG
 ```
 
 ---

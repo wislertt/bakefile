@@ -79,28 +79,46 @@ bake CLI:
 **User API:**
 
 ```python
-# Direct import (recommended)
-from bake import Context
+# Class-based command (recommended)
+class MyBakebook(Bakebook):
+    @command()
+    def build(self) -> None:
+        # Access dry_run flag via self.ctx
+        if self.ctx.dry_run:
+            console.echo("[DRY RUN] Would build")
+            return
+        # Actual build
+        self.ctx.run("cargo build")
+
+bakebook = MyBakebook()
+
+# Standalone function (also works)
+from bake import Bakebook, command
+
+bakebook = Bakebook()
 
 @bakebook.command()
-def build(ctx: Context) -> None:
-    # Access dry_run flag
-    if ctx.obj.dry_run:
+def build() -> None:
+    # Access dry_run flag via bakebook.ctx
+    if bakebook.ctx.dry_run:
         console.echo("[DRY RUN] Would build")
         return
     # Actual build
+    bakebook.ctx.run("cargo build")
 ```
 
 **Architecture:**
 
 - `src/bake/__init__.py` re-exports `Context` from `bake.cli.common.context`
 - `Context` is a subclass of `typer.Context` with typed `obj: BakefileObject`
-- Use `Context` in type annotations (not `typer.Context`) for better IDE support
+- `Bakebook.ctx` property provides direct access to the CLI context
+- In class-based commands, use `self.ctx`; in standalone commands, use `bakebook.ctx`
 
 **Important Notes:**
 
+- The `ctx` parameter is no longer needed in command signatures - use `self.ctx` or `bakebook.ctx`
 - In `bake/cli/common/params.py` and `bake/cli/common/obj.py`, `typer.Context` is used (not `Context`) to avoid circular imports
-- In user-facing CLI commands (`bake/cli/bakefile/*.py`), use `Context` from `bake`
+- In user-facing CLI commands (`bake/cli/bakefile/*.py`), use `Context` from `bake` for callbacks
 - In tests, import `Context` from `bake` for consistency
 
 ## Data Flow
@@ -417,16 +435,16 @@ bakefile_obj.warn_if_no_bakebook(color_echo=env.should_use_colors())
 **User API:**
 
 ```python
-from bake import Context
+class MyBakebook(Bakebook):
+    @command()
+    def deploy(self) -> None:
+        if self.ctx.dry_run:
+            console.echo("[DRY RUN] Would deploy to production")
+            return
 
-@bakebook.command()
-def deploy(ctx: Context) -> None:
-    if ctx.obj.dry_run:
-        console.echo("[DRY RUN] Would deploy to production")
-        return
-
-    # Actual deployment
-    console.success("Deploying...")
+        # Actual deployment
+        console.success("Deploying...")
+        self.ctx.run("kubectl apply -f deployment.yaml")
 ```
 
 **CLI Usage:**

@@ -1,6 +1,7 @@
 import subprocess
 
 import pytest
+import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
@@ -17,15 +18,15 @@ class TestPythonLibSpace:
         space = PythonLibSpace()
         assert space._version_output_format == "pep440"
 
-    def test_validate_pypi_registry_returns_valid_indices(self):
+    def test_validate_registry_returns_valid_indices(self):
         space = PythonLibSpace()
-        assert space._validate_pypi_registry("testpypi") == "testpypi"
-        assert space._validate_pypi_registry("pypi") == "pypi"
+        assert space._validate_registry("testpypi") == "testpypi"
+        assert space._validate_registry("pypi") == "pypi"
 
-    def test_validate_pypi_registry_raises_error_for_invalid_registry(self):
+    def test_validate_registry_raises_error_for_invalid_registry(self):
         space = PythonLibSpace()
-        with pytest.raises(ValueError, match="Invalid registry"):
-            space._validate_pypi_registry("invalid")
+        with pytest.raises(typer.Exit):
+            space._validate_registry("invalid")
 
     def test_get_publish_token_from_remote_returns_none(self):
         space = PythonLibSpace()
@@ -59,7 +60,8 @@ class TestPythonLibSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
-        space.publish(mock_ctx, registry="testpypi", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="testpypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
@@ -69,7 +71,8 @@ class TestPythonLibSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
-        space.publish(mock_ctx, registry="pypi", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="pypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
@@ -80,7 +83,8 @@ class TestPythonLibSpace:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
-        space.publish(mock_ctx, registry="testpypi", token=None, version="1.0.0")
+        with mock_ctx:
+            space.publish(registry="testpypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err

@@ -17,26 +17,28 @@ from bakelib.space.utils import ToolInfo
 class MinimalTestLibSpace(BaseLibSpace):
     """Minimal concrete implementation of BaseLibSpace for testing default methods."""
 
+    def _validate_registry(self, registry: str) -> str:
+        return registry
+
     def _get_publish_token_from_remote(self, registry: str) -> str | None:
         _ = registry
         return None
 
-    def package_name(self, ctx: Context) -> str:
-        _ = ctx
+    def package_name(self) -> str:
         return "test-package"
 
-    def _build_for_publish(self, ctx: Context):
-        _ = ctx
+    def _build_for_publish(self):
+        pass
 
-    def _publish_with_token(self, ctx: Context, token: str | None, registry: str) -> PublishResult:
+    def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         _ = token, registry
-        return PublishResult(result=None, is_dry_run=ctx.dry_run, is_auth_failed=False)
+        return PublishResult(result=None, is_dry_run=self.ctx.dry_run, is_auth_failed=False)
 
     @contextmanager
-    def _version_bump_context(self, _ctx: Context, _version: str):
+    def _version_bump_context(self, _version: str):
         yield
 
-    def _pre_publish_cleanup(self, _ctx: Context):
+    def _pre_publish_cleanup(self):
         pass
 
 
@@ -65,29 +67,31 @@ class TestBaseLibSpace:
 
     def test_version_bump_context_is_context_manager(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        with space._version_bump_context(mock_ctx, "1.2.3"):
+        with mock_ctx, space._version_bump_context("1.2.3"):
             pass
 
     def test_pre_publish_cleanup_does_nothing_by_default(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        space._pre_publish_cleanup(mock_ctx)
+        with mock_ctx:
+            space._pre_publish_cleanup()
 
     def test_determine_version_returns_version_when_provided(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        version = space._determine_version(mock_ctx, "2.0.0")
+        with mock_ctx:
+            version = space._determine_version("2.0.0")
         assert version == "2.0.0"
 
     def test_version_bump_context_yields(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        with space._version_bump_context(mock_ctx, "1.0.0"):
+        with mock_ctx, space._version_bump_context("1.0.0"):
             assert True
 
     def test_handle_publish_result_exits_on_auth_failed(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         result = PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            space._handle_publish_result(mock_ctx, result)
+        with pytest.raises(typer.Exit) as exc_info, mock_ctx:
+            space._handle_publish_result(result)
         assert exc_info.value.exit_code == 1
 
     def test_handle_publish_result_warns_on_dry_run(
@@ -97,23 +101,24 @@ class TestBaseLibSpace:
         mock_ctx.dry_run = False
         result = PublishResult(result=None, is_dry_run=True, is_auth_failed=False)
 
-        space._handle_publish_result(mock_ctx, result)
+        with mock_ctx:
+            space._handle_publish_result(result)
         captured = capsys.readouterr()
         output = strip_ansi(captured.err)
         assert "dry-run" in output.lower()
 
     def test_get_cached_publish_token_with_no_local_token(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        cached_token = space._get_cached_publish_token(mock_ctx, token=None, registry="testpypi")
+        with mock_ctx:
+            cached_token = space._get_cached_publish_token(token=None, registry="testpypi")
         cached_token.delete()
         result = cached_token.get_value()
         assert result is None
 
     def test_get_cached_publish_token_with_local_token(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        cached_token = space._get_cached_publish_token(
-            mock_ctx, token="local-token", registry="testpypi"
-        )
+        with mock_ctx:
+            cached_token = space._get_cached_publish_token(token="local-token", registry="testpypi")
         result = cached_token.get_value()
         assert result == "local-token"
 
@@ -133,8 +138,8 @@ class TestBaseLibSpace:
         )
         cached_publish_token.set("dummy-token")
 
-        def mock_publish(ctx: Context, token: str | None, registry: str) -> PublishResult:
-            _ = ctx, token, registry
+        def mock_publish(token: str | None, registry: str) -> PublishResult:
+            _ = token, registry
             failed_result = subprocess.CompletedProcess(
                 args=[],
                 returncode=1,
@@ -144,7 +149,8 @@ class TestBaseLibSpace:
 
         monkeypatch.setattr(space, "_publish_with_token", mock_publish)
 
-        result = space._execute_publish(mock_ctx, cached_publish_token, "testpypi")
+        with mock_ctx:
+            result = space._execute_publish(cached_publish_token, "testpypi")
 
         assert result.is_auth_failed is True
         assert result.result is None
@@ -165,7 +171,8 @@ class TestBaseLibSpace:
         mock_run = mock.Mock(return_value=mock_result)
         monkeypatch.setattr(mock_ctx, "run", mock_run)
 
-        version = space._determine_version(mock_ctx, None)
+        with mock_ctx:
+            version = space._determine_version(None)
 
         assert version == "0.1.0"
         mock_run.assert_called_once_with("zerv flow", dry_run=False)
@@ -196,7 +203,8 @@ class TestBaseLibSpaceSetupTools:
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = MinimalTestLibSpace()
-        space.setup_tools(mock_ctx, platform="macos")
+        with mock_ctx:
+            space.setup_tools(platform="macos")
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
 

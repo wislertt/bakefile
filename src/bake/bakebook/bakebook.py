@@ -2,19 +2,34 @@ import types
 from collections.abc import Callable
 from typing import Any
 
+import click
 import typer
 from pydantic import PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typer.core import TyperCommand
 from typer.models import CommandFunctionType, Default
 
-from bake.cli.common.context import BakeCommand
+from bake.cli.common.context import BakeCommand, Context
 from bake.utils.constants import BAKE_COMMAND_KWARGS
+from bake.utils.exceptions import ContextNotAvailableError
 
 
 class Bakebook(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     _app: typer.Typer = PrivateAttr(default_factory=typer.Typer)
+
+    @property
+    def ctx(self) -> Context:
+
+        ctx = click.get_current_context(silent=True)
+        if ctx is None:
+            raise ContextNotAvailableError(
+                "Command context not available - "
+                "this method must be called from within a bake command"
+            )
+        if not isinstance(ctx, Context):
+            raise ContextNotAvailableError(f"Expected {Context}, got {type(ctx)}")
+        return ctx
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -42,7 +57,11 @@ class Bakebook(BaseSettings):
             name for name in dir(self) if not name.startswith("_") and name not in base_names
         ]
         for name in method_names:
-            bound_method = getattr(self, name)
+            try:
+                bound_method = getattr(self, name)
+            except Exception:
+                continue
+
             if not isinstance(bound_method, types.MethodType):
                 continue
 

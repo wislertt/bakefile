@@ -11,6 +11,8 @@ from tests.utils.cli import RunCli
 
 # Path to the complex vars bakebook file
 COMPLEX_VARS_BAKEBOOK_PATH = Path(__file__).parent / "bakefiles" / "complex_vars.py"
+# Path to the ctx test bakebook file
+CTX_TEST_BAKEBOOK_PATH = Path(__file__).parent / "bakefiles" / "ctx_test.py"
 
 
 def _create_bakefile(
@@ -118,6 +120,14 @@ def complex_vars_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
     _ = isolated_uv_cache
     bakefile_path = tmp_path / DEFAULT_FILE_NAME
     shutil.copy(COMPLEX_VARS_BAKEBOOK_PATH, bakefile_path)
+    return tmp_path
+
+
+@pytest.fixture
+def ctx_test_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
+    _ = isolated_uv_cache
+    bakefile_path = tmp_path / DEFAULT_FILE_NAME
+    shutil.copy(CTX_TEST_BAKEBOOK_PATH, bakefile_path)
     return tmp_path
 
 

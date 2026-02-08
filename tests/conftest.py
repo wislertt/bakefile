@@ -1,6 +1,7 @@
 from tests.utils.cli import CaptureOutput, RunCli, run_cli
 from tests.utils.fixtures import (
     complex_vars_project,
+    ctx_test_project,
     disable_colors,
     empty_project_folder,
     empty_project_folder_no_inline,
@@ -27,6 +28,7 @@ __all__ = [
     "RunCli",
     "SimpleTestCommand",
     "complex_vars_project",
+    "ctx_test_project",
     "disable_colors",
     "empty_project_folder",
     "empty_project_folder_no_inline",

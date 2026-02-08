@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bake import Context, params
+from bake import params
 from bake.ui.logger import strip_ansi
 
 from .base import BaseSpace, ToolInfo
@@ -23,79 +23,81 @@ class PythonSpace(BaseSpace):
         )
         return tools
 
-    def lint(self, ctx: Context) -> None:
-        super().lint(ctx=ctx)
+    def lint(self) -> None:
+        super().lint()
 
-        ctx.run(
+        self.ctx.run(
             "uv run toml-sort --sort-inline-arrays --in-place "
             "--sort-first=project,dependency-groups pyproject.toml"
         )
-        ctx.run("uv run ruff format --exit-non-zero-on-format .")
-        ctx.run("uv run ruff check --fix --exit-non-zero-on-fix .")
-        ctx.run("uv run ty check --error-on-warning --no-progress .")
-        ctx.run("uv run deptry .")
+        self.ctx.run("uv run ruff format --exit-non-zero-on-format .")
+        self.ctx.run("uv run ruff check --fix --exit-non-zero-on-fix .")
+        self.ctx.run("uv run ty check --error-on-warning --no-progress .")
+        self.ctx.run("uv run deptry .")
 
     def _test(
         self,
-        ctx: Context,
         *,
         tests_paths: str | list[str],
         verbose: bool = False,
         coverage_report: bool = True,
+        coverage_path: str = "src",
     ) -> None:
         paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
 
         cmd = f"uv run pytest {paths}"
 
         if coverage_report:
-            cmd += " --cov=src --cov-report=html --cov-report=term-missing --cov-report=xml"
+            cmd += (
+                f" --cov={coverage_path} --cov-report=html"
+                " --cov-report=term-missing --cov-report=xml"
+            )
 
         if verbose:
             cmd += " -s -v"
 
-        ctx.run(cmd)
+        self.ctx.run(cmd)
 
     def test_integration(
         self,
-        ctx: Context,
         verbose: params.verbose_bool = False,
     ) -> None:
         integration_tests_path = "tests/integration/"
         if Path(integration_tests_path).exists():
             tests_path = integration_tests_path
-            self._test(ctx, tests_paths=tests_path, verbose=verbose)
+            self._test(tests_paths=tests_path, verbose=verbose)
         else:
-            self._no_implementation(ctx)
+            self._no_implementation()
 
-    def test(self, ctx: Context) -> None:
+    def test(self) -> None:
         unit_tests_path = "tests/unit/"
         tests_path = unit_tests_path if Path(unit_tests_path).exists() else "tests/"
-        self._test(ctx, tests_paths=tests_path)
+        self._test(tests_paths=tests_path)
 
-    def test_all(self, ctx: Context) -> None:
+    def test_all(self) -> None:
         unit_tests_path = "tests/unit/"
         if Path(unit_tests_path).exists():
             tests_path = "tests/"
-            self._test(ctx, tests_paths=tests_path)
+            self._test(tests_paths=tests_path)
         else:
-            self._no_implementation(ctx)
+            self._no_implementation()
 
-    def setup_project(self, ctx: Context) -> None:
-        super().setup_project(ctx=ctx)
-        ctx.run("uv sync --all-extras --all-groups --frozen")
+    def setup_project(self) -> None:
+        super().setup_project()
+        self.ctx.run("uv sync --all-extras --all-groups --frozen")
 
-    def update(self, ctx: Context) -> None:
-        super().update(ctx=ctx)
-        ctx.run("uv lock --upgrade")
-        ctx.run("uv sync --all-extras --all-groups")
+    def update(self) -> None:
+        super().update()
+        self.ctx.run("uv lock --upgrade")
+        self.ctx.run("uv sync --all-extras --all-groups")
 
-    def _uv_version(self, ctx: Context) -> tuple[str, str]:
-        result = ctx.run("uv version", stream=False, dry_run=False, echo=False)
+    def _uv_version(self) -> tuple[str, str]:
+        result = self.ctx.run("uv version", stream=False, dry_run=False, echo=False)
         package_name, original_version = strip_ansi(result.stdout.strip()).split()
         return package_name, original_version
 
-    def package_name(self, ctx: Context) -> str:
-        return self._uv_version(ctx)[0]
+    def package_name(self) -> str:
+        return self._uv_version()[0]
 
-    def current_version(self, ctx: Context) -> str:
-        return self._uv_version(ctx)[1]
+    def current_version(self) -> str:
+        return self._uv_version()[1]
