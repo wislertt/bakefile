@@ -1,6 +1,5 @@
 """Miscellaneous test utilities - context, logger, flaky, paths, string helpers."""
 
-import os
 import sys
 from functools import wraps
 from pathlib import Path
@@ -12,6 +11,7 @@ import pytest
 from bake import Context
 from bake.cli.common.obj import BakefileObject
 from bake.ui.logger.utils import reset_all_logging_states
+from bake.utils.settings import bake_settings
 
 
 class SimpleTestCommand(click.Command):
@@ -47,16 +47,15 @@ def reset_all_logger_state():
     reset_all_logging_states()
 
 
-def flaky_on_macos_ci(max_retries: int = 5):
-    """Decorator for flaky tests on macOS CI."""
+def _flaky_on_ci(platform: str, max_retries: int = 5):
+    """Internal decorator for flaky tests on specific platform CI."""
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            is_macos = sys.platform == "darwin"
-            is_ci = os.getenv("CI") == "true"
+            is_target_platform = sys.platform == platform
 
-            if not (is_macos and is_ci):
+            if not (is_target_platform and bake_settings.ci):
                 return func(*args, **kwargs)
 
             for attempt in range(max_retries):
@@ -70,6 +69,16 @@ def flaky_on_macos_ci(max_retries: int = 5):
         return wrapper
 
     return decorator
+
+
+def flaky_on_macos_ci(max_retries: int = 5):
+    """Decorator for flaky tests on macOS CI."""
+    return _flaky_on_ci("darwin", max_retries)
+
+
+def flaky_on_windows_ci(max_retries: int = 5):
+    """Decorator for flaky tests on Windows CI."""
+    return _flaky_on_ci("win32", max_retries)
 
 
 @pytest.fixture(scope="session")

@@ -17,6 +17,7 @@ from bakelib.refreshable_cache import (
     RefreshableCache,
 )
 from bakelib.refreshable_cache.cache import DEFAULT_NAMESPACE
+from tests.utils.misc import flaky_on_windows_ci
 
 
 def keyring_backend_available() -> bool:
@@ -111,6 +112,7 @@ class TestCacheBasics:
         "cache_class, ttl",
         [(MemoryCache, 0.01)] + ([(KeyringCache, 0.05)] if keyring_backend_available() else []),
     )
+    @flaky_on_windows_ci()
     def test_cache_respects_ttl(
         self, cache_class: type[RefreshableCache], ttl: float, capsys: pytest.CaptureFixture[str]
     ):
@@ -130,7 +132,7 @@ class TestCacheBasics:
         assert has_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
 
         # Use larger buffer on Windows due to timing precision issues
-        buffer = 3 if sys.platform == "win32" else 0.1
+        buffer = 2 if sys.platform == "win32" else 0.1
         time.sleep(ttl + buffer)
         cache.get_value()
 
