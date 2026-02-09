@@ -61,10 +61,20 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         auth_error_message = "403 Invalid or non-existent authentication information"
         return result.returncode != 0 and auth_error_message in result.stderr
 
+    def _get_version_for_pyproject_toml(self, version: str | None) -> str:
+        # TODO: fix this. ensure version is pep440
+        return (
+            version
+            if version
+            else self.zerv_versioning(
+                schema="standard-base-prerelease-post-dev", output_format="pep440"
+            )
+        )
+
     @contextmanager
-    def _version_bump_context(self, version: str):
+    def _version_bump_context(self, version: str | None):
         original_version = self.current_version()
-        self.ctx.run(f"uv version {version}")
+        self.ctx.run(f"uv version {self._get_version_for_pyproject_toml(version)}")
         try:
             yield
         finally:

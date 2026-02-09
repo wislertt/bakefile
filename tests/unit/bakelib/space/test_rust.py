@@ -71,7 +71,7 @@ class TestRustSpace:
 
         with mock_ctx:
             mock_ctx.obj.dry_run = False
-            space._set_version("2.0.0")
+            space._set_version_in_cargo_toml("2.0.0")
 
         result = cargo_toml.read_text()
         assert 'version = "2.0.0"' in result

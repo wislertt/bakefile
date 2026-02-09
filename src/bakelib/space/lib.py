@@ -81,24 +81,13 @@ class BaseLibSpace(BaseSpace):
 
     @contextmanager
     @abstractmethod
-    def _version_bump_context(self, version: str): ...
+    def _version_bump_context(self, version: str | None): ...
 
     @abstractmethod
     def _pre_publish_cleanup(self): ...
 
-    @property
-    def _version_schema(self) -> str | None:
-        return None
-
-    @property
-    def _version_output_format(self) -> str | None:
-        return None
-
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         return result.returncode != 0
-
-    def _determine_version(self, version: str | None) -> str:
-        return version if version else self.zerv_versioning()
 
     @command(help="Build and publish the package")
     def publish(
@@ -109,12 +98,8 @@ class BaseLibSpace(BaseSpace):
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
     ):
         cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)
-        version = self._determine_version(version)
 
-        console.start(
-            f"Publishing [bold green]{version}[/bold green] "
-            f"[dim]({self._version_output_format})[/dim] to [bold cyan]{registry}[/bold cyan]"
-        )
+        console.start(f"Publishing to [bold cyan]{registry}[/bold cyan]")
         self._pre_publish_cleanup()
 
         with self._version_bump_context(version):
@@ -179,9 +164,6 @@ class BaseLibSpace(BaseSpace):
     def zerv_versioning(
         self, *, schema: str | None = None, output_format: str | None = None
     ) -> str:
-        schema = schema if schema is not None else self._version_schema
-        output_format = output_format if output_format is not None else self._version_output_format
-
         schema_flag = f" --schema {schema}" if schema else ""
         output_format_flag = f" --output-format {output_format}" if output_format else ""
 

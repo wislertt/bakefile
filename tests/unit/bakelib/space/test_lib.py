@@ -76,12 +76,6 @@ class TestBaseLibSpace:
         with mock_ctx:
             space._pre_publish_cleanup()
 
-    def test_determine_version_returns_version_when_provided(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
-        with mock_ctx:
-            version = space._determine_version("2.0.0")
-        assert version == "2.0.0"
-
     def test_version_bump_context_yields(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx, space._version_bump_context("1.0.0"):
@@ -220,16 +214,11 @@ class TestBaseLibSpace:
         call_order = []
 
         original_get_cached_publish_token = space._get_cached_publish_token
-        original_determine_version = space._determine_version
         original_handle_publish_result = space._handle_publish_result
 
         def mock_get_cached_publish_token(*args, **kwargs):
             call_order.append("_get_cached_publish_token")
             return original_get_cached_publish_token(*args, **kwargs)
-
-        def mock_determine_version(*args, **kwargs):
-            call_order.append("_determine_version")
-            return original_determine_version(*args, **kwargs)
 
         def mock_pre_publish_cleanup():
             call_order.append("_pre_publish_cleanup")
@@ -262,7 +251,6 @@ class TestBaseLibSpace:
             return original_handle_publish_result(*args, **kwargs)
 
         monkeypatch.setattr(space, "_get_cached_publish_token", mock_get_cached_publish_token)
-        monkeypatch.setattr(space, "_determine_version", mock_determine_version)
         monkeypatch.setattr(space, "_pre_publish_cleanup", mock_pre_publish_cleanup)
         monkeypatch.setattr(space, "_version_bump_context", mock_version_bump_context)
         monkeypatch.setattr(space, "_build_for_publish", mock_build_for_publish)
@@ -276,7 +264,6 @@ class TestBaseLibSpace:
 
         # Verify methods were called in correct order
         assert "_get_cached_publish_token" in call_order
-        assert "_determine_version" in call_order
         assert "_pre_publish_cleanup" in call_order
         assert "_version_bump_context" in call_order
         assert "_build_for_publish" in call_order
@@ -360,35 +347,9 @@ class TestBaseLibSpace:
         assert result.is_auth_failed is True
         assert result.result is None
 
-    def test_determine_version_calls_zerv_when_no_version(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _ = capsys
-        space = MinimalTestLibSpace()
-
-        mock_result = subprocess.CompletedProcess(
-            args=["zerv flow"],
-            returncode=0,
-            stdout="0.1.0",
-            stderr="",
-        )
-
-        mock_run = mock.Mock(return_value=mock_result)
-        monkeypatch.setattr(mock_ctx, "run", mock_run)
-
-        with mock_ctx:
-            version = space._determine_version(None)
-
-        assert version == "0.1.0"
-        mock_run.assert_called_once_with("zerv flow", dry_run=False)
-
 
 class TestBaseLibSpaceDefaults:
     """Tests for BaseLibSpace default implementations using minimal subclass."""
-
-    def test_default_version_schema_returns_none(self) -> None:
-        space = MinimalTestLibSpace()
-        assert space._version_schema is None
 
     def test_default_is_auth_failure_returns_true_on_nonzero_returncode(self) -> None:
         space = MinimalTestLibSpace()
@@ -440,3 +401,113 @@ class TestBaseLibSpaceGetTools:
         tools = space._get_tools()
         assert "zerv" in tools
         assert isinstance(tools["zerv"], ToolInfo)
+
+
+class TestZervVersioning:
+    """Tests for BaseLibSpace.zerv_versioning method."""
+
+    def test_zerv_versioning_with_no_args(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        space = MinimalTestLibSpace()
+
+        mock_result = subprocess.CompletedProcess(
+            args=["zerv flow"],
+            returncode=0,
+            stdout="1.0.0",
+            stderr="",
+        )
+
+        mock_run = mock.Mock(return_value=mock_result)
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+
+        with mock_ctx:
+            version = space.zerv_versioning()
+
+        assert version == "1.0.0"
+        mock_run.assert_called_once_with("zerv flow", dry_run=False)
+
+    def test_zerv_versioning_with_schema(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        space = MinimalTestLibSpace()
+
+        mock_result = subprocess.CompletedProcess(
+            args=["zerv flow --schema custom-schema"],
+            returncode=0,
+            stdout="2.0.0",
+            stderr="",
+        )
+
+        mock_run = mock.Mock(return_value=mock_result)
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+
+        with mock_ctx:
+            version = space.zerv_versioning(schema="custom-schema")
+
+        assert version == "2.0.0"
+        mock_run.assert_called_once_with("zerv flow --schema custom-schema", dry_run=False)
+
+    def test_zerv_versioning_with_output_format(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        space = MinimalTestLibSpace()
+
+        mock_result = subprocess.CompletedProcess(
+            args=["zerv flow --output-format raw"],
+            returncode=0,
+            stdout="3.0.0",
+            stderr="",
+        )
+
+        mock_run = mock.Mock(return_value=mock_result)
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+
+        with mock_ctx:
+            version = space.zerv_versioning(output_format="raw")
+
+        assert version == "3.0.0"
+        mock_run.assert_called_once_with("zerv flow --output-format raw", dry_run=False)
+
+    def test_zerv_versioning_with_schema_and_output_format(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        space = MinimalTestLibSpace()
+
+        mock_result = subprocess.CompletedProcess(
+            args=["zerv flow --schema my-schema --output-format semver"],
+            returncode=0,
+            stdout="4.0.0",
+            stderr="",
+        )
+
+        mock_run = mock.Mock(return_value=mock_result)
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+
+        with mock_ctx:
+            version = space.zerv_versioning(schema="my-schema", output_format="semver")
+
+        assert version == "4.0.0"
+        mock_run.assert_called_once_with(
+            "zerv flow --schema my-schema --output-format semver", dry_run=False
+        )
+
+    def test_zerv_versioning_strips_ansi_codes(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        space = MinimalTestLibSpace()
+
+        mock_result = subprocess.CompletedProcess(
+            args=["zerv flow"],
+            returncode=0,
+            stdout="\x1b[32m5.0.0\x1b[0m",
+            stderr="",
+        )
+
+        mock_run = mock.Mock(return_value=mock_result)
+        monkeypatch.setattr(mock_ctx, "run", mock_run)
+
+        with mock_ctx:
+            version = space.zerv_versioning()
+
+        assert version == "5.0.0"

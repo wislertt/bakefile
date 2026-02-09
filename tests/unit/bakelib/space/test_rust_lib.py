@@ -18,14 +18,6 @@ version = "1.0.0"
 
 
 class TestRustLibSpace:
-    def test_version_schema_returns_standard_base_prerelease_post_dev(self):
-        space = RustLibSpace()
-        assert space._version_schema == "standard-base-prerelease-post-dev"
-
-    def test_version_output_format_returns_semver(self):
-        space = RustLibSpace()
-        assert space._version_output_format == "semver"
-
     def test_validate_registry_returns_valid_indices(self):
         space = RustLibSpace()
         assert space._validate_registry("crates") == "crates"
