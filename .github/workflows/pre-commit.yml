@@ -15,20 +15,29 @@ jobs:
               uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
             - name: setup-uv
-              uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # v7.2.1
+              uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
               with:
                   version: "latest"
                   enable-cache: true
                   python-version: ${{ inputs.python_version }}
 
-            - name: cache-uv
+            - name: cache-deps
+              env:
+                  CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}
+                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
-                  path: ${{ github.workspace }}/.venv
-                  key: uv-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}
+                  path: |
+                      ${{ github.workspace }}/.venv
+                      ~/.cache/pre-commit
+                      ~/.cache/ruff
+                      ~/.bun/install/cache
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      uv-${{ runner.os }}-py${{ inputs.python_version }}-
-                      uv-${{ runner.os }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen

@@ -49,7 +49,7 @@ class RustSpace(BaseSpace):
     def current_version(self) -> str:
         return self._get_cargo()["package"]["version"]
 
-    def _set_version(self, version: str) -> None:
+    def _set_version_in_cargo_toml(self, version: str) -> None:
         cargo_toml = Path("Cargo.toml")
         original_version = self.current_version()
         content = cargo_toml.read_text()
@@ -60,8 +60,9 @@ class RustSpace(BaseSpace):
             count=1,
             flags=re.MULTILINE,
         )
-        if not self.ctx.dry_run:
-            cargo_toml.write_text(content)
+        cargo_toml.write_text(content)
         console.echo(
-            f"{self.package_name()}-version {original_version} => {version}", highlight=False
+            f"Cargo.toml: update [bold cyan]{self.package_name()}[/bold cyan] "
+            f"version {original_version} => {version}",
+            highlight=False,
         )

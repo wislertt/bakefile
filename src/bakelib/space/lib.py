@@ -81,24 +81,13 @@ class BaseLibSpace(BaseSpace):
 
     @contextmanager
     @abstractmethod
-    def _version_bump_context(self, version: str): ...
+    def _version_bump_context(self, version: str | None): ...
 
     @abstractmethod
     def _pre_publish_cleanup(self): ...
 
-    @property
-    def _version_schema(self) -> str | None:
-        return None
-
-    @property
-    def _version_output_format(self) -> str | None:
-        return None
-
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         return result.returncode != 0
-
-    def _determine_version(self, version: str | None) -> str:
-        return version if version else self.zerv_versioning()
 
     @command(help="Build and publish the package")
     def publish(
@@ -109,12 +98,8 @@ class BaseLibSpace(BaseSpace):
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
     ):
         cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)
-        version = self._determine_version(version)
 
-        console.start(
-            f"Publishing [bold green]{version}[/bold green] "
-            f"[dim]({self._version_output_format})[/dim] to [bold cyan]{registry}[/bold cyan]"
-        )
+        console.start(f"Publishing to [bold cyan]{registry}[/bold cyan]")
         self._pre_publish_cleanup()
 
         with self._version_bump_context(version):
@@ -144,22 +129,37 @@ class BaseLibSpace(BaseSpace):
             return PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
 
     def _handle_publish_result(self, publish_result: PublishResult) -> None:
-        if publish_result.is_auth_failed:
+        if self.ctx.dry_run:
+            return
+
+        elif publish_result.is_auth_failed:
             console.error("Authentication failed. Please check your publish token.")
             raise typer.Exit(1)
 
-        if publish_result.is_dry_run and not self.ctx.dry_run:
-            console.warning(
-                "This was a dry-run. To actually publish, "
-                "set the BAKE_PUBLISH_TOKEN environment variable"
-            )
+        elif publish_result.result is None:
+            console.error("Publish result is empty (unexpected).")
+            raise typer.Exit(1)
+
+        elif publish_result.result.returncode == 0:
+            if publish_result.is_dry_run:
+                console.warning(
+                    "This was a dry-run. To actually publish, "
+                    "set the BAKE_PUBLISH_TOKEN environment variable"
+                )
+                return
+
+            console.success("Publish succeeded!")
+            return
+
+        # At this point: result exists and returncode is non-zero
+        console.error(
+            f"Publish failed with unexpected error. Return code: {publish_result.result.returncode}"
+        )
+        raise typer.Exit(1)
 
     def zerv_versioning(
         self, *, schema: str | None = None, output_format: str | None = None
     ) -> str:
-        schema = schema if schema is not None else self._version_schema
-        output_format = output_format if output_format is not None else self._version_output_format
-
         schema_flag = f" --schema {schema}" if schema else ""
         output_format_flag = f" --output-format {output_format}" if output_format else ""
 

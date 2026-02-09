@@ -14,14 +14,6 @@ CratesRegistry = Literal["crates"]
 
 
 class RustLibSpace(RustSpace, BaseLibSpace):
-    @property
-    def _version_schema(self) -> str | None:
-        return "standard-base-prerelease-post-dev"
-
-    @property
-    def _version_output_format(self) -> str | None:
-        return "semver"
-
     def _validate_registry(self, registry: str) -> CratesRegistry:
         valid_registries = get_args(CratesRegistry)
         if registry not in valid_registries:
@@ -75,14 +67,24 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         auth_error_messages = ["status 403 Forbidden", "status 401 Unauthorized"]
         return result.returncode != 0 and any(msg in result.stderr for msg in auth_error_messages)
 
+    def _get_version_for_cargo_toml(self, version: str | None) -> str:
+        # TODO: fix this. ensure version is semver
+        return (
+            version
+            if version
+            else self.zerv_versioning(
+                schema="standard-base-prerelease-post-dev", output_format="semver"
+            )
+        )
+
     @contextmanager
-    def _version_bump_context(self, version: str):
+    def _version_bump_context(self, version: str | None):
         original_version = self.current_version()
-        self._set_version(version)
+        self._set_version_in_cargo_toml(self._get_version_for_cargo_toml(version))
         try:
             yield
         finally:
-            self._set_version(original_version)
+            self._set_version_in_cargo_toml(original_version)
 
     def _pre_publish_cleanup(self):
         shutil.rmtree("target/package", ignore_errors=True)

@@ -10,7 +10,7 @@ from bake import console
 from .lib import BaseLibSpace, PublishResult
 from .python import PythonSpace
 
-PyPIRegistry = Literal["testpypi", "pypi"]
+PyPIRegistry = Literal["test-pypi", "pypi"]
 
 
 class PythonLibSpace(PythonSpace, BaseLibSpace):
@@ -38,7 +38,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
 
     def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         pypi_registry = self._validate_registry(registry)
-        index_flag = f"--index {pypi_registry} " if pypi_registry == "testpypi" else ""
+        index_flag = f"--index {pypi_registry} " if pypi_registry == "test-pypi" else ""
         dry_run_flag = "" if token is not None else "--dry-run "
         is_dry_run = token is None
 
@@ -61,10 +61,20 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         auth_error_message = "403 Invalid or non-existent authentication information"
         return result.returncode != 0 and auth_error_message in result.stderr
 
+    def _get_version_for_pyproject_toml(self, version: str | None) -> str:
+        # TODO: fix this. ensure version is pep440
+        return (
+            version
+            if version
+            else self.zerv_versioning(
+                schema="standard-base-prerelease-post-dev", output_format="pep440"
+            )
+        )
+
     @contextmanager
-    def _version_bump_context(self, version: str):
+    def _version_bump_context(self, version: str | None):
         original_version = self.current_version()
-        self.ctx.run(f"uv version {version}")
+        self.ctx.run(f"uv version {self._get_version_for_pyproject_toml(version)}")
         try:
             yield
         finally:
@@ -77,8 +87,8 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         self,
         *,
         registry: Annotated[
-            str, typer.Option(help="Publish registry (testpypi or pypi)")
-        ] = "testpypi",
+            str, typer.Option(help="Publish registry (test-pypi or pypi)")
+        ] = "test-pypi",
         token: Annotated[str | None, typer.Option(help="Publish token")] = None,
         version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
     ):
