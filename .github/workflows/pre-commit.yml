@@ -21,15 +21,20 @@ jobs:
                   enable-cache: true
                   python-version: ${{ inputs.python_version }}
 
-            - name: cache-venv
+            - name: cache-deps
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
-                  path: ${{ github.workspace }}/.venv
-                  key: venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: |
+                      ${{ github.workspace }}/.venv
+                      ~/.cache/pre-commit
+                      ~/.cache/ruff
+                      ~/.bun/install/cache
+                  key: deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
-                      venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
-                      venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
+                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
+                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
+                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
+                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen

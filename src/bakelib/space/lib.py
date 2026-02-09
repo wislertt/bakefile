@@ -151,14 +151,10 @@ class BaseLibSpace(BaseSpace):
             console.success("Publish succeeded!")
             return
 
-        elif publish_result.result.returncode != 0:
-            console.error(
-                "Publish failed with unexpected error. "
-                f"Return code: {publish_result.result.returncode}"
-            )
-            raise typer.Exit(1)
-
-        console.error("Unexpected publish result state")
+        # At this point: result exists and returncode is non-zero
+        console.error(
+            f"Publish failed with unexpected error. Return code: {publish_result.result.returncode}"
+        )
         raise typer.Exit(1)
 
     def zerv_versioning(

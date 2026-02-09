@@ -747,25 +747,15 @@ setup_logging(
 
 **Use a consistent cache key pattern to avoid race conditions and ensure proper cache isolation:**
 
-```yaml
-# Pattern: <name>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-<run_attempt>
-
-- name: cache-venv
-  uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-  with:
-      path: .venv
-      key: venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
-      restore-keys: |
-          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
-          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-
-          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-
+```
+<name>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-<run_attempt>
 ```
 
 **Cache Key Components:**
 
 | Component       | Purpose                                         | Example                          |
 | --------------- | ----------------------------------------------- | -------------------------------- |
-| `<name>`        | Identifies what's cached (unique per job)       | `venv`, `cargo`, `npm`           |
+| `<name>`        | Identifies what's cached (unique per job)       | `venv`, `deps`, `cargo`          |
 | `<job>`         | Isolates caches per job                         | `${{ github.job }}`              |
 | `<os>`          | Isolates by operating system                    | `${{ runner.os }}`               |
 | `[<matrix>...]` | Isolates by matrix dimensions (optional)        | `py${{ matrix.python-version }}` |
@@ -773,31 +763,41 @@ setup_logging(
 | `<run_id>`      | Unique per workflow run                         | `${{ github.run_id }}`           |
 | `<run_attempt>` | Unique per retry attempt                        | `${{ github.run_attempt }}`      |
 
-**Naming Convention:**
+### Single Cache Step (Fast Dependencies)
 
-Keep step name and cache prefix consistent:
+For dependencies that are quick to reinstall (Python venv, npm):
 
 ```yaml
 - name: cache-venv
-  uses: actions/cache@<full-commit-sha> # v5.0.3
+  uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
   with:
-      key: venv-${{ github.job }}-... # Same as step name prefix
-
-- name: cache-cargo
-  uses: actions/cache@<full-commit-sha> # v5.0.3
-  with:
-      key: cargo-${{ github.job }}-... # Same as step name prefix
+      path: ${{ github.workspace }}/.venv
+      key: venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+      restore-keys: |
+          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
+          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-
+          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-
 ```
 
-**Restore Keys Pattern:**
+### Combined Cache Step (Multiple Related Paths)
 
-Remove elements from the back of the cache key, stopping at a logical boundary:
+For related caches that should be invalidated together:
 
 ```yaml
-restore-keys: |
-    <name>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-
-    <name>-<job>-<os>-[<matrix>...]-[<dep>...]-
-    <name>-<job>-<os>-[<matrix>...]-
+- name: cache-deps
+  uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+  with:
+      path: |
+          ${{ github.workspace }}/.venv
+          ~/.cache/pre-commit
+          ~/.cache/ruff
+          ~/.bun/install/cache
+      key: deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+      restore-keys: |
+          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
+          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
+          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
+          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
 ```
 
 ### Split Restore and Save for Expensive Caches
@@ -818,7 +818,7 @@ jobs:
             # 1. Restore cache (fails gracefully if not found)
             - name: restore-cargo-cache
               id: restore-cargo
-              uses: actions/cache/restore@<full-commit-sha> # v5.0.3
+              uses: actions/cache/restore@0c907a7517f239e4053e11f1aee0df0fd0823747 # v4.2.1
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
                   key: cargo-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -832,7 +832,7 @@ jobs:
             # 3. Save cache (runs even if build fails)
             - name: save-cargo-cache
               if: always()
-              uses: actions/cache/save@<full-commit-sha> # v5.0.3
+              uses: actions/cache/save@8c838cbe8e9c4b41d7be8ca7bcc388df19aa43b1 # v4.2.1
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
                   key: ${{ steps.restore-cargo.outputs.cache-primary-key }}
@@ -847,20 +847,51 @@ jobs:
 | Python venv  | ❌ No      | `uv sync` is fast enough                         |
 | npm deps     | ❌ No      | `npm install` is relatively fast                 |
 
-**Key points for split pattern:**
+### Cache Step Placement
 
-- Use `if: always()` on save step to run even if previous steps fail
-- Use `id:` on restore step and reference `steps.<id>.outputs.cache-primary-key` in save step
-- Use `env:` variables for cache paths to avoid redundancy
-- `restore` fails gracefully if cache doesn't exist
-- `save` uses the same key from restore output
+**Correct order for cache steps:**
 
-**Key points:**
+```yaml
+steps:
+    # 1. ALWAYS FIRST - Need code to know what to cache
+    - name: checkout
+      uses: actions/checkout@...
+
+    # 2. Tool setup with built-in caching
+    - name: setup-uv
+      uses: astral-sh/setup-uv@...
+      with:
+          enable-cache: true # Handles ~/.cache/uv
+
+    # 3. YOUR cache - Restore if exists
+    - name: cache-deps
+      uses: actions/cache@...
+      with:
+          path: .venv
+          key: ...
+
+    # 4. Install - Uses cache if available, creates if not
+    - name: install-dependencies
+      run: uv sync --all-extras --all-groups --frozen
+```
+
+### Naming Convention
+
+Keep step name and cache prefix consistent:
+
+| Step Name     | Key Prefix |
+| ------------- | ---------- |
+| `cache-venv`  | `venv-`    |
+| `cache-deps`  | `deps-`    |
+| `cache-cargo` | `cargo-`   |
+
+### Key points:
 
 - Use **full commit SHA** (not `@v4`) for security - version tags can move
 - Each cache in a job must have a unique `<name>` to avoid collisions
 - `run_id` + `run_attempt` ensure cache can be saved after every run (no cross-run exact hits)
 - `restore-keys` provide fallback to older caches by removing elements from the back
-- Multiple caches per job are allowed and recommended for different purposes (venv, cargo, npm, etc.)
+- Multiple caches per job are allowed and recommended for different purposes
+- For split pattern: use `if: always()` on save step, reference `steps.<id>.outputs.cache-primary-key`
+- Use `env:` variables for cache paths to avoid redundancy in split restore/save
 - The `id:` field cannot use expressions - must be static strings
-- Use environment variables for reusable values in cache keys
