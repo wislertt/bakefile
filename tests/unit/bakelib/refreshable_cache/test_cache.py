@@ -130,7 +130,7 @@ class TestCacheBasics:
         assert has_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
 
         # Use larger buffer on Windows due to timing precision issues
-        buffer = 2 if sys.platform == "win32" else 0.1
+        buffer = 3 if sys.platform == "win32" else 0.1
         time.sleep(ttl + buffer)
         cache.get_value()
 
