@@ -768,24 +768,28 @@ setup_logging(
 
 For dependencies that are quick to reinstall (Python venv, npm):
 
-**Use env vars to reduce repetition and keep lines short:**
+**Use step-level env vars to reduce repetition and keep lines short:**
 
 ```yaml
 jobs:
     test:
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
         runs-on: ${{ matrix.os }}
-        env:
-            CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}
 
         steps:
             - name: cache-venv
+              env:
+                  CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}
+                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: ${{ github.workspace }}/.venv
-                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
-                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-
                       ${{ env.CACHE_KEY_PREFIX }}-
 ```
 
@@ -797,12 +801,12 @@ For related caches that should be invalidated together:
 jobs:
     pre-commit:
         runs-on: ubuntu-latest
-        env:
-            CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}
-            CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
         steps:
             - name: cache-deps
+              env:
+                  CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}
+                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: |
@@ -825,18 +829,19 @@ For caches that are **slow to create** (Rust compilation, large builds), use spl
 ```yaml
 jobs:
     build:
-        # Define cache path and key prefix as env vars to avoid redundancy
+        runs-on: ${{ matrix.os }}
         env:
             CARGO_CACHE_PATH: |
                 ~/.cargo/registry
                 ~/.cargo/git
                 target
-            CACHE_KEY_PREFIX: cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}
 
         steps:
             # 1. Restore cache (fails gracefully if not found)
             - name: restore-cargo-cache
               id: restore-cargo
+              env:
+                  CACHE_KEY_PREFIX: cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}
               uses: actions/cache/restore@0c907a7517f239e4053e11f1aee0df0fd0823747 # v4.2.1
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
@@ -912,5 +917,6 @@ Keep step name and cache prefix consistent:
 - `restore-keys` provide fallback to older caches by removing elements from the back
 - Multiple caches per job are allowed and recommended for different purposes
 - For split pattern: use `if: always()` on save step, reference `steps.<id>.outputs.cache-primary-key`
-- Use `env:` variables for **cache paths AND cache key prefixes** to avoid redundancy and keep lines short
+- Use **step-level `env:`** for cache key prefixes to access `runner.os` and `hashFiles()` while keeping lines short
+- Use **job-level `env:`** only for truly static values (cache paths, fixed OS names)
 - The `id:` field cannot use expressions - must be static strings
