@@ -20,7 +20,7 @@ class TestPythonLibSpace:
 
     def test_validate_registry_returns_valid_indices(self):
         space = PythonLibSpace()
-        assert space._validate_registry("testpypi") == "testpypi"
+        assert space._validate_registry("test-pypi") == "test-pypi"
         assert space._validate_registry("pypi") == "pypi"
 
     def test_validate_registry_raises_error_for_invalid_registry(self):
@@ -30,7 +30,7 @@ class TestPythonLibSpace:
 
     def test_get_publish_token_from_remote_returns_none(self):
         space = PythonLibSpace()
-        token = space._get_publish_token_from_remote("testpypi")
+        token = space._get_publish_token_from_remote("test-pypi")
         assert token is None
 
     def test_is_auth_failure_detects_403_error(self):
@@ -61,7 +61,7 @@ class TestPythonLibSpace:
     ) -> None:
         space = PythonLibSpace()
         with mock_ctx:
-            space.publish(registry="testpypi", token=None, version="1.0.0")
+            space.publish(registry="test-pypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
@@ -77,19 +77,19 @@ class TestPythonLibSpace:
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
         assert "uv publish" in capture_err
-        assert "--index testpypi" not in capture_err
+        assert "--index test-pypi" not in capture_err
 
-    def test_publish_with_testpypi_index(
+    def test_publish_with_test_pypi_index(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = PythonLibSpace()
         with mock_ctx:
-            space.publish(registry="testpypi", token=None, version="1.0.0")
+            space.publish(registry="test-pypi", token=None, version="1.0.0")
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv build" in capture_err
         assert "uv publish" in capture_err
-        assert "--index testpypi" in capture_err
+        assert "--index test-pypi" in capture_err
 
 
 class TestPublishResult:

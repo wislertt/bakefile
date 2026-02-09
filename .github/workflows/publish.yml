@@ -10,8 +10,8 @@ on:
             registry:
                 required: false
                 type: string
-                description: "Publish registry (pypi or testpypi)"
-                default: "testpypi"
+                description: "Publish registry (pypi or test-pypi)"
+                default: "test-pypi"
             python_version:
                 required: false
                 type: string

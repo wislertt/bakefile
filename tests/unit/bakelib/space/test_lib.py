@@ -204,7 +204,7 @@ class TestBaseLibSpace:
         monkeypatch.setattr(space, "_publish_with_token", mock_publish)
 
         with mock_ctx:
-            result = space._execute_publish(cached_publish_token, "testpypi")
+            result = space._execute_publish(cached_publish_token, "test-pypi")
 
         assert result.is_auth_failed is False
         assert result.result is not None
@@ -272,7 +272,7 @@ class TestBaseLibSpace:
         _ = capsys
 
         with mock_ctx:
-            space.publish(registry="testpypi", token="test-token", version="1.0.0")
+            space.publish(registry="test-pypi", token="test-token", version="1.0.0")
 
         # Verify methods were called in correct order
         assert "_get_cached_publish_token" in call_order
@@ -313,7 +313,7 @@ class TestBaseLibSpace:
     def test_get_cached_publish_token_with_no_local_token(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx:
-            cached_token = space._get_cached_publish_token(token=None, registry="testpypi")
+            cached_token = space._get_cached_publish_token(token=None, registry="test-pypi")
         cached_token.delete()
         result = cached_token.get_value()
         assert result is None
@@ -321,7 +321,9 @@ class TestBaseLibSpace:
     def test_get_cached_publish_token_with_local_token(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx:
-            cached_token = space._get_cached_publish_token(token="local-token", registry="testpypi")
+            cached_token = space._get_cached_publish_token(
+                token="local-token", registry="test-pypi"
+            )
         result = cached_token.get_value()
         assert result == "local-token"
 
@@ -353,7 +355,7 @@ class TestBaseLibSpace:
         monkeypatch.setattr(space, "_publish_with_token", mock_publish)
 
         with mock_ctx:
-            result = space._execute_publish(cached_publish_token, "testpypi")
+            result = space._execute_publish(cached_publish_token, "test-pypi")
 
         assert result.is_auth_failed is True
         assert result.result is None
