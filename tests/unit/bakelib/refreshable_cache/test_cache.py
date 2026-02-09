@@ -1,5 +1,3 @@
-"""Unit tests for refreshable_cache module."""
-
 import contextlib
 import logging
 import sys
@@ -132,7 +130,7 @@ class TestCacheBasics:
         assert has_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
 
         # Use larger buffer on Windows due to timing precision issues
-        buffer = 1 if sys.platform == "win32" else 0.01
+        buffer = 2 if sys.platform == "win32" else 0.01
         time.sleep(ttl + buffer)
         cache.get_value()
 
@@ -640,3 +638,16 @@ class TestChainedCacheFaultyBackends:
         # MemoryCache should be deleted
         entry = cache._backends[1]._get_entry()
         assert entry is None
+
+    def test_chained_cache_all_backends_fail_on_set(self):
+        def fetch_value() -> str:
+            return "all-fail-value"
+
+        cache = ChainedCache(
+            backends=[FaultyCache, FaultyCache],
+            key=TestKeyRegistry.create("chained-all-fail"),
+            fetch_fn=fetch_value,
+        )
+
+        # All backends fail - should log and complete without error
+        cache.set("test-value")
