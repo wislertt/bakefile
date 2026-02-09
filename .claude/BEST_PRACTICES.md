@@ -768,16 +768,25 @@ setup_logging(
 
 For dependencies that are quick to reinstall (Python venv, npm):
 
+**Use env vars to reduce repetition and keep lines short:**
+
 ```yaml
-- name: cache-venv
-  uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-  with:
-      path: ${{ github.workspace }}/.venv
-      key: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
-      restore-keys: |
-          venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
-          venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-
-          venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-
+jobs:
+    test:
+        runs-on: ${{ matrix.os }}
+        env:
+            CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}
+
+        steps:
+            - name: cache-venv
+              uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+              with:
+                  path: ${{ github.workspace }}/.venv
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-
 ```
 
 ### Combined Cache Step (Multiple Related Paths)
@@ -785,20 +794,28 @@ For dependencies that are quick to reinstall (Python venv, npm):
 For related caches that should be invalidated together:
 
 ```yaml
-- name: cache-deps
-  uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-  with:
-      path: |
-          ${{ github.workspace }}/.venv
-          ~/.cache/pre-commit
-          ~/.cache/ruff
-          ~/.bun/install/cache
-      key: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-      restore-keys: |
-          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
-          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
-          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
-          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
+jobs:
+    pre-commit:
+        runs-on: ubuntu-latest
+        env:
+            CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}
+            CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+        steps:
+            - name: cache-deps
+              uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+              with:
+                  path: |
+                      ${{ github.workspace }}/.venv
+                      ~/.cache/pre-commit
+                      ~/.cache/ruff
+                      ~/.bun/install/cache
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-
 ```
 
 ### Split Restore and Save for Expensive Caches
@@ -808,12 +825,13 @@ For caches that are **slow to create** (Rust compilation, large builds), use spl
 ```yaml
 jobs:
     build:
-        # Define cache path as env var to avoid redundancy
+        # Define cache path and key prefix as env vars to avoid redundancy
         env:
             CARGO_CACHE_PATH: |
                 ~/.cargo/registry
                 ~/.cargo/git
                 target
+            CACHE_KEY_PREFIX: cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}
 
         steps:
             # 1. Restore cache (fails gracefully if not found)
@@ -822,9 +840,9 @@ jobs:
               uses: actions/cache/restore@0c907a7517f239e4053e11f1aee0df0fd0823747 # v4.2.1
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
-                  key: cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/Cargo.lock') }}-
 
             # 2. Build step (may fail, but cache will still be saved)
             - name: build
@@ -894,5 +912,5 @@ Keep step name and cache prefix consistent:
 - `restore-keys` provide fallback to older caches by removing elements from the back
 - Multiple caches per job are allowed and recommended for different purposes
 - For split pattern: use `if: always()` on save step, reference `steps.<id>.outputs.cache-primary-key`
-- Use `env:` variables for cache paths to avoid redundancy in split restore/save
+- Use `env:` variables for **cache paths AND cache key prefixes** to avoid redundancy and keep lines short
 - The `id:` field cannot use expressions - must be static strings
