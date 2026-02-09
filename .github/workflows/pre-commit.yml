@@ -29,12 +29,12 @@ jobs:
                       ~/.cache/pre-commit
                       ~/.cache/ruff
                       ~/.bun/install/cache
-                  key: deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  key: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
-                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
-                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
-                      deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
+                      deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
+                      deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
+                      deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
+                      deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen

@@ -748,7 +748,7 @@ setup_logging(
 **Use a consistent cache key pattern to avoid race conditions and ensure proper cache isolation:**
 
 ```
-<name>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-<run_attempt>
+<name>-<workflow>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-<run_attempt>
 ```
 
 **Cache Key Components:**
@@ -756,6 +756,7 @@ setup_logging(
 | Component       | Purpose                                         | Example                          |
 | --------------- | ----------------------------------------------- | -------------------------------- |
 | `<name>`        | Identifies what's cached (unique per job)       | `venv`, `deps`, `cargo`          |
+| `<workflow>`    | Isolates caches per workflow                    | `${{ github.workflow }}`         |
 | `<job>`         | Isolates caches per job                         | `${{ github.job }}`              |
 | `<os>`          | Isolates by operating system                    | `${{ runner.os }}`               |
 | `[<matrix>...]` | Isolates by matrix dimensions (optional)        | `py${{ matrix.python-version }}` |
@@ -772,11 +773,11 @@ For dependencies that are quick to reinstall (Python venv, npm):
   uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
   with:
       path: ${{ github.workspace }}/.venv
-      key: venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+      key: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
       restore-keys: |
-          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
-          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-
-          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-
+          venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
+          venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-
+          venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-
 ```
 
 ### Combined Cache Step (Multiple Related Paths)
@@ -792,12 +793,12 @@ For related caches that should be invalidated together:
           ~/.cache/pre-commit
           ~/.cache/ruff
           ~/.bun/install/cache
-      key: deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+      key: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
       restore-keys: |
-          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
-          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
-          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
-          deps-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
+          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.run_id }}-
+          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}-
+          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
+          deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
 ```
 
 ### Split Restore and Save for Expensive Caches
@@ -821,9 +822,9 @@ jobs:
               uses: actions/cache/restore@0c907a7517f239e4053e11f1aee0df0fd0823747 # v4.2.1
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
-                  key: cargo-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  key: cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      cargo-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+                      cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
 
             # 2. Build step (may fail, but cache will still be saved)
             - name: build
