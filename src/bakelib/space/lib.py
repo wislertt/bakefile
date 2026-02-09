@@ -144,15 +144,37 @@ class BaseLibSpace(BaseSpace):
             return PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
 
     def _handle_publish_result(self, publish_result: PublishResult) -> None:
-        if publish_result.is_auth_failed:
+        if self.ctx.dry_run:
+            return
+
+        elif publish_result.is_auth_failed:
             console.error("Authentication failed. Please check your publish token.")
             raise typer.Exit(1)
 
-        if publish_result.is_dry_run and not self.ctx.dry_run:
-            console.warning(
-                "This was a dry-run. To actually publish, "
-                "set the BAKE_PUBLISH_TOKEN environment variable"
+        elif publish_result.result is None:
+            console.error("Publish result is empty (unexpected).")
+            raise typer.Exit(1)
+
+        elif publish_result.result.returncode == 0:
+            if publish_result.is_dry_run:
+                console.warning(
+                    "This was a dry-run. To actually publish, "
+                    "set the BAKE_PUBLISH_TOKEN environment variable"
+                )
+                return
+
+            console.success("Publish succeeded!")
+            return
+
+        elif publish_result.result.returncode != 0:
+            console.error(
+                "Publish failed with unexpected error. "
+                f"Return code: {publish_result.result.returncode}"
             )
+            raise typer.Exit(1)
+
+        console.error("Unexpected publish result state")
+        raise typer.Exit(1)
 
     def zerv_versioning(
         self, *, schema: str | None = None, output_format: str | None = None

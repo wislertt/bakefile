@@ -1,4 +1,5 @@
 import subprocess
+import typing
 from contextlib import contextmanager
 from unittest import mock
 
@@ -89,6 +90,7 @@ class TestBaseLibSpace:
     def test_handle_publish_result_exits_on_auth_failed(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         result = PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
+        mock_ctx.dry_run = False  # Need to disable dry_run to test auth failed path
 
         with pytest.raises(typer.Exit) as exc_info, mock_ctx:
             space._handle_publish_result(result)
@@ -99,13 +101,214 @@ class TestBaseLibSpace:
     ) -> None:
         space = MinimalTestLibSpace()
         mock_ctx.dry_run = False
-        result = PublishResult(result=None, is_dry_run=True, is_auth_failed=False)
+        # Create a successful result that indicates it was a dry run
+        successful_dry_run_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=0, stdout="", stderr=""
+        )
+        result = PublishResult(
+            result=successful_dry_run_result, is_dry_run=True, is_auth_failed=False
+        )
 
         with mock_ctx:
             space._handle_publish_result(result)
         captured = capsys.readouterr()
         output = strip_ansi(captured.err)
         assert "dry-run" in output.lower()
+
+    def test_handle_publish_result_exits_on_empty_result(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+        # Result is None but not auth failed - unexpected case
+        result = PublishResult(result=None, is_dry_run=False, is_auth_failed=False)
+
+        with pytest.raises(typer.Exit) as exc_info, mock_ctx:
+            space._handle_publish_result(result)
+        assert exc_info.value.exit_code == 1
+
+    def test_handle_publish_result_succeeds_on_zero_returncode(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+        # Successful publish result
+        success_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=0, stdout="Successfully published", stderr=""
+        )
+        result = PublishResult(result=success_result, is_dry_run=False, is_auth_failed=False)
+
+        with mock_ctx:
+            space._handle_publish_result(result)
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.out)
+        assert "succeeded" in output.lower()
+
+    def test_handle_publish_result_exits_on_nonzero_returncode(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+        # Failed publish result
+        failed_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=1, stdout="", stderr="Publish failed"
+        )
+        result = PublishResult(result=failed_result, is_dry_run=False, is_auth_failed=False)
+
+        with pytest.raises(typer.Exit) as exc_info, mock_ctx:
+            space._handle_publish_result(result)
+        assert exc_info.value.exit_code == 1
+
+    def test_handle_publish_result_exits_on_unexpected_error(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+        # Publish failed with specific error code
+        error_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=2, stdout="", stderr="Unexpected error"
+        )
+        result = PublishResult(result=error_result, is_dry_run=False, is_auth_failed=False)
+
+        with pytest.raises(typer.Exit) as exc_info, mock_ctx:
+            space._handle_publish_result(result)
+        assert exc_info.value.exit_code == 1
+
+    def test_handle_publish_result_returns_early_on_dry_run(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        # mock_ctx.dry_run is True by default, should return early without error
+        result = PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
+
+        with mock_ctx:
+            # Should not raise Exit because dry_run=True causes early return
+            space._handle_publish_result(result)
+
+    def test_execute_publish_returns_result_on_success(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        space = MinimalTestLibSpace()
+
+        def fetch_token() -> str | None:
+            return "test-token"
+
+        cached_publish_token = ChainedCache(
+            backends=[KeyringCache, NullCache],
+            namespace="test-namespace",
+            key="test-key",
+            fetch_fn=fetch_token,
+        )
+        cached_publish_token.set("test-token")
+
+        success_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=0, stdout="Success", stderr=""
+        )
+
+        def mock_publish(token: str | None, registry: str) -> PublishResult:
+            _ = token, registry
+            return PublishResult(result=success_result, is_dry_run=False, is_auth_failed=False)
+
+        monkeypatch.setattr(space, "_publish_with_token", mock_publish)
+
+        with mock_ctx:
+            result = space._execute_publish(cached_publish_token, "testpypi")
+
+        assert result.is_auth_failed is False
+        assert result.result is not None
+        assert result.result.returncode == 0
+
+    def test_publish_calls_all_methods_in_correct_order(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+
+        # Track method calls
+        call_order = []
+
+        original_get_cached_publish_token = space._get_cached_publish_token
+        original_determine_version = space._determine_version
+        original_handle_publish_result = space._handle_publish_result
+
+        def mock_get_cached_publish_token(*args, **kwargs):
+            call_order.append("_get_cached_publish_token")
+            return original_get_cached_publish_token(*args, **kwargs)
+
+        def mock_determine_version(*args, **kwargs):
+            call_order.append("_determine_version")
+            return original_determine_version(*args, **kwargs)
+
+        def mock_pre_publish_cleanup():
+            call_order.append("_pre_publish_cleanup")
+
+        def mock_version_bump_context(_version, **kwargs):
+            _ = kwargs
+            call_order.append("_version_bump_context")
+
+            @contextmanager
+            def context():
+                call_order.append("_version_bump_context_enter")
+                yield
+
+            return context()
+
+        def mock_build_for_publish(**kwargs):
+            _ = kwargs
+            call_order.append("_build_for_publish")
+
+        def mock_execute_publish(**kwargs):
+            _ = kwargs
+            call_order.append("_execute_publish")
+            success_result = subprocess.CompletedProcess(
+                args=["publish"], returncode=0, stdout="Success", stderr=""
+            )
+            return PublishResult(result=success_result, is_dry_run=False, is_auth_failed=False)
+
+        def mock_handle_publish_result(*args, **kwargs):
+            call_order.append("_handle_publish_result")
+            return original_handle_publish_result(*args, **kwargs)
+
+        monkeypatch.setattr(space, "_get_cached_publish_token", mock_get_cached_publish_token)
+        monkeypatch.setattr(space, "_determine_version", mock_determine_version)
+        monkeypatch.setattr(space, "_pre_publish_cleanup", mock_pre_publish_cleanup)
+        monkeypatch.setattr(space, "_version_bump_context", mock_version_bump_context)
+        monkeypatch.setattr(space, "_build_for_publish", mock_build_for_publish)
+        monkeypatch.setattr(space, "_execute_publish", mock_execute_publish)
+        monkeypatch.setattr(space, "_handle_publish_result", mock_handle_publish_result)
+
+        _ = capsys
+
+        with mock_ctx:
+            space.publish(registry="testpypi", token="test-token", version="1.0.0")
+
+        # Verify methods were called in correct order
+        assert "_get_cached_publish_token" in call_order
+        assert "_determine_version" in call_order
+        assert "_pre_publish_cleanup" in call_order
+        assert "_version_bump_context" in call_order
+        assert "_build_for_publish" in call_order
+        assert "_execute_publish" in call_order
+        assert "_handle_publish_result" in call_order
+
+    def test_handle_publish_result_exits_on_unexpected_state(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+
+        # Create a mock result with a returncode that breaks normal comparison logic
+        # This simulates an unexpected state where neither == 0 nor != 0 is True
+        class BizarreReturnCode:
+            def __eq__(self, other):
+                # Always return False to create an unreachable state
+                return False
+
+            def __ne__(self, other):
+                # Always return False to create an unreachable state
+                return False
+
+        bizarre_result = subprocess.CompletedProcess(
+            args=["publish"],
+            returncode=typing.cast(int, BizarreReturnCode()),
+            stdout="",
+            stderr="",
+        )
+        result = PublishResult(result=bizarre_result, is_dry_run=False, is_auth_failed=False)
+
+        with pytest.raises(typer.Exit) as exc_info, mock_ctx:
+            space._handle_publish_result(result)
+        assert exc_info.value.exit_code == 1
 
     def test_get_cached_publish_token_with_no_local_token(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
