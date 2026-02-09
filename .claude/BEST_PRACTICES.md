@@ -797,6 +797,8 @@ jobs:
 
 For related caches that should be invalidated together:
 
+**Use `hashFiles()` with multiple files to get a single combined hash:**
+
 ```yaml
 jobs:
     pre-commit:
@@ -806,7 +808,7 @@ jobs:
             - name: cache-deps
               env:
                   CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}
-                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}-${{ hashFiles('.pre-commit-config.yaml') }}
+                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock .pre-commit-config.yaml') }}
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: |
@@ -919,4 +921,5 @@ Keep step name and cache prefix consistent:
 - For split pattern: use `if: always()` on save step, reference `steps.<id>.outputs.cache-primary-key`
 - Use **step-level `env:`** for cache key prefixes to access `runner.os` and `hashFiles()` while keeping lines short
 - Use **job-level `env:`** only for truly static values (cache paths, fixed OS names)
+- Use `hashFiles('file1 file2')` with **multiple files** to get a single combined hash (shorter cache keys)
 - The `id:` field cannot use expressions - must be static strings
