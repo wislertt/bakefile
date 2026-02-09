@@ -738,3 +738,129 @@ setup_logging(
 - Standard `logging` calls are intercepted and routed to Loguru for consistent formatting
 - Default output is JSON format (`is_pretty_log=False`) for machine parsing
 - Use `is_pretty_log=True` for human-readable output in development
+
+---
+
+## CI/CD
+
+### GitHub Actions Cache Key Pattern
+
+**Use a consistent cache key pattern to avoid race conditions and ensure proper cache isolation:**
+
+```yaml
+# Pattern: <name>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-<run_attempt>
+
+- name: cache-venv
+  uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+  with:
+      path: .venv
+      key: venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+      restore-keys: |
+          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
+          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}-
+          venv-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}-
+```
+
+**Cache Key Components:**
+
+| Component       | Purpose                                         | Example                          |
+| --------------- | ----------------------------------------------- | -------------------------------- |
+| `<name>`        | Identifies what's cached (unique per job)       | `venv`, `cargo`, `npm`           |
+| `<job>`         | Isolates caches per job                         | `${{ github.job }}`              |
+| `<os>`          | Isolates by operating system                    | `${{ runner.os }}`               |
+| `[<matrix>...]` | Isolates by matrix dimensions (optional)        | `py${{ matrix.python-version }}` |
+| `[<dep>...]`    | Invalidates when dependencies change (optional) | `${{ hashFiles('uv.lock') }}`    |
+| `<run_id>`      | Unique per workflow run                         | `${{ github.run_id }}`           |
+| `<run_attempt>` | Unique per retry attempt                        | `${{ github.run_attempt }}`      |
+
+**Naming Convention:**
+
+Keep step name and cache prefix consistent:
+
+```yaml
+- name: cache-venv
+  uses: actions/cache@<full-commit-sha> # v5.0.3
+  with:
+      key: venv-${{ github.job }}-... # Same as step name prefix
+
+- name: cache-cargo
+  uses: actions/cache@<full-commit-sha> # v5.0.3
+  with:
+      key: cargo-${{ github.job }}-... # Same as step name prefix
+```
+
+**Restore Keys Pattern:**
+
+Remove elements from the back of the cache key, stopping at a logical boundary:
+
+```yaml
+restore-keys: |
+    <name>-<job>-<os>-[<matrix>...]-[<dep>...]-<run_id>-
+    <name>-<job>-<os>-[<matrix>...]-[<dep>...]-
+    <name>-<job>-<os>-[<matrix>...]-
+```
+
+### Split Restore and Save for Expensive Caches
+
+For caches that are **slow to create** (Rust compilation, large builds), use split restore/save steps to ensure cache is saved even if intermediate steps fail:
+
+```yaml
+jobs:
+    build:
+        # Define cache path as env var to avoid redundancy
+        env:
+            CARGO_CACHE_PATH: |
+                ~/.cargo/registry
+                ~/.cargo/git
+                target
+
+        steps:
+            # 1. Restore cache (fails gracefully if not found)
+            - name: restore-cargo-cache
+              id: restore-cargo
+              uses: actions/cache/restore@<full-commit-sha> # v5.0.3
+              with:
+                  path: ${{ env.CARGO_CACHE_PATH }}
+                  key: cargo-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      cargo-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+
+            # 2. Build step (may fail, but cache will still be saved)
+            - name: build
+              run: cargo build --release
+
+            # 3. Save cache (runs even if build fails)
+            - name: save-cargo-cache
+              if: always()
+              uses: actions/cache/save@<full-commit-sha> # v5.0.3
+              with:
+                  path: ${{ env.CARGO_CACHE_PATH }}
+                  key: ${{ steps.restore-cargo.outputs.cache-primary-key }}
+```
+
+**When to use split restore/save:**
+
+| Cache Type   | Use Split? | Reason                                           |
+| ------------ | ---------- | ------------------------------------------------ |
+| Rust cargo   | ✅ Yes     | Compilation is expensive - save partial progress |
+| Large builds | ✅ Yes     | Don't waste hours of build time                  |
+| Python venv  | ❌ No      | `uv sync` is fast enough                         |
+| npm deps     | ❌ No      | `npm install` is relatively fast                 |
+
+**Key points for split pattern:**
+
+- Use `if: always()` on save step to run even if previous steps fail
+- Use `id:` on restore step and reference `steps.<id>.outputs.cache-primary-key` in save step
+- Use `env:` variables for cache paths to avoid redundancy
+- `restore` fails gracefully if cache doesn't exist
+- `save` uses the same key from restore output
+
+**Key points:**
+
+- Use **full commit SHA** (not `@v4`) for security - version tags can move
+- Each cache in a job must have a unique `<name>` to avoid collisions
+- `run_id` + `run_attempt` ensure cache can be saved after every run (no cross-run exact hits)
+- `restore-keys` provide fallback to older caches by removing elements from the back
+- Multiple caches per job are allowed and recommended for different purposes (venv, cargo, npm, etc.)
+- The `id:` field cannot use expressions - must be static strings
+- Use environment variables for reusable values in cache keys

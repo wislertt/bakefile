@@ -21,14 +21,15 @@ jobs:
                   enable-cache: true
                   python-version: ${{ inputs.python_version }}
 
-            - name: cache-uv
+            - name: cache-venv
               uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: ${{ github.workspace }}/.venv
-                  key: uv-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}
+                  key: venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      uv-${{ runner.os }}-py${{ inputs.python_version }}-
-                      uv-${{ runner.os }}-
+                      venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-
+                      venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-${{ hashFiles('uv.lock') }}-
+                      venv-${{ github.job }}-${{ runner.os }}-py${{ inputs.python_version }}-
 
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
