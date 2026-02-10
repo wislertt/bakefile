@@ -12,7 +12,7 @@ from bake import command, console
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
 from .base import BaseSpace, ToolInfo
-from .utils import CARGO_BIN, PlatformType, get_expected_paths, setup_rustup, setup_zerv
+from .utils import CARGO_BIN, get_expected_paths
 
 
 @dataclass
@@ -25,12 +25,6 @@ class PublishResult:
 class BaseLibSpace(BaseSpace):
     bake_publish_token: SecretStr | None = None
     _dummy_publish_token: str = "dummy-token-for-dry-run"
-
-    def setup_tools(self, platform: PlatformType) -> None:
-        _ = platform
-        super().setup_tools(platform=platform)
-        setup_rustup(self.ctx)
-        setup_zerv(self.ctx)
 
     @abstractmethod
     def _validate_registry(self, registry: str) -> str: ...
@@ -155,24 +149,6 @@ class BaseLibSpace(BaseSpace):
             f"Publish failed with unexpected error. Return code: {publish_result.result.returncode}"
         )
         raise typer.Exit(1)
-
-    # def zerv_versioning(
-    #     self,
-    #     *,
-    #     schema: zerv.StandardSchema | None = None,
-    #     output_format: zerv.FlowOutputFormat | None = None,
-    # ) -> str:
-
-    #     version = zerv.flow(schema=schema, output_format=output_format)
-    #     print(version)
-    #     print("===")
-    #     return version
-
-    # schema_flag = f" --schema {schema}" if schema else ""
-    # output_format_flag = f" --output-format {output_format}" if output_format else ""
-
-    # result = self.ctx.run(f"zerv flow{schema_flag}{output_format_flag}", dry_run=False)
-    # return strip_ansi(result.stdout.strip())
 
     def _get_tools(self) -> dict[str, ToolInfo]:
         tools = super()._get_tools()

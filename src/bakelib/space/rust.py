@@ -6,7 +6,14 @@ from typing import Any
 from bake import console
 
 from .base import BaseSpace, ToolInfo
-from .utils import CARGO_BIN, HOMWBREW_BIN, get_expected_paths
+from .utils import (
+    CARGO_BIN,
+    HOMWBREW_BIN,
+    PlatformType,
+    check_rust_version_matches_stable,
+    get_expected_paths,
+    setup_rustup,
+)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -27,6 +34,11 @@ class RustSpace(BaseSpace):
         )
         return tools
 
+    def setup_tools(self, platform: PlatformType) -> None:
+        _ = platform
+        super().setup_tools(platform=platform)
+        setup_rustup(self.ctx)
+
     def lint(self) -> None:
         super().lint()
 
@@ -38,20 +50,27 @@ class RustSpace(BaseSpace):
         super().update()
         self.ctx.run("rustup update")
         self.ctx.run("cargo update")
+        check_rust_version_matches_stable(self.ctx)
 
     def _get_cargo(self) -> dict[str, Any]:
         cargo_toml = Path("Cargo.toml")
         return tomllib.loads(cargo_toml.read_text())
 
-    def package_name(self) -> str:
+    def _get_version_from_cargo_toml(self) -> str:
+        return self._get_cargo()["package"]["version"]
+
+    def _get_package_name_from_cargo_toml(self) -> str:
         return self._get_cargo()["package"]["name"]
 
-    def current_version(self) -> str:
-        return self._get_cargo()["package"]["version"]
+    def package_name(self) -> str:
+        return self._get_package_name_from_cargo_toml()
+
+    def version(self) -> str:
+        return self._get_version_from_cargo_toml()
 
     def _set_version_in_cargo_toml(self, version: str) -> None:
         cargo_toml = Path("Cargo.toml")
-        original_version = self.current_version()
+        original_version = self._get_version_from_cargo_toml()
         content = cargo_toml.read_text()
         content = re.sub(
             r'(^version\s*=\s*)"[^"]*"',

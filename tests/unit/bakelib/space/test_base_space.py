@@ -241,8 +241,8 @@ class TestBaseSpace:
             base_space.package_name()
         assert "BaseSpace must implement package_name()" in str(exc_info.value)
 
-    def test_current_version_raises_not_implemented_error(self, mock_ctx: Context) -> None:
+    def test_version_raises_not_implemented_error(self, mock_ctx: Context) -> None:
         base_space = BaseSpace()
         with pytest.raises(NotImplementedError) as exc_info, mock_ctx:
-            base_space.current_version()
-        assert "BaseSpace must implement current_version()" in str(exc_info.value)
+            base_space.version()
+        assert "BaseSpace must implement version()" in str(exc_info.value)

@@ -93,11 +93,17 @@ class PythonSpace(BaseSpace):
 
     def _uv_version(self) -> tuple[str, str]:
         result = self.ctx.run("uv version", stream=False, dry_run=False, echo=False)
-        package_name, original_version = strip_ansi(result.stdout.strip()).split()
-        return package_name, original_version
+        package_name, version = strip_ansi(result.stdout.strip()).split()
+        return package_name, version
 
-    def package_name(self) -> str:
+    def get_version_from_pyproject_toml(self) -> str:
+        return self._uv_version()[1]
+
+    def _get_package_name_from_pyproject_toml(self) -> str:
         return self._uv_version()[0]
 
-    def current_version(self) -> str:
-        return self._uv_version()[1]
+    def package_name(self) -> str:
+        return self._get_package_name_from_pyproject_toml()
+
+    def version(self) -> str:
+        return self.get_version_from_pyproject_toml()

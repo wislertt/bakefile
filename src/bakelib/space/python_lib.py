@@ -72,7 +72,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
 
     @contextmanager
     def _version_bump_context(self, version: str | None):
-        original_version = self.current_version()
+        original_version = self.get_version_from_pyproject_toml()
         self.ctx.run(f"uv version {self._get_version_for_pyproject_toml(version)}")
         try:
             yield

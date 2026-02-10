@@ -1,11 +1,13 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from bake import Context
+from bake.ui.logger import strip_ansi
 from bakelib.space.utils import (
     _should_remove_path,
+    check_rust_version_matches_stable,
     get_platform,
     remove_git_clean_candidates,
 )
@@ -234,14 +236,51 @@ class TestSetupFunctions:
         assert "brew install rustup" in captured.err
         assert "rustup update" in captured.err
 
-    def test_setup_zerv_runs_cargo_install(
+
+class TestCheckRustVersionMatchesStable:
+    def test_returns_early_when_versions_match(self, mock_ctx: Context) -> None:
+        mock_result = MagicMock()
+        mock_result.stdout = "rustc 1.75.0\n"
+
+        with patch.object(mock_ctx, "run", return_value=mock_result):
+            check_rust_version_matches_stable(mock_ctx)
+            # Should return early without warning
+
+    def test_warns_when_versions_differ_with_valid_version_format(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        from bakelib.space.utils import setup_zerv
+        current_result = MagicMock()
+        current_result.stdout = "rustc 1.70.0\n"
+        stable_result = MagicMock()
+        stable_result.stdout = "rustc 1.75.0\n"
 
-        setup_zerv(mock_ctx)
+        with patch.object(mock_ctx, "run") as mock_run:
+            mock_run.side_effect = [current_result, stable_result]
+            check_rust_version_matches_stable(mock_ctx)
+
         captured = capsys.readouterr()
-        assert "cargo install zerv" in captured.err
+        output = strip_ansi(captured.err)
+        assert "1.70.0" in output
+        assert "1.75.0" in output
+        assert "differs from stable" in output
+
+    def test_warns_when_versions_differ_with_invalid_version_format(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        current_result = MagicMock()
+        current_result.stdout = "rustc custom-build\n"
+        stable_result = MagicMock()
+        stable_result.stdout = "rustc another-build\n"
+
+        with patch.object(mock_ctx, "run") as mock_run:
+            mock_run.side_effect = [current_result, stable_result]
+            check_rust_version_matches_stable(mock_ctx)
+
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.err)
+        assert "custom-build" in output
+        assert "another-build" in output
+        assert "differs from stable" in output
 
 
 class TestGetPlatform:

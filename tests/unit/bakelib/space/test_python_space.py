@@ -157,3 +157,9 @@ class TestPythonSpace:
                 python_space.test_all()
         captured = capsys.readouterr()
         assert "No implementation" in captured.err
+
+    def test_version_returns_version_from_pyproject(self, mock_ctx: Context) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            result = python_space.version()
+        assert result == "0.0.0"

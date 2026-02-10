@@ -1,6 +1,7 @@
 import logging
 from contextvars import ContextVar
 from datetime import datetime
+from unittest.mock import patch
 
 import loguru
 import pytest
@@ -12,6 +13,7 @@ from bake.ui.logger.utils import (
     flatten_extra,
     get_global_min_log_level,
     reset_all_logging_states,
+    to_json_serializable,
 )
 
 # ==============================================================================
@@ -221,3 +223,52 @@ class TestPrettyLogFormatter:
         result = formatter(record)  # type: ignore[arg-type]
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+class TestToJsonSerializable:
+    """Tests for to_json_serializable function."""
+
+    def test_returns_json_string(self) -> None:
+        """Test that to_json_serializable returns JSON string."""
+        result = to_json_serializable({"key": "value"})
+        assert isinstance(result, str)
+        assert result == '{"key":"value"}'
+
+    def test_handles_non_serializable_objects(self) -> None:
+        """Test that to_json_serializable handles non-serializable objects."""
+        from pathlib import Path
+
+        result = to_json_serializable({"path": Path("/test/path")})
+        assert isinstance(result, str)
+        assert "path" in result
+        assert "/test/path" in result
+
+
+class TestInterceptHandlerEmit:
+    """Tests for InterceptHandler.emit method edge cases."""
+
+    def test_emit_handles_unknown_log_level(self) -> None:
+        """Test that emit handles unknown log levels (ValueError case)."""
+        handler = InterceptHandler()
+
+        # Create a LogRecord with a level name that doesn't exist in loguru
+        record = logging.LogRecord(
+            name="test",
+            level=logging.WARNING,  # Use standard level number
+            pathname="test.py",
+            lineno=1,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+
+        # Change levelname to something that doesn't exist in loguru
+        record.levelname = "UNKNOWN_LEVEL_999"
+
+        # Mock logger.level to raise ValueError for unknown level
+        with patch("bake.ui.logger.utils.logger.level") as mock_level:
+            mock_level.side_effect = ValueError("Unknown level")
+            handler.emit(record)
+
+        # Verify the record was still logged (using levelno as fallback)
+        # We just check it doesn't raise an exception

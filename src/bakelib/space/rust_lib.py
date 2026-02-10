@@ -78,7 +78,7 @@ class RustLibSpace(RustSpace, BaseLibSpace):
 
     @contextmanager
     def _version_bump_context(self, version: str | None):
-        original_version = self.current_version()
+        original_version = self._get_version_from_cargo_toml()
         self._set_version_in_cargo_toml(self._get_version_for_cargo_toml(version))
         try:
             yield

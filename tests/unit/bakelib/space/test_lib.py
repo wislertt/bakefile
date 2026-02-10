@@ -377,10 +377,6 @@ class TestBaseLibSpaceSetupTools:
         assert "brew install oven-sh/bun/bun" in err
         assert "brew install uv" in err
         assert "uv tool install bakefile" in err
-        # Additional calls from BaseLibSpace
-        assert "brew install rustup" in err
-        assert "rustup update" in err
-        assert "cargo install zerv" in err
 
 
 class TestBaseLibSpaceGetTools:
