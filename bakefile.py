@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import zerv
 
 from bake import command, console
 from bakelib import PythonLibSpace
@@ -36,7 +37,7 @@ class MyBakebook(PythonLibSpace):
             bool, typer.Option("--editable", "-e", help="Install in editable mode")
         ] = False,
     ):
-        new_version = self.zerv_versioning()
+        new_version = zerv.flow(schema="standard-base-prerelease-post-dev", output_format="pep440")
         with self._version_bump_context(new_version):
             editable_flag = "-e " if editable else ""
             self.ctx.run(f"uv tool install {editable_flag}.[lib] --reinstall --force")

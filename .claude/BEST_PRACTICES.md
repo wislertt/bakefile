@@ -840,11 +840,11 @@ jobs:
 
         steps:
             # 1. Restore cache (fails gracefully if not found)
-            - name: restore-cargo-cache
-              id: restore-cargo
+            - name: restore-cache-cargo
+              id: restore-cache-cargo
               env:
                   CACHE_KEY_PREFIX: cargo-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}
-              uses: actions/cache/restore@0c907a7517f239e4053e11f1aee0df0fd0823747 # v4.2.1
+              uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
                   key: ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -858,10 +858,10 @@ jobs:
             # 3. Save cache (runs even if build fails)
             - name: save-cargo-cache
               if: always()
-              uses: actions/cache/save@8c838cbe8e9c4b41d7be8ca7bcc388df19aa43b1 # v4.2.1
+              uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
               with:
                   path: ${{ env.CARGO_CACHE_PATH }}
-                  key: ${{ steps.restore-cargo.outputs.cache-primary-key }}
+                  key: ${{ steps.restore-cache-cargo.outputs.cache-primary-key }}
 ```
 
 **When to use split restore/save:**

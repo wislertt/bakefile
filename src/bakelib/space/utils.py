@@ -1,3 +1,4 @@
+import re
 import shutil
 import sys
 from enum import Enum
@@ -55,10 +56,6 @@ def setup_uv(ctx: Context) -> None:
 def setup_rustup(ctx: Context) -> None:
     ctx.run("brew install rustup")
     ctx.run("rustup update")
-
-
-def setup_zerv(ctx: Context) -> None:
-    ctx.run("cargo install zerv")
 
 
 def setup_bun(ctx: Context) -> None:
@@ -126,3 +123,25 @@ def remove_git_clean_candidates(
             continue
 
         _should_remove_path(path, dry_run)
+
+
+def check_rust_version_matches_stable(ctx: Context):
+    current_rust = ctx.run("rustc --version", echo=False, stream=False)
+    stable_rust = ctx.run("rustup run stable rustc --version", echo=False, stream=False)
+    if current_rust.stdout == stable_rust.stdout:
+        return
+
+    current_match = re.search(r"rustc (\d+\.\d+\.\d+)", current_rust.stdout)
+    stable_match = re.search(r"rustc (\d+\.\d+\.\d+)", stable_rust.stdout)
+
+    if current_match and stable_match:
+        current = current_match.group(1)
+        stable = stable_match.group(1)
+    else:
+        current = current_rust.stdout.strip()
+        stable = stable_rust.stdout.strip()
+
+    console.warning(
+        f"Current Rust version ({current}) differs from stable ({stable}). "
+        f"Update rust-toolchain.toml to stable version."
+    )

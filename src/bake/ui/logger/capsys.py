@@ -151,6 +151,10 @@ def count_message_in_logs(logs: list[LogType], message: str) -> int:
     return sum(1 for log in logs if re.search(message, log[LogKey.MESSAGE.value]))
 
 
+def has_all_messages_in_logs(logs: list[LogType], messages: list[str]) -> bool:
+    return all(has_message_in_logs(logs, msg) for msg in messages)
+
+
 def find_log(logs: list[LogType], pattern: str, index: int = 0) -> LogType:
     matches = (log for log in logs if re.search(pattern, log[LogKey.MESSAGE.value]))
     for _ in range(index):

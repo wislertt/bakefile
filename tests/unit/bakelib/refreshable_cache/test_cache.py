@@ -8,7 +8,13 @@ import keyring
 import pytest
 from keyring.errors import NoKeyringError
 
-from bake.ui.logger import capsys_to_logs, has_messages_in_logs, setup_logging
+from bake.ui.logger import (
+    capsys_to_logs,
+    has_all_messages_in_logs,
+    has_message_in_logs,
+    has_messages_in_logs,
+    setup_logging,
+)
 from bakelib.refreshable_cache import (
     ChainedCache,
     KeyringCache,
@@ -120,24 +126,41 @@ class TestCacheBasics:
             level_per_module={"": logging.WARNING, "bakelib": logging.DEBUG}, is_pretty_log=False
         )
 
+        fetch_count = {"count": 0}
+
         def fetch_value() -> str:
+            fetch_count["count"] += 1
             return "test-value"
 
         cache = cache_class(KEY_TTL, fetch_value, ttl=ttl)
         _ = capsys.readouterr()
 
-        cache.get_value()
-        cache.get_value()
+        # First call - should fetch
+        result1 = cache.get_value()
+        assert result1 == "test-value"
+        assert fetch_count["count"] == 1
+
+        # Second call - should hit cache
+        result2 = cache.get_value()
+        assert result2 == "test-value"
+        assert fetch_count["count"] == 1
+
+        # Verify log messages (order-independent for Windows compatibility)
         logs = capsys_to_logs(capsys)
-        assert has_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
+        assert has_all_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
 
         # Use larger buffer on Windows due to timing precision issues
         buffer = 2 if sys.platform == "win32" else 0.1
         time.sleep(ttl + buffer)
-        cache.get_value()
 
+        # Third call - should refetch after TTL expires
+        result3 = cache.get_value()
+        assert result3 == "test-value"
+        assert fetch_count["count"] == 2
+
+        # Verify cache expired message
         logs = capsys_to_logs(capsys)
-        assert has_messages_in_logs(logs, ["Cache expired"])
+        assert has_message_in_logs(logs, "Cache expired")
 
     @pytest.mark.parametrize(
         "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])

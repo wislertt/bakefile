@@ -341,3 +341,25 @@ def test_setup_logging_pretty_log(
         extra=extra,
         is_pretty_log=True,
     )
+
+
+class TestSetupLoggingDefaults:
+    """Tests for setup_logging default values."""
+
+    def test_setup_logging_with_default_level_per_module(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that setup_logging uses WARNING level when level_per_module is None."""
+        setup_logging(level_per_module=None)
+
+        # Log at WARNING level (should be captured)
+        logging.getLogger("test").warning("test warning message")
+
+        # Log at INFO level (should NOT be captured since default is WARNING)
+        logging.getLogger("test").info("test info message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        assert "test warning message" in output
+        assert "test info message" not in output
