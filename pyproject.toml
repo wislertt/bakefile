@@ -90,3 +90,10 @@ explicit = true
 
 [tool.uv.sources]
 python-package = {path = "examples/python-package", editable = true}
+
+# Debug with local zerv in editable mode
+# =============================================
+# # Debug
+# [tool.uv.sources]
+# zerv-version = {path = "../zerv", editable = true}
+# =============================================

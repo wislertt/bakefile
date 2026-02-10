@@ -203,6 +203,5 @@ class BaseSpace(Bakebook):
     def package_name(self) -> str:
         self._not_implemented("package_name")
 
-    @command()
     def version(self) -> str:
         self._not_implemented("version")
