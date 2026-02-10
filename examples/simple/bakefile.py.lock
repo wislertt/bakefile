@@ -53,6 +53,7 @@ requires-dist = [
     { name = "ty", specifier = ">=0.0.8" },
     { name = "typer", specifier = ">=0.21.0" },
     { name = "uv", specifier = ">=0.9.20" },
+    { name = "zerv-version", marker = "extra == 'lib'", specifier = ">=0.8.0" },
 ]
 provides-extras = ["lib"]
 

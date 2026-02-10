@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from typing import Annotated, Literal, cast, get_args
 
 import typer
+import zerv
 
 from bake import console
 
@@ -66,9 +67,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         return (
             version
             if version
-            else self.zerv_versioning(
-                schema="standard-base-prerelease-post-dev", output_format="pep440"
-            )
+            else zerv.flow(schema="standard-base-prerelease-post-dev", output_format="pep440")
         )
 
     @contextmanager

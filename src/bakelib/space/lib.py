@@ -9,7 +9,6 @@ from pydantic import SecretStr
 from tenacity import stop_after_attempt
 
 from bake import command, console
-from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
 from .base import BaseSpace, ToolInfo
@@ -157,14 +156,23 @@ class BaseLibSpace(BaseSpace):
         )
         raise typer.Exit(1)
 
-    def zerv_versioning(
-        self, *, schema: str | None = None, output_format: str | None = None
-    ) -> str:
-        schema_flag = f" --schema {schema}" if schema else ""
-        output_format_flag = f" --output-format {output_format}" if output_format else ""
+    # def zerv_versioning(
+    #     self,
+    #     *,
+    #     schema: zerv.StandardSchema | None = None,
+    #     output_format: zerv.FlowOutputFormat | None = None,
+    # ) -> str:
 
-        result = self.ctx.run(f"zerv flow{schema_flag}{output_format_flag}", dry_run=False)
-        return strip_ansi(result.stdout.strip())
+    #     version = zerv.flow(schema=schema, output_format=output_format)
+    #     print(version)
+    #     print("===")
+    #     return version
+
+    # schema_flag = f" --schema {schema}" if schema else ""
+    # output_format_flag = f" --output-format {output_format}" if output_format else ""
+
+    # result = self.ctx.run(f"zerv flow{schema_flag}{output_format_flag}", dry_run=False)
+    # return strip_ansi(result.stdout.strip())
 
     def _get_tools(self) -> dict[str, ToolInfo]:
         tools = super()._get_tools()

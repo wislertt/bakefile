@@ -28,7 +28,8 @@ dependencies = [
 lib = [
   "keyring>=25.7.0",
   "pathspec>=1.0.3",
-  "tenacity>=9.1.2"
+  "tenacity>=9.1.2",
+  "zerv-version>=0.8.0"
 ]
 
 [project.scripts]
