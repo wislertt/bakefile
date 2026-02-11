@@ -54,10 +54,6 @@ class TestKeyRegistry:
     def get_all_keys(cls) -> list[str]:
         return cls._all_keys.copy()
 
-    @classmethod
-    def reset_all(cls) -> None:
-        cls._all_keys.clear()
-
 
 # Test key constants
 KEY_BASE = TestKeyRegistry.create("base")
@@ -79,7 +75,7 @@ KEY_NAMESPACE_CUSTOM = "my-app"
 KEY_CUSTOM = TestKeyRegistry.create("custom-namespace-custom")
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="function")
 def cleanup_keyring():
     yield
 
@@ -89,8 +85,6 @@ def cleanup_keyring():
 
     with contextlib.suppress(Exception):
         keyring.delete_password(KEY_NAMESPACE_CUSTOM, KEY_CUSTOM)
-
-    TestKeyRegistry.reset_all()
 
 
 class TestCacheBasics:
