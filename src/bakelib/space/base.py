@@ -45,7 +45,7 @@ class BaseSpace(Bakebook):
         self,
         version: Annotated[
             str | None,
-            typer.Option(help="Version value to set"),
+            typer.Argument(help="Version value to set"),
         ] = None,
     ) -> None:
         if version is None:
