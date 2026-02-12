@@ -98,7 +98,7 @@ class PythonSpace(BaseSpace):
         package_name, version = strip_ansi(result.stdout.strip()).split()
         return package_name, version
 
-    def get_version_from_pyproject_toml(self) -> str:
+    def _get_version_from_pyproject_toml(self) -> str:
         return self._uv_version()[1]
 
     def _get_package_name_from_pyproject_toml(self) -> str:
@@ -110,11 +110,11 @@ class PythonSpace(BaseSpace):
 
     @property
     def _version(self) -> str:
-        return self.get_version_from_pyproject_toml()
+        return self._get_version_from_pyproject_toml()
 
     @_version.setter
     def _version(self, value: str) -> None:
-        self.ctx.run(f"uv version {value}")
+        self.ctx.run(f"uv version {zerv.render(version=value, output_format='pep440')}")
 
     def _determine_new_version(
         self,
