@@ -125,7 +125,7 @@ class TestPythonSpace:
         captured = capsys.readouterr()
         assert "-s -v" not in captured.err
 
-    def test_test_integration_when_dir_doesnt_exist_calls_no_implementation(
+    def test_test_integration_when_dir_doesnt_exist_calls_command_not_available(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
@@ -134,7 +134,7 @@ class TestPythonSpace:
             with mock_ctx, pytest.raises(typer.Exit):
                 python_space.test_integration(verbose=False)
         captured = capsys.readouterr()
-        assert "No implementation" in captured.err
+        assert "not available" in captured.err
 
     def test_test_all_runs_all_tests_when_unit_tests_exist(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
@@ -147,7 +147,7 @@ class TestPythonSpace:
         captured = capsys.readouterr()
         assert "tests/" in captured.err
 
-    def test_test_all_calls_no_implementation_when_unit_tests_dont_exist(
+    def test_test_all_calls_command_not_available_when_unit_tests_dont_exist(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         python_space = PythonSpace()
@@ -156,10 +156,10 @@ class TestPythonSpace:
             with mock_ctx, pytest.raises(typer.Exit):
                 python_space.test_all()
         captured = capsys.readouterr()
-        assert "No implementation" in captured.err
+        assert "not available" in captured.err
 
-    def test_version_returns_version_from_pyproject(self, mock_ctx: Context) -> None:
+    def test_version_property_returns_version_from_pyproject(self, mock_ctx: Context) -> None:
         python_space = PythonSpace()
         with mock_ctx:
-            result = python_space.version()
+            result = python_space._version
         assert result == "0.0.0"

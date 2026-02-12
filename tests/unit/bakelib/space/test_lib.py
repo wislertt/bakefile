@@ -24,8 +24,17 @@ class MinimalTestLibSpace(BaseLibSpace):
         _ = registry
         return None
 
-    def package_name(self) -> str:
+    @property
+    def _package_name(self) -> str:
         return "test-package"
+
+    @property
+    def _version(self) -> str:
+        return "0.0.0"
+
+    @_version.setter
+    def _version(self, value: str) -> None:
+        _ = value
 
     def _build_for_publish(self):
         pass
@@ -33,10 +42,6 @@ class MinimalTestLibSpace(BaseLibSpace):
     def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         _ = token, registry
         return PublishResult(result=None, is_dry_run=self.ctx.dry_run, is_auth_failed=False)
-
-    @contextmanager
-    def _version_bump_context(self, _version: str):
-        yield
 
     def _pre_publish_cleanup(self):
         pass

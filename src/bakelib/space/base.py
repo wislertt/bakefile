@@ -1,13 +1,16 @@
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn
 
 import orjson
 import typer
+import zerv
 
 from bake import Bakebook, command
 from bake.ui import console
 
 from .utils import (
+    CARGO_BIN,
     HOMWBREW_BIN,
     LOCAL_BIN,
     VENV_BIN,
@@ -24,11 +27,66 @@ from .utils import (
 
 
 class BaseSpace(Bakebook):
-    def _no_implementation(self) -> None:
-        console.error("No implementation")
+    @property
+    def _package_name(self) -> str:
+        self._method_not_available("_package_name")
+
+    @property
+    def _version(self) -> str:
+        self._method_not_available("_version")
+
+    @_version.setter
+    def _version(self, value: str) -> None:
+        _ = value
+        self._method_not_available("_version")
+
+    @command(help="Show or set current version")
+    def version(
+        self,
+        version: Annotated[
+            str | None,
+            typer.Argument(help="Version value to set"),
+        ] = None,
+    ) -> None:
+        if version is None:
+            console.echo(self._version)
+        else:
+            self._version = version
+
+    def _determine_new_version(
+        self,
+        version: str | None,
+        version_format: zerv.OutputFormat = "semver",
+        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
+    ) -> str:
+        return (
+            zerv.render(version=version, output_format=version_format)
+            if version
+            else zerv.flow(schema=schema, output_format=version_format)
+        )
+
+    @contextmanager
+    def _version_bump_context(
+        self,
+        version: str | None,
+        version_format: zerv.OutputFormat = "semver",
+        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
+    ):
+        original_version = self._version
+        new_version = self._determine_new_version(
+            version=version, version_format=version_format, schema=schema
+        )
+        self._version = new_version
+        try:
+            yield
+        finally:
+            self._version = original_version
+
+    def _command_not_available(self, command_name: str) -> None:
+        console.error(f"Command '{command_name}' is not available")
         raise typer.Exit(1)
 
-    def _not_implemented(self, method_name: str) -> NoReturn:
+    def _method_not_available(self, method_name: str) -> NoReturn:
         raise NotImplementedError(f"{self.__class__.__name__} must implement {method_name}()")
 
     @command(help="Run linters and formatters")
@@ -39,15 +97,15 @@ class BaseSpace(Bakebook):
 
     @command(help="Run unit tests")
     def test(self) -> None:
-        self._no_implementation()
+        self._command_not_available("test")
 
     @command(help="Run integration tests")
     def test_integration(self) -> None:
-        self._no_implementation()
+        self._command_not_available("test_integration")
 
     @command(help="Run all tests")
     def test_all(self) -> None:
-        self._no_implementation()
+        self._command_not_available("test_all")
 
     def _clean(
         self,
@@ -151,6 +209,8 @@ class BaseSpace(Bakebook):
             "bun": ToolInfo(expected_paths=get_expected_paths("bun", {HOMWBREW_BIN})),
             # homebrew or venv
             "uv": ToolInfo(expected_paths=get_expected_paths("uv", {HOMWBREW_BIN, VENV_BIN})),
+            # cargo bin
+            "zerv": ToolInfo(expected_paths=get_expected_paths("zerv", {CARGO_BIN})),
             # local or venv
             "bakefile": ToolInfo(
                 expected_paths=get_expected_paths("bakefile", {LOCAL_BIN, VENV_BIN})
@@ -199,9 +259,3 @@ class BaseSpace(Bakebook):
     def update(self) -> None:
         self.ctx.run("uv python upgrade")
         self.ctx.run("uv tool upgrade --all")
-
-    def package_name(self) -> str:
-        self._not_implemented("package_name")
-
-    def version(self) -> str:
-        self._not_implemented("version")

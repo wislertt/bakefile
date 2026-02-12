@@ -1,10 +1,8 @@
 import shutil
 import subprocess
-from contextlib import contextmanager
 from typing import Annotated, Literal, cast, get_args
 
 import typer
-import zerv
 
 from bake import console
 
@@ -15,14 +13,6 @@ PyPIRegistry = Literal["test-pypi", "pypi"]
 
 
 class PythonLibSpace(PythonSpace, BaseLibSpace):
-    @property
-    def _version_schema(self) -> str | None:
-        return "standard-base-prerelease-post-dev"
-
-    @property
-    def _version_output_format(self) -> str | None:
-        return "pep440"
-
     def _validate_registry(self, registry: str) -> PyPIRegistry:
         valid_registries = get_args(PyPIRegistry)
         if registry not in valid_registries:
@@ -61,23 +51,6 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_message = "403 Invalid or non-existent authentication information"
         return result.returncode != 0 and auth_error_message in result.stderr
-
-    def _get_version_for_pyproject_toml(self, version: str | None) -> str:
-        # TODO: fix this. ensure version is pep440
-        return (
-            version
-            if version
-            else zerv.flow(schema="standard-base-prerelease-post-dev", output_format="pep440")
-        )
-
-    @contextmanager
-    def _version_bump_context(self, version: str | None):
-        original_version = self.get_version_from_pyproject_toml()
-        self.ctx.run(f"uv version {self._get_version_for_pyproject_toml(version)}")
-        try:
-            yield
-        finally:
-            self.ctx.run(f"uv version {original_version}")
 
     def _pre_publish_cleanup(self):
         shutil.rmtree("dist", ignore_errors=True)

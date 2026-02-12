@@ -62,11 +62,17 @@ class RustSpace(BaseSpace):
     def _get_package_name_from_cargo_toml(self) -> str:
         return self._get_cargo()["package"]["name"]
 
-    def package_name(self) -> str:
+    @property
+    def _package_name(self) -> str:
         return self._get_package_name_from_cargo_toml()
 
-    def version(self) -> str:
+    @property
+    def _version(self) -> str:
         return self._get_version_from_cargo_toml()
+
+    @_version.setter
+    def _version(self, value: str) -> None:
+        self._set_version_in_cargo_toml(value)
 
     def _set_version_in_cargo_toml(self, version: str) -> None:
         cargo_toml = Path("Cargo.toml")
@@ -81,7 +87,7 @@ class RustSpace(BaseSpace):
         )
         cargo_toml.write_text(content)
         console.echo(
-            f"Cargo.toml: update [bold cyan]{self.package_name()}[/bold cyan] "
+            f"Cargo.toml: update [bold cyan]{self._package_name}[/bold cyan] "
             f"version {original_version} => {version}",
             highlight=False,
         )

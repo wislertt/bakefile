@@ -177,7 +177,7 @@ class KeyringCache(RefreshableCache[CachedT]):
 class MemoryCache(RefreshableCache[CachedT]):
     """In-memory cache for ephemeral storage."""
 
-    _storage: ClassVar[dict[str, CacheEntry[CachedT]]] = {}
+    _storage: ClassVar[dict[str, CacheEntry[Any]]] = {}
 
     def _get_entry(self) -> CacheEntry[CachedT] | None:
         logger.debug(

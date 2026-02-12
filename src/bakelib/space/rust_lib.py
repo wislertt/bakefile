@@ -1,10 +1,8 @@
 import shutil
 import subprocess
-from contextlib import contextmanager
 from typing import Annotated, Literal, cast, get_args
 
 import typer
-import zerv
 
 from bake import console
 
@@ -67,23 +65,6 @@ class RustLibSpace(RustSpace, BaseLibSpace):
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_messages = ["status 403 Forbidden", "status 401 Unauthorized"]
         return result.returncode != 0 and any(msg in result.stderr for msg in auth_error_messages)
-
-    def _get_version_for_cargo_toml(self, version: str | None) -> str:
-        # TODO: fix this. ensure version is semver
-        return (
-            version
-            if version
-            else zerv.flow(schema="standard-base-prerelease-post-dev", output_format="semver")
-        )
-
-    @contextmanager
-    def _version_bump_context(self, version: str | None):
-        original_version = self._get_version_from_cargo_toml()
-        self._set_version_in_cargo_toml(self._get_version_for_cargo_toml(version))
-        try:
-            yield
-        finally:
-            self._set_version_in_cargo_toml(original_version)
 
     def _pre_publish_cleanup(self):
         shutil.rmtree("target/package", ignore_errors=True)

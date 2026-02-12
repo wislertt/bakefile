@@ -1,6 +1,5 @@
 import subprocess
 from abc import abstractmethod
-from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -11,8 +10,7 @@ from tenacity import stop_after_attempt
 from bake import command, console
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
-from .base import BaseSpace, ToolInfo
-from .utils import CARGO_BIN, get_expected_paths
+from .base import BaseSpace
 
 
 @dataclass
@@ -43,7 +41,6 @@ class BaseLibSpace(BaseSpace):
     ) -> ChainedCache[str | None]:
         token_from_local = self._get_token_from_local(token)
         key = f"publish-token-{registry}"
-        namespace = self.package_name()
 
         def get_publish_token() -> str | None:
             return token_from_local or self._get_publish_token_from_remote(registry)
@@ -52,7 +49,7 @@ class BaseLibSpace(BaseSpace):
 
         cached_publish_token = ChainedCache(
             backends=[KeyringCache, NullCache],
-            namespace=namespace,
+            namespace=self._package_name,
             key=key,
             fetch_fn=get_publish_token,
             stop=stop,
@@ -71,10 +68,6 @@ class BaseLibSpace(BaseSpace):
             return self.bake_publish_token.get_secret_value()
 
         return None
-
-    @contextmanager
-    @abstractmethod
-    def _version_bump_context(self, version: str | None): ...
 
     @abstractmethod
     def _pre_publish_cleanup(self): ...
@@ -149,8 +142,3 @@ class BaseLibSpace(BaseSpace):
             f"Publish failed with unexpected error. Return code: {publish_result.result.returncode}"
         )
         raise typer.Exit(1)
-
-    def _get_tools(self) -> dict[str, ToolInfo]:
-        tools = super()._get_tools()
-        tools["zerv"] = ToolInfo(expected_paths=get_expected_paths("zerv", {CARGO_BIN}))
-        return tools
