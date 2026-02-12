@@ -69,9 +69,9 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         return result.returncode != 0 and any(msg in result.stderr for msg in auth_error_messages)
 
     def _get_version_for_cargo_toml(self, version: str | None) -> str:
-        # TODO: fix this. ensure version is semver
         return (
-            version
+            # ensure format is semver
+            zerv.render(version=version, output_format="semver")
             if version
             else zerv.flow(schema="standard-base-prerelease-post-dev", output_format="semver")
         )

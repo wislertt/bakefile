@@ -63,9 +63,9 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         return result.returncode != 0 and auth_error_message in result.stderr
 
     def _get_version_for_pyproject_toml(self, version: str | None) -> str:
-        # TODO: fix this. ensure version is pep440
         return (
-            version
+            # ensure format is pep440
+            zerv.render(version=version, output_format="pep440")
             if version
             else zerv.flow(schema="standard-base-prerelease-post-dev", output_format="pep440")
         )
