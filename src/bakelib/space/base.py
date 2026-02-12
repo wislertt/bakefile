@@ -56,8 +56,8 @@ class BaseSpace(Bakebook):
     def _determine_new_version(
         self,
         version: str | None,
-        version_format: str = "semver",
-        schema: str = "standard-base-prerelease-post-dev",
+        version_format: zerv.OutputFormat = "semver",
+        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
     ) -> str:
         return (
             zerv.render(version=version, output_format=version_format)
@@ -69,8 +69,8 @@ class BaseSpace(Bakebook):
     def _version_bump_context(
         self,
         version: str | None,
-        version_format: str = "semver",
-        schema: str = "standard-base-prerelease-post-dev",
+        version_format: zerv.OutputFormat = "semver",
+        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
     ):
         original_version = self._version
         new_version = self._determine_new_version(

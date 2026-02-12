@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import zerv
+
 from bake import params
 from bake.ui.logger import strip_ansi
 
@@ -67,7 +69,7 @@ class PythonSpace(BaseSpace):
             tests_path = integration_tests_path
             self._test(tests_paths=tests_path, verbose=verbose)
         else:
-            self._no_implementation()
+            self._command_not_available("test_integration")
 
     def test(self) -> None:
         unit_tests_path = "tests/unit/"
@@ -80,7 +82,7 @@ class PythonSpace(BaseSpace):
             tests_path = "tests/"
             self._test(tests_paths=tests_path)
         else:
-            self._no_implementation()
+            self._command_not_available("test_all")
 
     def setup_project(self) -> None:
         super().setup_project()
@@ -102,8 +104,24 @@ class PythonSpace(BaseSpace):
     def _get_package_name_from_pyproject_toml(self) -> str:
         return self._uv_version()[0]
 
-    def package_name(self) -> str:
+    @property
+    def _package_name(self) -> str:
         return self._get_package_name_from_pyproject_toml()
 
-    def version(self) -> str:
+    @property
+    def _version(self) -> str:
         return self.get_version_from_pyproject_toml()
+
+    @_version.setter
+    def _version(self, value: str) -> None:
+        self.ctx.run(f"uv version {value}")
+
+    def _determine_new_version(
+        self,
+        version: str | None,
+        version_format: zerv.OutputFormat = "pep440",
+        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
+    ) -> str:
+        return super()._determine_new_version(
+            version=version, version_format=version_format, schema=schema
+        )
