@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import zerv
+
 from bake import console
 
 from .base import BaseSpace, ToolInfo
@@ -75,6 +77,7 @@ class RustSpace(BaseSpace):
         self._set_version_in_cargo_toml(value)
 
     def _set_version_in_cargo_toml(self, version: str) -> None:
+        version = zerv.render(version=version, output_format="semver")
         cargo_toml = Path("Cargo.toml")
         original_version = self._get_version_from_cargo_toml()
         content = cargo_toml.read_text()
