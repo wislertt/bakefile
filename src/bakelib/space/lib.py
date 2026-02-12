@@ -41,7 +41,6 @@ class BaseLibSpace(BaseSpace):
     ) -> ChainedCache[str | None]:
         token_from_local = self._get_token_from_local(token)
         key = f"publish-token-{registry}"
-        namespace = self.package_name()
 
         def get_publish_token() -> str | None:
             return token_from_local or self._get_publish_token_from_remote(registry)
@@ -50,7 +49,7 @@ class BaseLibSpace(BaseSpace):
 
         cached_publish_token = ChainedCache(
             backends=[KeyringCache, NullCache],
-            namespace=namespace,
+            namespace=self._package_name,
             key=key,
             fetch_fn=get_publish_token,
             stop=stop,
