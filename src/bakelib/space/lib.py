@@ -1,6 +1,5 @@
 import subprocess
 from abc import abstractmethod
-from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -11,8 +10,7 @@ from tenacity import stop_after_attempt
 from bake import command, console
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
-from .base import BaseSpace, ToolInfo
-from .utils import CARGO_BIN, get_expected_paths
+from .base import BaseSpace
 
 
 @dataclass
@@ -71,10 +69,6 @@ class BaseLibSpace(BaseSpace):
             return self.bake_publish_token.get_secret_value()
 
         return None
-
-    @contextmanager
-    @abstractmethod
-    def _version_bump_context(self, version: str | None): ...
 
     @abstractmethod
     def _pre_publish_cleanup(self): ...
@@ -149,8 +143,3 @@ class BaseLibSpace(BaseSpace):
             f"Publish failed with unexpected error. Return code: {publish_result.result.returncode}"
         )
         raise typer.Exit(1)
-
-    def _get_tools(self) -> dict[str, ToolInfo]:
-        tools = super()._get_tools()
-        tools["zerv"] = ToolInfo(expected_paths=get_expected_paths("zerv", {CARGO_BIN}))
-        return tools
