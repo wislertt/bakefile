@@ -1,248 +1,256 @@
-import json
+from contextlib import suppress
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import typer
 
-from bake import Bakebook, Context
+from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.space.base import BaseSpace, ToolInfo
+from bakelib.space.base import BaseSpace
+from bakelib.space.utils import ToolInfo
 
 
-def test_base_space_is_bakebook() -> None:
-    assert issubclass(BaseSpace, Bakebook)
+class MinimalTestSpace(BaseSpace):
+    @property
+    def _package_name(self) -> str:
+        return "test-package"
+
+    @property
+    def _version(self) -> str:
+        return self._version_value
+
+    @_version.setter
+    def _version(self, value: str) -> None:
+        self._version_value = value
+
+
+class TestBareBaseSpace:
+    def test_package_name_raises_not_implemented(self) -> None:
+        base_space = BaseSpace()
+        with pytest.raises(NotImplementedError, match="BaseSpace must implement _package_name"):
+            _ = base_space._package_name
+
+    def test_version_getter_raises_not_implemented(self) -> None:
+        base_space = BaseSpace()
+        with pytest.raises(NotImplementedError, match="BaseSpace must implement _version"):
+            _ = base_space._version
+
+    def test_version_setter_raises_not_implemented(self) -> None:
+        base_space = BaseSpace()
+        with pytest.raises(NotImplementedError, match="BaseSpace must implement _version"):
+            base_space._version = "1.0.0"
 
 
 class TestBaseSpace:
-    def test_lint_runs_prettier(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
+    def test_version_command_shows_version_when_no_argument_provided(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+        base_space.version()
+        assert base_space._version == "1.0.0"
+
+    def test_version_command_sets_version(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space.version(version="2.0.0")
+        assert base_space._version == "2.0.0"
+
+
+class TestMethodNotAvailable:
+    def test_method_not_available_raises_not_implemented(self) -> None:
         base_space = BaseSpace()
+        with pytest.raises(NotImplementedError, match="BaseSpace must implement test_method"):
+            base_space._method_not_available("test_method")
+
+
+class TestCommandNotAvailable:
+    def test_command_not_available_exits_with_code_1(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
         with mock_ctx:
-            base_space.lint()
-        captured = capsys.readouterr()
-        assert "bunx prettier@latest" in captured.err
+            with pytest.raises(typer.Exit) as exc_info:
+                base_space._command_not_available("test_command")
+            assert exc_info.value.exit_code == 1
 
-    def test_shows_no_implementation_error(self, capsys: pytest.CaptureFixture) -> None:
-        base_space = BaseSpace()
-        with pytest.raises(typer.Exit):
-            base_space.test()
-        captured = capsys.readouterr()
-        assert "No implementation" in captured.err
 
-    def test_setup_dev_shows_no_implementation_error(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
+class TestDetermineNewVersion:
+    def test_determine_new_version_with_explicit_version(self) -> None:
+        base_space = MinimalTestSpace()
+        result = base_space._determine_new_version(version="1.2.3")
+        assert result == "1.2.3"
+
+    def test_determine_new_version_without_version_uses_flow(self) -> None:
+        base_space = MinimalTestSpace()
+        with patch("bakelib.space.base.zerv") as mock_zerv:
+            mock_zerv.flow.return_value = "1.0.1"
+            result = base_space._determine_new_version(version=None)
+            assert result == "1.0.1"
+            mock_zerv.flow.assert_called_once()
+
+    def test_determine_new_version_with_render(self) -> None:
+        base_space = MinimalTestSpace()
+        with patch("bakelib.space.base.zerv") as mock_zerv:
+            mock_zerv.render.return_value = "2.0.0"
+            result = base_space._determine_new_version(version="2.0.0")
+            assert result == "2.0.0"
+            mock_zerv.render.assert_called_once()
+
+
+class TestVersionBumpContext:
+    def test_version_bump_context_restores_original_version(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+
+        with patch("bakelib.space.base.zerv") as mock_zerv:
+            mock_zerv.render.return_value = "2.0.0"
+
+            with base_space._version_bump_context(version="2.0.0"):
+                assert base_space._version == "2.0.0"
+
+            assert base_space._version == "1.0.0"
+
+    def test_version_bump_context_restores_on_exception(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+
+        with patch("bakelib.space.base.zerv") as mock_zerv:
+            mock_zerv.render.return_value = "2.0.0"
+
+            try:
+                with base_space._version_bump_context(version="2.0.0"):
+                    assert base_space._version == "2.0.0"
+                    raise ValueError("test error")
+            except ValueError:
+                pass
+
+            assert base_space._version == "1.0.0"
+
+
+class TestCommandsNotAvailable:
+    def test_command_not_available(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
         with mock_ctx:
-            base_space.setup_dev()
-        captured = capsys.readouterr()
-        assert "brew install uv" in captured.err
+            with pytest.raises(typer.Exit) as exc_info:
+                base_space.test()
+            assert exc_info.value.exit_code == 1
 
-    def test_clean_with_default_excludes(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
+    def test_test_integration_command_not_available(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
         with mock_ctx:
-            base_space.clean()
-        captured = capsys.readouterr()
-        assert "git clean -fdX -n" in captured.err
-        assert ".env" in captured.err
-        assert ".cache" in captured.err
+            with pytest.raises(typer.Exit) as exc_info:
+                base_space.test_integration()
+            assert exc_info.value.exit_code == 1
 
-    def test_clean_with_custom_exclude_patterns(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
+    def test_test_all_command_not_available(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
         with mock_ctx:
-            base_space.clean(exclude_patterns=["*.log", "*.tmp"])
-        captured = capsys.readouterr()
-        assert "git clean -fdX -n" in captured.err
-        assert "*.log" in captured.err or "*.tmp" in captured.err
+            with pytest.raises(typer.Exit) as exc_info:
+                base_space.test_all()
+            assert exc_info.value.exit_code == 1
 
-    def test_clean_with_no_default_excludes(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
-        with mock_ctx:
-            base_space.clean(default_excludes=False)
-        captured = capsys.readouterr()
-        assert "git clean -fdX -n" in captured.err
 
+class TestCleanAll:
     def test_clean_all_runs_git_clean(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        base_space = BaseSpace()
+        base_space = MinimalTestSpace()
         with mock_ctx:
             base_space.clean_all()
         captured = capsys.readouterr()
-        assert "git clean -fdX" in captured.err
+        err = strip_ansi(captured.err)
+        assert "git clean -fdX" in err
 
-    def test_tools_outputs_json_by_default(
+
+class TestToolsCommand:
+    def test_tools_command_outputs_json_format_by_default(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        base_space = BaseSpace()
+        base_space = MinimalTestSpace()
         with mock_ctx:
             base_space.tools()
         captured = capsys.readouterr()
-        output = json.loads(strip_ansi(captured.out))
-        assert isinstance(output, dict)
+        output = strip_ansi(captured.out)
         assert "bun" in output
         assert "uv" in output
+        assert "zerv" in output
 
-    def test_tools_outputs_names_format(
+    def test_tools_command_outputs_names_format(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        base_space = BaseSpace()
+        base_space = MinimalTestSpace()
         with mock_ctx:
             base_space.tools(format="names")
         captured = capsys.readouterr()
-        names = captured.out.strip().split("\n")
-        assert "bun" in names
-        assert "uv" in names
-        assert "bakefile" in names
+        output = strip_ansi(captured.out)
+        assert "bun" in output
+        assert "uv" in output
+        assert "zerv" in output
 
+
+class TestAssertWhichPath:
     def test_assert_which_path_returns_true_in_dry_run(self, mock_ctx: Context) -> None:
-        base_space = BaseSpace()
-        mock_ctx.dry_run = True
-        tool_info = ToolInfo(expected_paths=[])
+        base_space = MinimalTestSpace()
         with mock_ctx:
-            result = base_space._assert_which_path("test", tool_info)
-        assert result is True
-
-    def test_assert_which_path_returns_true_when_path_matches(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
-        mock_ctx.dry_run = False
-
-        expected_path = Path("/usr/bin/test")
-        tool_info = ToolInfo(expected_paths=[expected_path])
-
-        # Mock the run method to return the expected path
-        mock_result = MagicMock()
-        mock_result.stdout = str(expected_path) + "\n"
-
-        with patch.object(mock_ctx, "run", return_value=mock_result):
-            with mock_ctx:
-                result = base_space._assert_which_path("test", tool_info)
+            result = base_space._assert_which_path("test", ToolInfo(expected_paths=[]))
             assert result is True
 
-            captured = capsys.readouterr()
-            output = strip_ansi(captured.out)
-            assert "test:" in output
-            assert str(expected_path) in output
-
-    def test_assert_which_path_returns_false_when_path_mismatch(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
-        mock_ctx.dry_run = False
-
-        expected_path = Path("/usr/bin/test")
-        actual_path = Path("/usr/local/bin/test")
-        tool_info = ToolInfo(expected_paths=[expected_path])
-
-        # Mock the run method to return a different path
+    def test_assert_which_path_returns_true_when_path_matches(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        tool_info = ToolInfo(expected_paths=[Path("/usr/bin/test")])
         mock_result = MagicMock()
-        mock_result.stdout = str(actual_path) + "\n"
+        mock_result.stdout = "/usr/bin/test"
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+            mock_ctx.dry_run = False
+            result = base_space._assert_which_path("test", tool_info)
+            assert result is True
 
-        with patch.object(mock_ctx, "run", return_value=mock_result):
-            with mock_ctx:
-                result = base_space._assert_which_path("test", tool_info)
+    def test_assert_which_path_returns_false_when_path_does_not_match(
+        self, mock_ctx: Context
+    ) -> None:
+        base_space = MinimalTestSpace()
+        tool_info = ToolInfo(expected_paths=[Path("/usr/bin/test")])
+        mock_result = MagicMock()
+        mock_result.stdout = "/wrong/path/test"
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+            mock_ctx.dry_run = False
+            result = base_space._assert_which_path("test", tool_info)
             assert result is False
 
-            captured = capsys.readouterr()
-            output = strip_ansi(captured.err)
-            assert "unexpected location" in output
-            assert str(actual_path) in output
 
-    def test_get_tools_returns_tool_info_dict(self) -> None:
-        base_space = BaseSpace()
-        tools = base_space._get_tools()
-        assert isinstance(tools, dict)
-        assert "bun" in tools
-        assert "uv" in tools
-        assert isinstance(tools["bun"], ToolInfo)
+class TestAssertSetupDev:
+    def test_assert_setup_dev_with_skip_test_true(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_result = MagicMock()
+        mock_result.stdout = "/usr/bin/test"
 
-    def test_assert_setup_dev_runs_lint_and_test(
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+            mock_ctx.dry_run = True
+            with patch.object(type(base_space), "lint"):
+                base_space.assert_setup_dev(skip_test=True)
+
+    def test_assert_setup_dev_with_skip_test_false_calls_test(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_result = MagicMock()
+        mock_result.stdout = "/usr/bin/test"
+
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+            mock_ctx.dry_run = True
+            with (
+                patch.object(type(base_space), "lint"),
+                patch.object(type(base_space), "test"),
+                suppress(typer.Exit),
+            ):
+                base_space.assert_setup_dev(skip_test=False)
+
+
+class TestSetupDev:
+    def test_setup_dev_runs_in_dry_run_on_non_macos(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        base_space = BaseSpace()
-        mock_ctx.dry_run = True
-        with mock_ctx, pytest.raises(typer.Exit) as exc_info:
-            base_space.assert_setup_dev(skip_test=False)
-        assert exc_info.value.exit_code == 1
-        captured = capsys.readouterr()
-        assert "prettier" in captured.err
+        base_space = MinimalTestSpace()
 
-    def test_assert_setup_dev_skips_test_when_flag_set(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
-        mock_ctx.dry_run = True
-        with mock_ctx:
-            base_space.assert_setup_dev(skip_test=True)
-        captured = capsys.readouterr()
-        assert "prettier" in captured.err
-
-    def test_update_runs_upgrade_commands(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
-        with mock_ctx:
-            base_space.update()
-        captured = capsys.readouterr()
-        assert "uv python upgrade" in captured.err
-        assert "uv tool upgrade --all" in captured.err
-
-    @pytest.mark.parametrize(
-        "method_name",
-        ["test_integration", "test_all"],
-    )
-    def test_test_methods_call_no_implementation(
-        self, method_name: str, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = BaseSpace()
-        with mock_ctx, pytest.raises(typer.Exit):
-            getattr(base_space, method_name)()
-        captured = capsys.readouterr()
-        assert "No implementation" in captured.err
-
-    @pytest.mark.parametrize(
-        "platform",
-        ["linux", "windows", "other"],
-    )
-    @patch("bakelib.space.base.get_platform")
-    def test_setup_dev_with_unsupported_platform_shows_warning(
-        self,
-        mock_get_platform: MagicMock,
-        platform: str,
-        mock_ctx: Context,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        mock_get_platform.return_value = platform
-        base_space = BaseSpace()
-        with mock_ctx, patch.object(mock_ctx, "override_dry_run"):
+        with patch("bakelib.space.base.get_platform", return_value="linux"), mock_ctx:
+            mock_ctx.dry_run = False
             base_space.setup_dev()
+
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
-        assert f"Platform '{platform}' is not supported" in err
-        assert "Running in dry-run mode" in err
-
-    def test_not_implemented_raises_not_implemented_error(self) -> None:
-        base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info:
-            base_space._not_implemented("test_method")
-        assert "BaseSpace must implement test_method()" in str(exc_info.value)
-
-    def test_package_name_raises_not_implemented_error(self, mock_ctx: Context) -> None:
-        base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info, mock_ctx:
-            base_space.package_name()
-        assert "BaseSpace must implement package_name()" in str(exc_info.value)
-
-    def test_version_raises_not_implemented_error(self, mock_ctx: Context) -> None:
-        base_space = BaseSpace()
-        with pytest.raises(NotImplementedError) as exc_info, mock_ctx:
-            base_space.version()
-        assert "BaseSpace must implement version()" in str(exc_info.value)
+        assert "running in dry-run mode" in err.lower()

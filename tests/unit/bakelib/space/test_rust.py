@@ -50,7 +50,7 @@ class TestRustSpace:
 
         space = RustSpace()
         with mock.patch("bakelib.space.rust.Path", return_value=cargo_toml):
-            assert space.package_name() == "test-package"
+            assert space._package_name == "test-package"
 
     def test_version_returns_cargo_version(self, tmp_path: Path) -> None:
         cargo_toml = tmp_path / "Cargo.toml"
@@ -58,7 +58,7 @@ class TestRustSpace:
 
         space = RustSpace()
         with mock.patch("bakelib.space.rust.Path", return_value=cargo_toml):
-            assert space.version() == "1.2.3"
+            assert space._version == "1.2.3"
 
     def test_set_version_updates_cargo_toml(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_ctx: Context

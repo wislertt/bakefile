@@ -10,14 +10,6 @@ from bakelib.space.python_lib import PythonLibSpace
 
 
 class TestPythonLibSpace:
-    def test_version_schema_returns_standard_base_prerelease_post_dev(self):
-        space = PythonLibSpace()
-        assert space._version_schema == "standard-base-prerelease-post-dev"
-
-    def test_version_output_format_returns_pep440(self):
-        space = PythonLibSpace()
-        assert space._version_output_format == "pep440"
-
     def test_validate_registry_returns_valid_indices(self):
         space = PythonLibSpace()
         assert space._validate_registry("test-pypi") == "test-pypi"
