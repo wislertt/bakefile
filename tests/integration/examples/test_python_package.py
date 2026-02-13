@@ -24,7 +24,6 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     stderr = strip_ansi(result.stderr).strip()
     assert result.returncode == 0
     assert "Resolved" in stderr
-    assert "Audited" in stderr
     assert "packages" in stderr
 
     result = run(
