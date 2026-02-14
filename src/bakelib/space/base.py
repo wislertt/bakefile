@@ -278,11 +278,15 @@ class BaseSpace(Bakebook):
         ] = False,
     ) -> None:
         tools = self._get_required_cli_tools()
+        if tools:
+            console.start("Asserting required CLI tools")
         for tool_name, tool_paths in tools.items():
             self._assert_which_path(tool_name, tool_paths)
 
+        console.start("Linting")
         self.lint()
         if not skip_test:
+            console.start("Testing")
             self.test()
 
     @command(help="Upgrade all dependencies")
