@@ -36,12 +36,11 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: setup-uv
-              uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+            - name: setup-mise
+              uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
               with:
-                  python-version: ${{ matrix.python-version }}
-                  version: "latest"
-                  enable-cache: true
+                  tool_versions: |
+                      python ${{ matrix.python-version }}
 
             - name: cache-venv
               env:
