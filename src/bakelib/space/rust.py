@@ -36,6 +36,7 @@ class RustSpace(BaseSpace):
     def setup_tools(self) -> None:
         super().setup_tools()
         self.ctx.run("rustup update")
+        self.ctx.run("rustup install stable")
 
     def lint(self) -> None:
         super().lint()
