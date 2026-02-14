@@ -24,19 +24,7 @@ class MyBakebook(PythonLibSpace):
             if not example_dir.is_dir():
                 continue
             console.start(f"Updating {example_dir}")
-            # TODO: solve this
-            import os
-
-            from bake.utils.settings import ENV__BAKE_REINVOKED
-
-            if ENV__BAKE_REINVOKED in os.environ:
-                del os.environ[ENV__BAKE_REINVOKED]
-            # =====
-            #
-            # os.environ[ENV__BAKE_REINVOKED]
-
-            self.ctx.run("bake -vv update", cwd=example_dir)
-            # self.ctx.run("bake update", cwd=example_dir)
+            self.ctx.run("bake update", cwd=example_dir)
 
     def _update_hooks(self) -> None:
         hooks_dir = Path(".claude/hooks")
