@@ -42,14 +42,6 @@ jobs:
             - name: setup-mise
               uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
 
-            - name: debug
-              run: |
-                  echo "OS: $RUNNER_OS"
-                  echo "Python version: ${{ matrix.python-version }}"
-                  uv run python --version
-                  python --version
-                  which python
-
             - name: cache-venv
               env:
                   CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}
