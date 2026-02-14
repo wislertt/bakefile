@@ -70,7 +70,7 @@ class BaseLibSpace(BaseSpace):
         return None
 
     @abstractmethod
-    def _pre_publish_cleanup(self): ...
+    def _pre_publish_setup(self): ...
 
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         return result.returncode != 0
@@ -86,7 +86,7 @@ class BaseLibSpace(BaseSpace):
         cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)
 
         console.start(f"Publishing to [bold cyan]{registry}[/bold cyan]")
-        self._pre_publish_cleanup()
+        self._pre_publish_setup()
 
         with self._version_bump_context(version):
             self._build_for_publish()

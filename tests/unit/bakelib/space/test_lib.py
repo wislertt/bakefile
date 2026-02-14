@@ -42,7 +42,7 @@ class MinimalTestLibSpace(BaseLibSpace):
         _ = token, registry
         return PublishResult(result=None, is_dry_run=self.ctx.dry_run, is_auth_failed=False)
 
-    def _pre_publish_cleanup(self):
+    def _pre_publish_setup(self):
         pass
 
 
@@ -74,10 +74,10 @@ class TestBaseLibSpace:
         with mock_ctx, space._version_bump_context("1.2.3"):
             pass
 
-    def test_pre_publish_cleanup_does_nothing_by_default(self, mock_ctx: Context) -> None:
+    def test_pre_publish_setup_does_nothing_by_default(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx:
-            space._pre_publish_cleanup()
+            space._pre_publish_setup()
 
     def test_version_bump_context_yields(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
@@ -223,8 +223,8 @@ class TestBaseLibSpace:
             call_order.append("_get_cached_publish_token")
             return original_get_cached_publish_token(*args, **kwargs)
 
-        def mock_pre_publish_cleanup():
-            call_order.append("_pre_publish_cleanup")
+        def mock_pre_publish_setup():
+            call_order.append("_pre_publish_setup")
 
         def mock_version_bump_context(_version, **kwargs):
             _ = kwargs
@@ -254,7 +254,7 @@ class TestBaseLibSpace:
             return original_handle_publish_result(*args, **kwargs)
 
         monkeypatch.setattr(space, "_get_cached_publish_token", mock_get_cached_publish_token)
-        monkeypatch.setattr(space, "_pre_publish_cleanup", mock_pre_publish_cleanup)
+        monkeypatch.setattr(space, "_pre_publish_setup", mock_pre_publish_setup)
         monkeypatch.setattr(space, "_version_bump_context", mock_version_bump_context)
         monkeypatch.setattr(space, "_build_for_publish", mock_build_for_publish)
         monkeypatch.setattr(space, "_execute_publish", mock_execute_publish)
@@ -267,7 +267,7 @@ class TestBaseLibSpace:
 
         # Verify methods were called in correct order
         assert "_get_cached_publish_token" in call_order
-        assert "_pre_publish_cleanup" in call_order
+        assert "_pre_publish_setup" in call_order
         assert "_version_bump_context" in call_order
         assert "_build_for_publish" in call_order
         assert "_execute_publish" in call_order

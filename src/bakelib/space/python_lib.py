@@ -52,7 +52,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         auth_error_message = "403 Invalid or non-existent authentication information"
         return result.returncode != 0 and auth_error_message in result.stderr
 
-    def _pre_publish_cleanup(self):
+    def _pre_publish_setup(self):
         shutil.rmtree("dist", ignore_errors=True)
 
     def publish(

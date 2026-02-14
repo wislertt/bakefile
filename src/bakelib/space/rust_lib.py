@@ -66,7 +66,7 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         auth_error_messages = ["status 403 Forbidden", "status 401 Unauthorized"]
         return result.returncode != 0 and any(msg in result.stderr for msg in auth_error_messages)
 
-    def _pre_publish_cleanup(self):
+    def _pre_publish_setup(self):
         shutil.rmtree("target/package", ignore_errors=True)
 
     def publish(
