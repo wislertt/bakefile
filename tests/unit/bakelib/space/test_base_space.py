@@ -8,7 +8,6 @@ import typer
 from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.space.base import BaseSpace
-from bakelib.space.utils import ToolInfo
 
 
 class MinimalTestSpace(BaseSpace):
@@ -160,7 +159,7 @@ class TestCleanAll:
 
 
 class TestToolsCommand:
-    def test_tools_command_outputs_json_format_by_default(
+    def test_tools_command_outputs_names_by_default(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = MinimalTestSpace()
@@ -169,50 +168,60 @@ class TestToolsCommand:
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         assert "bun" in output
-        assert "uv" in output
         assert "zerv" in output
+        assert "bakefile" in output
 
-    def test_tools_command_outputs_names_format(
+    def test_tools_command_outputs_json_when_flag_set(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = MinimalTestSpace()
         with mock_ctx:
-            base_space.tools(format="names")
+            base_space.tools(json=True)
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         assert "bun" in output
-        assert "uv" in output
         assert "zerv" in output
+        assert "null" in output  # null for global tools
 
 
 class TestAssertWhichPath:
     def test_assert_which_path_returns_true_in_dry_run(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
         with mock_ctx:
-            result = base_space._assert_which_path("test", ToolInfo(expected_paths=[]))
+            result = base_space._assert_which_path("test", None)
             assert result is True
 
     def test_assert_which_path_returns_true_when_path_matches(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
-        tool_info = ToolInfo(expected_paths=[Path("/usr/bin/test")])
-        mock_result = MagicMock()
-        mock_result.stdout = "/usr/bin/test"
-        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+        path_prefixes = {Path("/usr/bin")}
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value="/usr/bin/test"):
             mock_ctx.dry_run = False
-            result = base_space._assert_which_path("test", tool_info)
+            result = base_space._assert_which_path("test", path_prefixes)
             assert result is True
 
     def test_assert_which_path_returns_false_when_path_does_not_match(
         self, mock_ctx: Context
     ) -> None:
         base_space = MinimalTestSpace()
-        tool_info = ToolInfo(expected_paths=[Path("/usr/bin/test")])
-        mock_result = MagicMock()
-        mock_result.stdout = "/wrong/path/test"
-        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+        path_prefixes = {Path("/usr/bin")}
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value="/wrong/path/test"):
             mock_ctx.dry_run = False
-            result = base_space._assert_which_path("test", tool_info)
+            result = base_space._assert_which_path("test", path_prefixes)
             assert result is False
+
+    def test_assert_which_path_returns_false_when_tool_not_found(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value=None):
+            mock_ctx.dry_run = False
+            result = base_space._assert_which_path("nonexistent", None)
+            assert result is False
+
+    def test_assert_which_path_returns_true_for_global_tool(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value="/usr/bin/some-tool"):
+            mock_ctx.dry_run = False
+            result = base_space._assert_which_path("some-tool", None)  # None = global tool
+            assert result is True
 
 
 class TestAssertSetupDev:
@@ -242,15 +251,14 @@ class TestAssertSetupDev:
 
 
 class TestSetupDev:
-    def test_setup_dev_runs_in_dry_run_on_non_macos(
+    def test_setup_dev_shows_warning_on_non_macos(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         base_space = MinimalTestSpace()
 
         with patch("bakelib.space.base.get_platform", return_value="linux"), mock_ctx:
-            mock_ctx.dry_run = False
             base_space.setup_dev()
 
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
-        assert "running in dry-run mode" in err.lower()
+        assert "dry-run mode" in err.lower()

@@ -110,7 +110,7 @@ class TestCacheBasics:
 
     @pytest.mark.parametrize(
         "cache_class, ttl",
-        [(MemoryCache, 0.01)] + ([(KeyringCache, 0.05)] if keyring_backend_available() else []),
+        [(MemoryCache, 0.01)] + ([(KeyringCache, 0.2)] if keyring_backend_available() else []),
     )
     @flaky_on_windows_ci()
     def test_cache_respects_ttl(

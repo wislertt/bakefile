@@ -14,6 +14,7 @@ import typer
 
 from bake.ui import console
 from bake.ui.run.splitter import OutputSplitter
+from bake.utils.settings import ENV__BAKE_REINVOKED
 
 # Import pty on Unix systems for color-preserving PTY support
 if sys.platform != "win32":
@@ -438,9 +439,9 @@ def _process_stream_output(
 
 
 def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]:
-    # Always start with system environment to preserve critical variables like
-    # SYSTEMROOT on Windows (required for Python initialization - see Prefect #4923)
     merged_env = os.environ.copy()
+    merged_env.pop(ENV__BAKE_REINVOKED, None)
+
     if env:
         merged_env.update(env)
     merged_env.setdefault("FORCE_COLOR", "1")

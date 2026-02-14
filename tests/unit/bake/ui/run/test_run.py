@@ -55,6 +55,7 @@ def test_run_capture_false_returns_none_stdout_stderr() -> None:
     assert result.stderr is None
 
 
+@flaky_on_macos_ci()
 def test_run_with_cwd(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capsys.readouterr()

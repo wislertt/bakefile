@@ -1,4 +1,5 @@
 from pathlib import Path
+from textwrap import dedent
 from typing import Annotated
 
 import typer
@@ -54,10 +55,12 @@ def uvx_install_bake():
 @bakebook.command()
 def uvx_install_bake_test():
     bakebook.ctx.run(
-        "uv tool install bakefile[lib] "
-        "--index-url https://test.pypi.org/simple/ "
-        "--extra-index-url https://pypi.org/simple "
-        "--prerelease allow "
-        "--reinstall "
-        "--index-strategy unsafe-best-match"
+        dedent("""\
+        uv tool install 'bakefile[lib]' \\
+            --index-url https://test.pypi.org/simple/ \\
+            --extra-index-url https://pypi.org/simple \\
+            --prerelease allow \\
+            --reinstall \\
+            --index-strategy unsafe-best-match
+    """)
     )

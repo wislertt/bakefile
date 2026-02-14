@@ -7,23 +7,8 @@ from typing import Literal
 
 import pathspec
 from pathspec.patterns.gitignore.basic import GitIgnoreBasicPattern
-from pydantic import BaseModel, Field
 
-from bake import Context
-from bake.ui import console
-
-
-def setup_brew(ctx: Context) -> None:
-    ctx.run("brew update")
-    ctx.run("brew upgrade")
-    ctx.run("brew cleanup")
-    ctx.run("brew list")
-    ctx.run("brew leaves")
-
-
-class ToolInfo(BaseModel):
-    version: str | None = None
-    expected_paths: list[Path] = Field(default_factory=list, exclude=True)
+from bake import Context, console
 
 
 class Platform(Enum):
@@ -33,7 +18,26 @@ class Platform(Enum):
     OTHER = "other"
 
 
+VENV_BIN = Path.cwd() / ".venv" / "bin"
+
+
 PlatformType = Literal["macos", "linux", "windows", "other"]
+
+
+def orjson_default(obj):
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
+
+
+def setup_brew(ctx: Context) -> None:
+    ctx.run("brew update")
+    ctx.run("brew upgrade")
+    ctx.run("brew cleanup")
+    ctx.run("brew list")
+    ctx.run("brew leaves")
 
 
 def get_platform() -> PlatformType:
@@ -46,35 +50,14 @@ def get_platform() -> PlatformType:
     return Platform.OTHER.value
 
 
-def setup_uv(ctx: Context) -> None:
-    ctx.run("brew install uv")
-    ctx.run("uv python upgrade")
-    ctx.run("uv tool upgrade --all")
-    ctx.run("uv tool update-shell")
+def setup_mise(ctx: Context) -> None:
+    ctx.run("brew install mise")
 
 
-def setup_rustup(ctx: Context) -> None:
-    ctx.run("brew install rustup")
-    ctx.run("rustup update")
-
-
-def setup_bun(ctx: Context) -> None:
-    ctx.run("brew install oven-sh/bun/bun")
-
-
-def setup_uv_tool(ctx: Context) -> None:
-    ctx.run("uv tool install bakefile")
-    ctx.run("uv tool install pre-commit")
-
-
-HOMWBREW_BIN = Path("/opt/homebrew/bin")
-CARGO_BIN = Path.home() / ".cargo" / "bin"
-LOCAL_BIN = Path.home() / ".local" / "bin"
-VENV_BIN = Path.cwd() / ".venv" / "bin"
-
-
-def get_expected_paths(tool: str, locations: set[Path]) -> list[Path]:
-    return [loc / tool for loc in locations]
+def install_mise_tools(ctx: Context) -> None:
+    ctx.run("mise install")
+    ctx.run("mise doctor")
+    ctx.run("mise list --local")
 
 
 def _skip_msg(path: Path, suffix: str, dry_run: bool) -> None:

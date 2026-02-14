@@ -7,15 +7,8 @@ import zerv
 
 from bake import console
 
-from .base import BaseSpace, ToolInfo
-from .utils import (
-    CARGO_BIN,
-    HOMWBREW_BIN,
-    PlatformType,
-    check_rust_version_matches_stable,
-    get_expected_paths,
-    setup_rustup,
-)
+from .base import BaseSpace
+from .utils import check_rust_version_matches_stable
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -24,26 +17,24 @@ else:
 
 
 class RustSpace(BaseSpace):
-    def _get_tools(self) -> dict[str, ToolInfo]:
-        tools = super()._get_tools()
-        tools["rustup"] = ToolInfo(
-            version=None,
-            expected_paths=list(get_expected_paths("rustup", {HOMWBREW_BIN})),
-        )
-        tools["cargo"] = ToolInfo(
-            version=None,
-            expected_paths=list(get_expected_paths("cargo", {HOMWBREW_BIN, CARGO_BIN})),
-        )
+    def _get_mise_tools(self) -> set[str]:
+        return super()._get_mise_tools() | {"aqua:rust-lang/rustup"}
+
+    def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
+        tools = super()._get_required_cli_tools()
+        tools["rustup"] = None
+        tools["rustc"] = None
+        tools["cargo"] = None
         return tools
 
-    def setup_tools(self, platform: PlatformType) -> None:
-        _ = platform
-        super().setup_tools(platform=platform)
-        setup_rustup(self.ctx)
+    def setup_tools(self) -> None:
+        super().setup_tools()
+        self.ctx.run("rustup update")
 
     def lint(self) -> None:
         super().lint()
 
+        self.ctx.run("toml-sort --sort-inline-arrays --sort-first=package --in-place Cargo.toml")
         self.ctx.run("cargo +nightly check --tests")
         self.ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
         self.ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")

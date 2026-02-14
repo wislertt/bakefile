@@ -9,6 +9,7 @@ from bakelib.space.utils import (
     _should_remove_path,
     check_rust_version_matches_stable,
     get_platform,
+    orjson_default,
     remove_git_clean_candidates,
 )
 
@@ -217,24 +218,39 @@ class TestSetupFunctions:
         assert "brew list" in captured.err
         assert "brew leaves" in captured.err
 
-    def test_setup_bun_runs_brew_install_bun(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+
+class TestGetPlatform:
+    @pytest.mark.parametrize(
+        "sys_platform,expected",
+        [
+            ("linux", "linux"),
+            ("win32", "windows"),
+            ("unknown", "other"),
+        ],
+    )
+    @patch("bakelib.space.utils.sys.platform")
+    def test_returns_correct_platform(
+        self, _mock_platform: str, sys_platform: str, expected: str
     ) -> None:
-        from bakelib.space.utils import setup_bun
+        with patch("bakelib.space.utils.sys.platform", sys_platform):
+            result = get_platform()
+            assert result == expected
 
-        setup_bun(mock_ctx)
-        captured = capsys.readouterr()
-        assert "brew install oven-sh/bun/bun" in captured.err
 
-    def test_setup_rustup_runs_brew_install_and_rustup_update(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        from bakelib.space.utils import setup_rustup
+class TestOrjsonDefault:
+    def test_converts_path_to_string(self) -> None:
+        path = Path("/some/path")
+        result = orjson_default(path)
+        assert result == str(path)
 
-        setup_rustup(mock_ctx)
-        captured = capsys.readouterr()
-        assert "brew install rustup" in captured.err
-        assert "rustup update" in captured.err
+    def test_converts_set_to_list(self) -> None:
+        result = orjson_default({1, 2, 3})
+        assert isinstance(result, list)
+        assert set(result) == {1, 2, 3}
+
+    def test_raises_typeerror_for_unsupported_type(self) -> None:
+        with pytest.raises(TypeError):
+            orjson_default("unsupported")
 
 
 class TestCheckRustVersionMatchesStable:
@@ -244,7 +260,6 @@ class TestCheckRustVersionMatchesStable:
 
         with patch.object(mock_ctx, "run", return_value=mock_result):
             check_rust_version_matches_stable(mock_ctx)
-            # Should return early without warning
 
     def test_warns_when_versions_differ_with_valid_version_format(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
@@ -281,21 +296,3 @@ class TestCheckRustVersionMatchesStable:
         assert "custom-build" in output
         assert "another-build" in output
         assert "differs from stable" in output
-
-
-class TestGetPlatform:
-    @pytest.mark.parametrize(
-        "sys_platform,expected",
-        [
-            ("linux", "linux"),
-            ("win32", "windows"),
-            ("unknown", "other"),
-        ],
-    )
-    @patch("bakelib.space.utils.sys.platform")
-    def test_returns_correct_platform(
-        self, _mock_platform: str, sys_platform: str, expected: str
-    ) -> None:
-        with patch("bakelib.space.utils.sys.platform", sys_platform):
-            result = get_platform()
-            assert result == expected
