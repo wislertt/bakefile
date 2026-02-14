@@ -11,7 +11,6 @@ from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import BaseLibSpace, PublishResult
-from bakelib.space.utils import ToolInfo
 
 
 class MinimalTestLibSpace(BaseLibSpace):
@@ -374,30 +373,28 @@ class TestBaseLibSpaceSetupTools:
     ) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx:
-            space.setup_tools(platform="macos")
+            space.setup_tools()
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
 
-        # Parent setup_tools calls setup_bun, setup_uv, setup_uv_tool
-        assert "brew install oven-sh/bun/bun" in err
-        assert "brew install uv" in err
-        assert "uv tool install bakefile" in err
+        # Parent setup_tools calls setup_mise, install_mise_tools
+        assert "mise install" in err
+        assert "mise doctor" in err
 
 
-class TestBaseLibSpaceGetTools:
-    """Tests for BaseLibSpace._get_tools method."""
+class TestBaseLibSpaceGetRequiredCliTools:
+    """Tests for BaseLibSpace._get_required_cli_tools method."""
 
-    def test_get_tools_inherits_parent_tools(self) -> None:
+    def test_get_required_cli_tools_inherits_parent_tools(self) -> None:
         space = MinimalTestLibSpace()
-        tools = space._get_tools()
+        tools = space._get_required_cli_tools()
         # Parent tools from BaseSpace
         assert "bun" in tools
-        assert "uv" in tools
         assert "bakefile" in tools
         assert "pre-commit" in tools
 
-    def test_get_tools_adds_zerv(self) -> None:
+    def test_get_required_cli_tools_adds_zerv(self) -> None:
         space = MinimalTestLibSpace()
-        tools = space._get_tools()
+        tools = space._get_required_cli_tools()
         assert "zerv" in tools
-        assert isinstance(tools["zerv"], ToolInfo)
+        assert tools["zerv"] is None  # global tool

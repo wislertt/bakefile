@@ -82,7 +82,7 @@ class TestPythonSpace:
         result = _get_python_version()
         assert result == "3.14"
 
-    def test_get_tools_includes_python_tool(
+    def test_get_required_cli_tools_includes_python_tool(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         python_version_file = tmp_path / ".python-version"
@@ -90,9 +90,9 @@ class TestPythonSpace:
         monkeypatch.chdir(tmp_path)
 
         python_space = PythonSpace()
-        tools = python_space._get_tools()
+        tools = python_space._get_required_cli_tools()
         assert "python" in tools
-        assert tools["python"].version == "3.14"
+        assert tools["python"] is not None  # local tool with path prefixes
 
     def test_update_runs_lock_upgrade_and_sync(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
