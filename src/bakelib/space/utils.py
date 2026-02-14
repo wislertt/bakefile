@@ -11,6 +11,19 @@ from pathspec.patterns.gitignore.basic import GitIgnoreBasicPattern
 from bake import Context, console
 
 
+class Platform(Enum):
+    MACOS = "macos"
+    LINUX = "linux"
+    WINDOWS = "windows"
+    OTHER = "other"
+
+
+VENV_BIN = Path.cwd() / ".venv" / "bin"
+
+
+PlatformType = Literal["macos", "linux", "windows", "other"]
+
+
 def orjson_default(obj):
     if isinstance(obj, Path):
         return str(obj)
@@ -25,16 +38,6 @@ def setup_brew(ctx: Context) -> None:
     ctx.run("brew cleanup")
     ctx.run("brew list")
     ctx.run("brew leaves")
-
-
-class Platform(Enum):
-    MACOS = "macos"
-    LINUX = "linux"
-    WINDOWS = "windows"
-    OTHER = "other"
-
-
-PlatformType = Literal["macos", "linux", "windows", "other"]
 
 
 def get_platform() -> PlatformType:
@@ -55,9 +58,6 @@ def install_mise_tools(ctx: Context) -> None:
     ctx.run("mise install")
     ctx.run("mise doctor")
     ctx.run("mise list --local")
-
-
-VENV_BIN = Path.cwd() / ".venv" / "bin"
 
 
 def _skip_msg(path: Path, suffix: str, dry_run: bool) -> None:

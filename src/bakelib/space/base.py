@@ -88,7 +88,10 @@ class BaseSpace(Bakebook):
         self.ctx.run(
             'bunx prettier@latest --write "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"'
         )
-        self.ctx.run("toml-sort --sort-inline-arrays --in-place --sort-table-keys .mise.toml")
+        for mise_toml in (Path(".mise.toml"), Path("mise.toml")):
+            if not mise_toml.exists():
+                continue
+            self.ctx.run(f"toml-sort --sort-inline-arrays --in-place --sort-table-keys {mise_toml}")
 
     @command(help="Run unit tests")
     def test(self) -> None:

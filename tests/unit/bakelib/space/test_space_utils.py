@@ -1,12 +1,15 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from bake import Context
+from bake.ui.logger import strip_ansi
 from bakelib.space.utils import (
     _should_remove_path,
+    check_rust_version_matches_stable,
     get_platform,
+    orjson_default,
     remove_git_clean_candidates,
 )
 
@@ -232,3 +235,64 @@ class TestGetPlatform:
         with patch("bakelib.space.utils.sys.platform", sys_platform):
             result = get_platform()
             assert result == expected
+
+
+class TestOrjsonDefault:
+    def test_converts_path_to_string(self) -> None:
+        path = Path("/some/path")
+        result = orjson_default(path)
+        assert result == "/some/path"
+
+    def test_converts_set_to_list(self) -> None:
+        result = orjson_default({1, 2, 3})
+        assert isinstance(result, list)
+        assert set(result) == {1, 2, 3}
+
+    def test_raises_typeerror_for_unsupported_type(self) -> None:
+        with pytest.raises(TypeError):
+            orjson_default("unsupported")
+
+
+class TestCheckRustVersionMatchesStable:
+    def test_returns_early_when_versions_match(self, mock_ctx: Context) -> None:
+        mock_result = MagicMock()
+        mock_result.stdout = "rustc 1.75.0\n"
+
+        with patch.object(mock_ctx, "run", return_value=mock_result):
+            check_rust_version_matches_stable(mock_ctx)
+
+    def test_warns_when_versions_differ_with_valid_version_format(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        current_result = MagicMock()
+        current_result.stdout = "rustc 1.70.0\n"
+        stable_result = MagicMock()
+        stable_result.stdout = "rustc 1.75.0\n"
+
+        with patch.object(mock_ctx, "run") as mock_run:
+            mock_run.side_effect = [current_result, stable_result]
+            check_rust_version_matches_stable(mock_ctx)
+
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.err)
+        assert "1.70.0" in output
+        assert "1.75.0" in output
+        assert "differs from stable" in output
+
+    def test_warns_when_versions_differ_with_invalid_version_format(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        current_result = MagicMock()
+        current_result.stdout = "rustc custom-build\n"
+        stable_result = MagicMock()
+        stable_result.stdout = "rustc another-build\n"
+
+        with patch.object(mock_ctx, "run") as mock_run:
+            mock_run.side_effect = [current_result, stable_result]
+            check_rust_version_matches_stable(mock_ctx)
+
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.err)
+        assert "custom-build" in output
+        assert "another-build" in output
+        assert "differs from stable" in output

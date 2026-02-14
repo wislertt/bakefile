@@ -209,6 +209,20 @@ class TestAssertWhichPath:
             result = base_space._assert_which_path("test", path_prefixes)
             assert result is False
 
+    def test_assert_which_path_returns_false_when_tool_not_found(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value=None):
+            mock_ctx.dry_run = False
+            result = base_space._assert_which_path("nonexistent", None)
+            assert result is False
+
+    def test_assert_which_path_returns_true_for_global_tool(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value="/usr/bin/some-tool"):
+            mock_ctx.dry_run = False
+            result = base_space._assert_which_path("some-tool", None)  # None = global tool
+            assert result is True
+
 
 class TestAssertSetupDev:
     def test_assert_setup_dev_with_skip_test_true(self, mock_ctx: Context) -> None:

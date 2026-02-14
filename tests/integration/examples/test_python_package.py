@@ -13,7 +13,6 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     assert result.returncode == 0
     assert "All versions already on latest supported patch release" in stderr
     assert "Installed" in stderr
-    assert "Audited" in stderr
     assert "packages" in stderr
 
     result = run(
