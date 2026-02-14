@@ -18,13 +18,19 @@ else:
 
 class RustSpace(BaseSpace):
     def _get_mise_tools(self) -> set[str]:
-        return super()._get_mise_tools() | {"aqua:rust-lang/rustup"}
+        return super()._get_mise_tools() | {
+            "aqua:rust-lang/rustup",
+            "cargo:cargo-audit",
+            "cargo:cargo-tarpaulin",
+        }
 
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         tools = super()._get_required_cli_tools()
         tools["rustup"] = None
         tools["rustc"] = None
         tools["cargo"] = None
+        tools["cargo-audit"] = None
+        tools["cargo-tarpaulin"] = None
         return tools
 
     def setup_tools(self) -> None:
