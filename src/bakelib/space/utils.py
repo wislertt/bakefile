@@ -58,6 +58,7 @@ def install_mise_tools(ctx: Context) -> None:
     ctx.run("mise install")
     ctx.run("mise doctor")
     ctx.run("mise list --local")
+    ctx.run("mise upgrade")
 
 
 def _skip_msg(path: Path, suffix: str, dry_run: bool) -> None:

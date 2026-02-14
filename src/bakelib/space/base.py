@@ -91,7 +91,9 @@ class BaseSpace(Bakebook):
         for mise_toml in (Path(".mise.toml"), Path("mise.toml")):
             if not mise_toml.exists():
                 continue
-            self.ctx.run(f"toml-sort --sort-inline-arrays --in-place --sort-table-keys {mise_toml}")
+            self.ctx.run(
+                f"uv run toml-sort --sort-inline-arrays --in-place --sort-table-keys {mise_toml}"
+            )
 
     @command(help="Run unit tests")
     def test(self) -> None:
@@ -158,17 +160,18 @@ class BaseSpace(Bakebook):
         setup_mise(self.ctx)
 
     def _get_mise_tools(self) -> set[str]:
-        return {"bun", "pipx:bakefile", "pipx:toml-sort", "pipx:zerv-version", "pre-commit"}
+        return {"bun", "pipx:bakefile", "pipx:toml-sort", "pipx:zerv-version", "pre-commit", "uv"}
 
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         return {
             # global - any location
+            "bake": None,
+            "bakefile": None,
             "bun": None,
             "bunx": None,
-            "zerv": None,
-            "bakefile": None,
-            "bake": None,
             "pre-commit": None,
+            "uv": None,
+            "zerv": None,
         }
 
     def add_mise_tools(self) -> None:
@@ -291,5 +294,9 @@ class BaseSpace(Bakebook):
 
     @command(help="Upgrade all dependencies")
     def update(self) -> None:
+        platform = get_platform()
+        if platform == "macos":
+            setup_brew(self.ctx)
+        self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
         self.ctx.run("uv tool upgrade --all")

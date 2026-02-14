@@ -39,10 +39,5 @@ jobs:
             - name: setup-path
               run: echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
 
-            - name: setup-bun
-              uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
-              with:
-                  bun-version: latest
-
             - name: run-pre-commit
               run: uv run pre-commit run --all-files

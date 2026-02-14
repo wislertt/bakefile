@@ -34,7 +34,9 @@ class RustSpace(BaseSpace):
     def lint(self) -> None:
         super().lint()
 
-        self.ctx.run("toml-sort --sort-inline-arrays --sort-first=package --in-place Cargo.toml")
+        self.ctx.run(
+            "uv run toml-sort --sort-inline-arrays --sort-first=package --in-place Cargo.toml"
+        )
         self.ctx.run("cargo +nightly check --tests")
         self.ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
         self.ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")
