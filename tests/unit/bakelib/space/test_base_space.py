@@ -189,15 +189,13 @@ class TestAssertWhichPath:
     def test_assert_which_path_returns_true_in_dry_run(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
         with mock_ctx:
-            result = base_space._assert_which_path("test", ToolInfo(expected_paths=[]))
+            result = base_space._assert_which_path("test", ToolInfo(path_prefixes=set()))
             assert result is True
 
     def test_assert_which_path_returns_true_when_path_matches(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
-        tool_info = ToolInfo(expected_paths=[Path("/usr/bin/test")])
-        mock_result = MagicMock()
-        mock_result.stdout = "/usr/bin/test"
-        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+        tool_info = ToolInfo(path_prefixes={Path("/usr/bin")})
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value="/usr/bin/test"):
             mock_ctx.dry_run = False
             result = base_space._assert_which_path("test", tool_info)
             assert result is True
@@ -206,10 +204,8 @@ class TestAssertWhichPath:
         self, mock_ctx: Context
     ) -> None:
         base_space = MinimalTestSpace()
-        tool_info = ToolInfo(expected_paths=[Path("/usr/bin/test")])
-        mock_result = MagicMock()
-        mock_result.stdout = "/wrong/path/test"
-        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+        tool_info = ToolInfo(path_prefixes={Path("/usr/bin")})
+        with mock_ctx, patch("bakelib.space.base.shutil.which", return_value="/wrong/path/test"):
             mock_ctx.dry_run = False
             result = base_space._assert_which_path("test", tool_info)
             assert result is False

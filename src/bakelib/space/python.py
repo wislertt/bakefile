@@ -5,8 +5,8 @@ import zerv
 from bake import params
 from bake.ui.logger import strip_ansi
 
-from .base import BaseSpace, ToolInfo
-from .utils import VENV_BIN, get_expected_paths
+from .base import BaseSpace
+from .utils import VENV_BIN
 
 
 def _get_python_version() -> str | None:
@@ -17,12 +17,13 @@ def _get_python_version() -> str | None:
 
 
 class PythonSpace(BaseSpace):
-    def _get_tools(self) -> dict[str, ToolInfo]:
-        tools = super()._get_tools()
-        tools["python"] = ToolInfo(
-            version=_get_python_version(),
-            expected_paths=list(get_expected_paths("python", {VENV_BIN})),
-        )
+    def _get_mise_tools(self) -> set[str]:
+        return super()._get_mise_tools() | {"uv"}
+
+    def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
+        tools = super()._get_required_cli_tools()
+        tools["uv"] = None  # global
+        tools["python"] = {VENV_BIN}  # local - must be from venv
         return tools
 
     def lint(self) -> None:

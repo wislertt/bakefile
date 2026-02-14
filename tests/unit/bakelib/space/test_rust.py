@@ -38,9 +38,9 @@ class TestRustSpace:
         assert "rustup update" in captured.err
         assert "cargo update" in captured.err
 
-    def test_get_tools_includes_rustup_and_cargo(self) -> None:
+    def test_get_required_cli_tools_includes_rustup_and_cargo(self) -> None:
         space = RustSpace()
-        tools = space._get_tools()
+        tools = space._get_required_cli_tools()
         assert "rustup" in tools
         assert "cargo" in tools
 
@@ -81,7 +81,7 @@ class TestRustSpace:
     ) -> None:
         space = RustSpace()
         with mock_ctx:
-            space.setup_tools(platform="macos")
+            space.setup_tools()
         captured = capsys.readouterr()
         assert "brew install rustup" in captured.err
         assert "rustup update" in captured.err

@@ -1,28 +1,22 @@
+import shutil
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Annotated, Literal, NoReturn
+from typing import Annotated, NoReturn
 
 import orjson
 import typer
 import zerv
 
-from bake import Bakebook, command
-from bake.ui import console
+from bake import Bakebook, command, console, run
 
 from .utils import (
-    CARGO_BIN,
-    HOMWBREW_BIN,
-    LOCAL_BIN,
-    VENV_BIN,
     PlatformType,
-    ToolInfo,
-    get_expected_paths,
     get_platform,
+    install_mise_tools,
+    orjson_default,
     remove_git_clean_candidates,
     setup_brew,
-    setup_bun,
-    setup_uv,
-    setup_uv_tool,
+    setup_mise,
 )
 
 
@@ -94,6 +88,7 @@ class BaseSpace(Bakebook):
         self.ctx.run(
             'bunx prettier@latest --write "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"'
         )
+        self.ctx.run("toml-sort --sort-inline-arrays --in-place --sort-table-keys .mise.toml")
 
     @command(help="Run unit tests")
     def test(self) -> None:
@@ -113,7 +108,7 @@ class BaseSpace(Bakebook):
         default_excludes: bool,
         default_exclude_patterns: set[str],
     ):
-        results = self.ctx.run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
+        results = run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
 
         exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
 
@@ -157,15 +152,44 @@ class BaseSpace(Bakebook):
     def setup_tool_managers(self, platform: PlatformType) -> None:
         _ = platform
         setup_brew(self.ctx)
+        setup_mise(self.ctx)
 
-    def setup_tools(self, platform: PlatformType) -> None:
-        _ = platform
-        setup_bun(self.ctx)
-        setup_uv(self.ctx)
-        setup_uv_tool(self.ctx)
+    def _get_mise_tools(self) -> set[str]:
+        return {"bun", "pipx:bakefile", "pipx:toml-sort", "pipx:zerv", "pre-commit"}
+
+    def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
+        return {
+            # global - any location
+            "bun": None,
+            "bunx": None,
+            "zerv": None,
+            "bakefile": None,
+            "bake": None,
+            "pre-commit": None,
+        }
+
+    def add_mise_tools(self) -> None:
+        result = run("mise list --local --current --json", stream=False, echo=False)
+        current_tools: set[str] = set()
+        if result and result.stdout:
+            data = orjson.loads(result.stdout)
+            current_tools = set(data.keys())
+
+        required_tools = self._get_mise_tools()
+        missing_tools = sorted(required_tools - current_tools)
+
+        if missing_tools:
+            console.start("Adding missing mise tools")
+
+        for tool in missing_tools:
+            self.ctx.run(f"mise use {tool}")
+
+    def setup_tools(self) -> None:
+        self.add_mise_tools()
+        install_mise_tools(self.ctx)
 
     def setup_project(self) -> None:
-        self.ctx.run("uv run pre-commit install")
+        self.ctx.run("pre-commit install")
 
     @command(help="Setup development environment")
     def setup_dev(self) -> None:
@@ -173,65 +197,66 @@ class BaseSpace(Bakebook):
         console.echo(f"Detected platform: {platform}")
 
         if platform != "macos":
-            console.warning(f"Platform '{platform}' is not supported. Running in dry-run mode.")
+            console.warning(
+                f"Platform '{platform}' is not officially supported. "
+                "Tool manager setup will run in dry-run mode."
+            )
             overridden_dry_run = True
         else:
             overridden_dry_run = self.ctx.dry_run
 
-        with self.ctx.override_dry_run(overridden_dry_run):
-            self.clean(exclude_patterns=None, default_excludes=True)
+        self.clean(exclude_patterns=None, default_excludes=True)
 
         with self.ctx.override_dry_run(overridden_dry_run):
+            console.start("Setting up tool managers")
             self.setup_tool_managers(platform=platform)
-            self.setup_tools(platform=platform)
-            self.setup_project()
+
+        console.start("Setting up tools")
+        self.setup_tools()
+        console.start("Setting up project")
+        self.setup_project()
 
     def _assert_which_path(
         self,
         tool_name: str,
-        tool_info: ToolInfo,
+        tool_paths: set[Path] | None,
     ) -> bool:
-        result = self.ctx.run(f"which {tool_name}", stream=False)
+        console.cmd(f"which {tool_name}")
         if self.ctx.dry_run:
             return True
-        actual_path = Path(result.stdout.strip())
 
-        if actual_path in set(tool_info.expected_paths):
+        actual_path = shutil.which(tool_name)
+        if actual_path is None:
+            console.error(f"{tool_name}: not found in PATH")
+            return False
+
+        actual_path = Path(actual_path)
+
+        if tool_paths is None:
             console.success(f"{tool_name}: {actual_path}")
             return True
+
+        for path_prefix in tool_paths:
+            if actual_path.is_relative_to(path_prefix):
+                console.success(f"{tool_name}: {actual_path}")
+                return True
 
         console.warning(f"{tool_name}: unexpected location (got {actual_path})")
         return False
 
-    def _get_tools(self) -> dict[str, ToolInfo]:
-        return {
-            # homebrew only
-            "bun": ToolInfo(expected_paths=get_expected_paths("bun", {HOMWBREW_BIN})),
-            # homebrew or venv
-            "uv": ToolInfo(expected_paths=get_expected_paths("uv", {HOMWBREW_BIN, VENV_BIN})),
-            # cargo bin
-            "zerv": ToolInfo(expected_paths=get_expected_paths("zerv", {CARGO_BIN})),
-            # local or venv
-            "bakefile": ToolInfo(
-                expected_paths=get_expected_paths("bakefile", {LOCAL_BIN, VENV_BIN})
-            ),
-            "pre-commit": ToolInfo(
-                expected_paths=get_expected_paths("pre-commit", {LOCAL_BIN, VENV_BIN})
-            ),
-        }
-
     @command(help="List development tools")
     def tools(
         self,
-        format: Annotated[
-            Literal["json", "names"],
-            typer.Option("--format", "-f", help="Output format"),
-        ] = "json",
+        json: Annotated[
+            bool,
+            typer.Option("--json", "-j", help="Output as JSON"),
+        ] = False,
     ) -> None:
-        tools = self._get_tools()
-        if format == "json":
-            output: dict[str, dict[str, str | None]] = {k: v.model_dump() for k, v in tools.items()}
-            console.echo(orjson.dumps(output, option=orjson.OPT_INDENT_2).decode())
+        tools = self._get_required_cli_tools()
+        if json:
+            console.echo(
+                orjson.dumps(tools, default=orjson_default, option=orjson.OPT_INDENT_2).decode()
+            )
         else:
             console.echo("\n".join(sorted(tools.keys())))
 
@@ -247,9 +272,9 @@ class BaseSpace(Bakebook):
             ),
         ] = False,
     ) -> None:
-        tools = self._get_tools()
-        for tool_name, tool_info in tools.items():
-            self._assert_which_path(tool_name, tool_info)
+        tools = self._get_required_cli_tools()
+        for tool_name, tool_paths in tools.items():
+            self._assert_which_path(tool_name, tool_paths)
 
         self.lint()
         if not skip_test:

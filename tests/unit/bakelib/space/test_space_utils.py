@@ -217,15 +217,6 @@ class TestSetupFunctions:
         assert "brew list" in captured.err
         assert "brew leaves" in captured.err
 
-    def test_setup_bun_runs_brew_install_bun(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        from bakelib.space.utils import setup_bun
-
-        setup_bun(mock_ctx)
-        captured = capsys.readouterr()
-        assert "brew install oven-sh/bun/bun" in captured.err
-
     def test_setup_rustup_runs_brew_install_and_rustup_update(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:

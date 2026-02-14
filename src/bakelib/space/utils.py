@@ -7,10 +7,16 @@ from typing import Literal
 
 import pathspec
 from pathspec.patterns.gitignore.basic import GitIgnoreBasicPattern
-from pydantic import BaseModel, Field
 
-from bake import Context
-from bake.ui import console
+from bake import Context, console
+
+
+def orjson_default(obj):
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
 
 
 def setup_brew(ctx: Context) -> None:
@@ -19,11 +25,6 @@ def setup_brew(ctx: Context) -> None:
     ctx.run("brew cleanup")
     ctx.run("brew list")
     ctx.run("brew leaves")
-
-
-class ToolInfo(BaseModel):
-    version: str | None = None
-    expected_paths: list[Path] = Field(default_factory=list, exclude=True)
 
 
 class Platform(Enum):
@@ -47,34 +48,26 @@ def get_platform() -> PlatformType:
 
 
 def setup_uv(ctx: Context) -> None:
-    ctx.run("brew install uv")
     ctx.run("uv python upgrade")
     ctx.run("uv tool upgrade --all")
     ctx.run("uv tool update-shell")
 
 
 def setup_rustup(ctx: Context) -> None:
-    ctx.run("brew install rustup")
     ctx.run("rustup update")
 
 
-def setup_bun(ctx: Context) -> None:
-    ctx.run("brew install oven-sh/bun/bun")
+def setup_mise(ctx: Context) -> None:
+    ctx.run("brew install mise")
 
 
-def setup_uv_tool(ctx: Context) -> None:
-    ctx.run("uv tool install bakefile")
-    ctx.run("uv tool install pre-commit")
+def install_mise_tools(ctx: Context) -> None:
+    ctx.run("mise install")
+    ctx.run("mise doctor")
+    ctx.run("mise list --local")
 
 
-HOMWBREW_BIN = Path("/opt/homebrew/bin")
-CARGO_BIN = Path.home() / ".cargo" / "bin"
-LOCAL_BIN = Path.home() / ".local" / "bin"
 VENV_BIN = Path.cwd() / ".venv" / "bin"
-
-
-def get_expected_paths(tool: str, locations: set[Path]) -> list[Path]:
-    return [loc / tool for loc in locations]
 
 
 def _skip_msg(path: Path, suffix: str, dry_run: bool) -> None:
