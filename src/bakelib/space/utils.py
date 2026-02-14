@@ -47,16 +47,6 @@ def get_platform() -> PlatformType:
     return Platform.OTHER.value
 
 
-def setup_uv(ctx: Context) -> None:
-    ctx.run("uv python upgrade")
-    ctx.run("uv tool upgrade --all")
-    ctx.run("uv tool update-shell")
-
-
-def setup_rustup(ctx: Context) -> None:
-    ctx.run("rustup update")
-
-
 def setup_mise(ctx: Context) -> None:
     ctx.run("brew install mise")
 

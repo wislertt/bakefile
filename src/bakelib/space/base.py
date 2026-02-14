@@ -205,6 +205,7 @@ class BaseSpace(Bakebook):
         else:
             overridden_dry_run = self.ctx.dry_run
 
+        console.start("Cleaning")
         self.clean(exclude_patterns=None, default_excludes=True)
 
         with self.ctx.override_dry_run(overridden_dry_run):
@@ -213,6 +214,7 @@ class BaseSpace(Bakebook):
 
         console.start("Setting up tools")
         self.setup_tools()
+
         console.start("Setting up project")
         self.setup_project()
 

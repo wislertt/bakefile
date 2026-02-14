@@ -8,10 +8,7 @@ import zerv
 from bake import console
 
 from .base import BaseSpace
-from .utils import (
-    check_rust_version_matches_stable,
-    setup_rustup,
-)
+from .utils import check_rust_version_matches_stable
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -32,7 +29,7 @@ class RustSpace(BaseSpace):
 
     def setup_tools(self) -> None:
         super().setup_tools()
-        setup_rustup(self.ctx)
+        self.ctx.run("rustup update")
 
     def lint(self) -> None:
         super().lint()
