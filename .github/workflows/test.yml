@@ -46,6 +46,7 @@ jobs:
               run: |
                   echo "OS: $RUNNER_OS"
                   echo "Python version: ${{ matrix.python-version }}"
+                  uv run python --version
                   python --version
                   which python
 

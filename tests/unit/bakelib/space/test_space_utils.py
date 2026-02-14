@@ -241,7 +241,7 @@ class TestOrjsonDefault:
     def test_converts_path_to_string(self) -> None:
         path = Path("/some/path")
         result = orjson_default(path)
-        assert result == "/some/path"
+        assert result == str(path)
 
     def test_converts_set_to_list(self) -> None:
         result = orjson_default({1, 2, 3})
