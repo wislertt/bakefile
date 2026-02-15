@@ -31,7 +31,6 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         pypi_registry = self._validate_registry(registry)
         index_flag = f"--index {pypi_registry} " if pypi_registry == "test-pypi" else ""
         dry_run_flag = "" if token is not None else "--dry-run "
-        is_dry_run = token is None
 
         env: dict[str, str] = {
             "UV_PUBLISH_TOKEN": token if token is not None else self._dummy_publish_token
@@ -44,9 +43,20 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
             check=False,
         )
 
-        return PublishResult(
-            result=result, is_dry_run=is_dry_run, is_auth_failed=self._is_auth_failure(result)
+        return self._determine_publish_result(token=token, result=result)
+
+    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+        # case 1
+        exist_error_message = "already exists, skipping"
+        exist = result.returncode == 0 and exist_error_message in result.stderr
+
+        # case 2
+        exist_with_different_hash_message = "Local file and index file do not match"
+        exist_with_different_hash = (
+            result.returncode != 0 and exist_with_different_hash_message in result.stderr
         )
+
+        return exist_with_different_hash or exist
 
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_message = "403 Invalid or non-existent authentication information"

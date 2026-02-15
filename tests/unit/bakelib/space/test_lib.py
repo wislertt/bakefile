@@ -1,5 +1,4 @@
 import subprocess
-import typing
 from contextlib import contextmanager
 
 import pytest
@@ -10,7 +9,7 @@ from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 from bakelib.space.base import BaseSpace
-from bakelib.space.lib import BaseLibSpace, PublishResult
+from bakelib.space.lib import BaseLibSpace, PublishResult, PublishStatus
 
 
 class MinimalTestLibSpace(BaseLibSpace):
@@ -40,10 +39,19 @@ class MinimalTestLibSpace(BaseLibSpace):
 
     def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         _ = token, registry
-        return PublishResult(result=None, is_dry_run=self.ctx.dry_run, is_auth_failed=False)
+        status = PublishStatus.DRY_RUN if self.ctx.dry_run else PublishStatus.SUCCESS
+        return PublishResult(result=None, status=status)
 
     def _pre_publish_setup(self):
         pass
+
+    def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
+        _ = result
+        return False
+
+    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+        _ = result
+        return False
 
 
 def test_baselib_space_is_base_space() -> None:
@@ -86,7 +94,7 @@ class TestBaseLibSpace:
 
     def test_handle_publish_result_exits_on_auth_failed(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        result = PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
+        result = PublishResult(result=None, status=PublishStatus.AUTH_FAILED)
         mock_ctx.dry_run = False  # Need to disable dry_run to test auth failed path
 
         with pytest.raises(typer.Exit) as exc_info, mock_ctx:
@@ -102,9 +110,7 @@ class TestBaseLibSpace:
         successful_dry_run_result = subprocess.CompletedProcess(
             args=["publish"], returncode=0, stdout="", stderr=""
         )
-        result = PublishResult(
-            result=successful_dry_run_result, is_dry_run=True, is_auth_failed=False
-        )
+        result = PublishResult(result=successful_dry_run_result, status=PublishStatus.DRY_RUN)
 
         with mock_ctx:
             space._handle_publish_result(result)
@@ -115,8 +121,8 @@ class TestBaseLibSpace:
     def test_handle_publish_result_exits_on_empty_result(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         mock_ctx.dry_run = False
-        # Result is None but not auth failed - unexpected case
-        result = PublishResult(result=None, is_dry_run=False, is_auth_failed=False)
+        # Result is None with ERROR status - unexpected case
+        result = PublishResult(result=None, status=PublishStatus.ERROR)
 
         with pytest.raises(typer.Exit) as exc_info, mock_ctx:
             space._handle_publish_result(result)
@@ -131,7 +137,7 @@ class TestBaseLibSpace:
         success_result = subprocess.CompletedProcess(
             args=["publish"], returncode=0, stdout="Successfully published", stderr=""
         )
-        result = PublishResult(result=success_result, is_dry_run=False, is_auth_failed=False)
+        result = PublishResult(result=success_result, status=PublishStatus.SUCCESS)
 
         with mock_ctx:
             space._handle_publish_result(result)
@@ -146,7 +152,7 @@ class TestBaseLibSpace:
         failed_result = subprocess.CompletedProcess(
             args=["publish"], returncode=1, stdout="", stderr="Publish failed"
         )
-        result = PublishResult(result=failed_result, is_dry_run=False, is_auth_failed=False)
+        result = PublishResult(result=failed_result, status=PublishStatus.ERROR)
 
         with pytest.raises(typer.Exit) as exc_info, mock_ctx:
             space._handle_publish_result(result)
@@ -159,7 +165,7 @@ class TestBaseLibSpace:
         error_result = subprocess.CompletedProcess(
             args=["publish"], returncode=2, stdout="", stderr="Unexpected error"
         )
-        result = PublishResult(result=error_result, is_dry_run=False, is_auth_failed=False)
+        result = PublishResult(result=error_result, status=PublishStatus.ERROR)
 
         with pytest.raises(typer.Exit) as exc_info, mock_ctx:
             space._handle_publish_result(result)
@@ -168,7 +174,7 @@ class TestBaseLibSpace:
     def test_handle_publish_result_returns_early_on_dry_run(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         # mock_ctx.dry_run is True by default, should return early without error
-        result = PublishResult(result=None, is_dry_run=False, is_auth_failed=True)
+        result = PublishResult(result=None, status=PublishStatus.AUTH_FAILED)
 
         with mock_ctx:
             # Should not raise Exit because dry_run=True causes early return
@@ -196,14 +202,14 @@ class TestBaseLibSpace:
 
         def mock_publish(token: str | None, registry: str) -> PublishResult:
             _ = token, registry
-            return PublishResult(result=success_result, is_dry_run=False, is_auth_failed=False)
+            return PublishResult(result=success_result, status=PublishStatus.SUCCESS)
 
         monkeypatch.setattr(space, "_publish_with_token", mock_publish)
 
         with mock_ctx:
             result = space._execute_publish(cached_publish_token, "test-pypi")
 
-        assert result.is_auth_failed is False
+        assert result.status == PublishStatus.SUCCESS
         assert result.result is not None
         assert result.result.returncode == 0
 
@@ -247,7 +253,7 @@ class TestBaseLibSpace:
             success_result = subprocess.CompletedProcess(
                 args=["publish"], returncode=0, stdout="Success", stderr=""
             )
-            return PublishResult(result=success_result, is_dry_run=False, is_auth_failed=False)
+            return PublishResult(result=success_result, status=PublishStatus.SUCCESS)
 
         def mock_handle_publish_result(*args, **kwargs):
             call_order.append("_handle_publish_result")
@@ -277,24 +283,14 @@ class TestBaseLibSpace:
         space = MinimalTestLibSpace()
         mock_ctx.dry_run = False
 
-        # Create a mock result with a returncode that breaks normal comparison logic
-        # This simulates an unexpected state where neither == 0 nor != 0 is True
-        class BizarreReturnCode:
-            def __eq__(self, other):
-                # Always return False to create an unreachable state
-                return False
-
-            def __ne__(self, other):
-                # Always return False to create an unreachable state
-                return False
-
-        bizarre_result = subprocess.CompletedProcess(
+        # Test ERROR status with a result
+        error_result = subprocess.CompletedProcess(
             args=["publish"],
-            returncode=typing.cast(int, BizarreReturnCode()),
+            returncode=1,
             stdout="",
             stderr="",
         )
-        result = PublishResult(result=bizarre_result, is_dry_run=False, is_auth_failed=False)
+        result = PublishResult(result=error_result, status=PublishStatus.ERROR)
 
         with pytest.raises(typer.Exit) as exc_info, mock_ctx:
             space._handle_publish_result(result)
@@ -340,29 +336,15 @@ class TestBaseLibSpace:
                 returncode=1,
                 stderr="403 Invalid or non-existent authentication information",
             )
-            return PublishResult(result=failed_result, is_dry_run=False, is_auth_failed=False)
+            return PublishResult(result=failed_result, status=PublishStatus.AUTH_FAILED)
 
         monkeypatch.setattr(space, "_publish_with_token", mock_publish)
 
         with mock_ctx:
             result = space._execute_publish(cached_publish_token, "test-pypi")
 
-        assert result.is_auth_failed is True
+        assert result.status == PublishStatus.AUTH_FAILED
         assert result.result is None
-
-
-class TestBaseLibSpaceDefaults:
-    """Tests for BaseLibSpace default implementations using minimal subclass."""
-
-    def test_default_is_auth_failure_returns_true_on_nonzero_returncode(self) -> None:
-        space = MinimalTestLibSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=1, stderr="error")
-        assert space._is_auth_failure(result) is True
-
-    def test_default_is_auth_failure_returns_false_on_zero_returncode(self) -> None:
-        space = MinimalTestLibSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=0, stderr="no error")
-        assert space._is_auth_failure(result) is False
 
 
 class TestBaseLibSpaceSetupTools:

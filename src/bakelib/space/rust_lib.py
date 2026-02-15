@@ -31,7 +31,6 @@ class RustLibSpace(RustSpace, BaseLibSpace):
     def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
         self._validate_registry(registry)
         dry_run_flag = "" if token is not None else "--dry-run "
-        is_dry_run = token is None
 
         env: dict[str, str] = {}
         if token is not None:
@@ -44,23 +43,11 @@ class RustLibSpace(RustSpace, BaseLibSpace):
             check=False,
         )
 
-        # Check if version already exists (idempotent publish)
-        # Cargo writes all errors to stderr (verified in cargo source code)
-        already_exists_msg = "already exists on crates.io"
-        if result.returncode != 0 and already_exists_msg in result.stderr:
-            console.success("Version already exists on crates.io, skipping publish.")
-            result = subprocess.CompletedProcess(
-                args=result.args,
-                returncode=0,
-                stdout=result.stdout,
-                stderr=result.stderr,
-            )
+        return self._determine_publish_result(token=token, result=result)
 
-        return PublishResult(
-            result=result,
-            is_dry_run=is_dry_run,
-            is_auth_failed=self._is_auth_failure(result),
-        )
+    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+        already_exists_msg = "already exists on crates.io"
+        return result.returncode != 0 and already_exists_msg in result.stderr
 
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_messages = ["status 403 Forbidden", "status 401 Unauthorized"]

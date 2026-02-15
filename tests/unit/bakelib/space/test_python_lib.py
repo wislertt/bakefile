@@ -5,7 +5,7 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.space.lib import PublishResult
+from bakelib.space.lib import PublishResult, PublishStatus
 from bakelib.space.python_lib import PythonLibSpace
 
 
@@ -88,9 +88,7 @@ class TestPublishResult:
     def test_publish_result_fields(self):
         result = PublishResult(
             result=None,
-            is_dry_run=False,
-            is_auth_failed=False,
+            status=PublishStatus.SUCCESS,
         )
         assert result.result is None
-        assert result.is_dry_run is False
-        assert result.is_auth_failed is False
+        assert result.status == PublishStatus.SUCCESS
