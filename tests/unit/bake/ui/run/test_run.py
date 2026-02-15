@@ -661,3 +661,122 @@ class TestCrossPlatformSubprocess:
             pytest.raises(RuntimeError, match=r"sh\.exe not found"),
         ):
             run("echo line1\necho line2", shell=True, echo=False)
+
+
+# ============================================================================
+# _check_exit_code Tests (stream=False error output)
+# ============================================================================
+
+
+class TestCheckExitCodeStreamFalse:
+    """Tests for _check_exit_code showing output when stream=False.
+
+    When stream=False and check=True, the output should be shown before
+    exiting if the command fails, since the user didn't see it in real-time.
+    """
+
+    def test_stream_false_shows_stderr_on_failure(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """When stream=False and command fails with stderr, show stderr before exit."""
+        _ = capsys.readouterr()
+
+        with pytest.raises(typer.Exit) as exc_info:
+            run(["ls", "/nonexistent_path_xyz"], check=True, stream=False, echo=False)
+
+        assert exc_info.value.exit_code != 0
+        capture = capsys.readouterr()
+        # stderr should be shown since stream=False
+        assert "nonexistent_path_xyz" in capture.err
+
+    def test_stream_false_shows_stdout_when_no_stderr(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When stream=False, no stderr, but has stdout, show stdout before exit."""
+        _ = capsys.readouterr()
+
+        # Create a command that fails with stdout but no stderr
+        cmd = [sys.executable, "-c", "import sys; print('output on stdout'); sys.exit(1)"]
+
+        with pytest.raises(typer.Exit) as exc_info:
+            run(cmd, check=True, stream=False, echo=False)
+
+        assert exc_info.value.exit_code == 1
+        capture = capsys.readouterr()
+        # stdout should be shown since stream=False and no stderr
+        assert "output on stdout" in capture.err
+
+    def test_stream_false_shows_generic_error_when_no_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When stream=False, no stderr/stdout, show generic error message before exit."""
+        _ = capsys.readouterr()
+
+        # Create a command that fails silently (no output)
+        cmd = [sys.executable, "-c", "import sys; sys.exit(42)"]
+
+        with pytest.raises(typer.Exit) as exc_info:
+            run(cmd, check=True, stream=False, echo=False)
+
+        assert exc_info.value.exit_code == 42
+        capture = capsys.readouterr()
+        # Generic error message should be shown
+        assert "Command" in capture.err
+        # Check with whitespace flexibility (console may wrap)
+        assert "failed" in capture.err
+        # Strip ANSI codes for checking the exit code message
+        import re
+
+        err_plain = re.sub(r"\x1b\[[0-9;]*m", "", capture.err)
+        assert "exit code 42" in err_plain
+
+    def test_stream_false_truncates_long_command_in_error(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When stream=False and no output, long commands are truncated in error message."""
+        _ = capsys.readouterr()
+
+        # Create a very long command that fails silently (no stdout/stderr)
+        long_arg = "x" * 100
+        # Use actual newline so the comment doesn't swallow sys.exit
+        cmd = [sys.executable, "-c", f"# {long_arg}\nimport sys\nsys.exit(1)"]
+
+        with pytest.raises(typer.Exit):
+            run(cmd, check=True, stream=False, echo=False)
+
+        capture = capsys.readouterr()
+        # The error message should contain truncated command with "..."
+        assert "..." in capture.err
+
+    def test_stream_false_short_command_not_truncated(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When stream=False and no output, short commands are NOT truncated."""
+        _ = capsys.readouterr()
+
+        # Create a short command that fails silently
+        # Use echo_cmd to ensure command is short enough (< 50 chars)
+        with pytest.raises(typer.Exit):
+            run(["false"], check=True, stream=False, echo=False, echo_cmd="short")
+
+        capture = capsys.readouterr()
+        # The error message should NOT contain "..." for short commands
+        assert "..." not in capture.err
+        # The short command should be shown in full
+        import re
+
+        err_plain = re.sub(r"\x1b\[[0-9;]*m", "", capture.err)
+        assert "short" in err_plain
+
+    def test_stream_true_does_not_show_duplicate_stderr(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When stream=True, stderr is shown during streaming, not again before exit."""
+        _ = capsys.readouterr()
+
+        with pytest.raises(typer.Exit):
+            run(["ls", "/nonexistent_path_xyz"], check=True, stream=True, echo=False)
+
+        capture = capsys.readouterr()
+        # stderr appears once (from streaming), not duplicated
+        assert "nonexistent_path_xyz" in capture.err
+        # Should not have the generic error message
+        assert "failed with exit code" not in capture.err

@@ -5,7 +5,7 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.space.lib import PublishResult
+from bakelib.space.lib import PublishResult, PublishStatus
 from bakelib.space.python_lib import PythonLibSpace
 
 
@@ -48,6 +48,35 @@ class TestPythonLibSpace:
         result = subprocess.CompletedProcess(args=[], returncode=0, stderr="")
         assert space._is_auth_failure(result) is False
 
+    def test_is_already_exists_error_detects_already_exists_skipping(self):
+        """Case 1: returncode=0 with 'already exists, skipping' message."""
+        space = PythonLibSpace()
+        result = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stderr="File already exists, skipping upload",
+        )
+        assert space._is_already_exists_error(result) is True
+
+    def test_is_already_exists_error_detects_different_hash_error(self):
+        """Case 2: returncode!=0 with 'Local file and index file do not match' message."""
+        space = PythonLibSpace()
+        result = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stderr="Local file and index file do not match",
+        )
+        assert space._is_already_exists_error(result) is True
+
+    def test_is_already_exists_error_returns_false_for_other_errors(self):
+        space = PythonLibSpace()
+        result = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stderr="Some other error",
+        )
+        assert space._is_already_exists_error(result) is False
+
     def test_publish_runs_build_and_publish(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
@@ -88,9 +117,7 @@ class TestPublishResult:
     def test_publish_result_fields(self):
         result = PublishResult(
             result=None,
-            is_dry_run=False,
-            is_auth_failed=False,
+            status=PublishStatus.SUCCESS,
         )
         assert result.result is None
-        assert result.is_dry_run is False
-        assert result.is_auth_failed is False
+        assert result.status == PublishStatus.SUCCESS

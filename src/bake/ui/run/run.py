@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Literal, overload
 
 import typer
+from rich.text import Text
 
 from bake.ui import console
 from bake.ui.run.splitter import OutputSplitter
@@ -342,7 +343,9 @@ def run(
         **kwargs,
     )
 
-    _check_exit_code(result=result, check=check, cmd_str_for_display=cmd_str_for_display)
+    _check_exit_code(
+        result=result, check=check, cmd_str_for_display=cmd_str_for_display, stream=stream
+    )
 
     _log_completion(cmd_str_for_display=cmd_str_for_display, result=result, start=start)
     return result
@@ -400,6 +403,7 @@ def _check_exit_code(
     result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None],
     check: bool,
     cmd_str_for_display: str,
+    stream: bool = True,
 ) -> None:
     if check and result.returncode != 0:
         logger.debug(
@@ -410,6 +414,21 @@ def _check_exit_code(
                 "stderr": result.stderr,
             },
         )
+        # Show output if not streamed (user hasn't seen it)
+        if not stream:
+            if result.stderr:
+                console.err.print(result.stderr, end="")
+            elif result.stdout:
+                console.err.print(result.stdout, end="")
+            else:
+                # Truncate long commands with ellipsis
+                max_len = 50
+                if len(cmd_str_for_display) > max_len:
+                    truncated = cmd_str_for_display[: max_len - 3] + "..."
+                else:
+                    truncated = cmd_str_for_display
+                cmd_text = Text(truncated, no_wrap=True)
+                console.error(f"Command '{cmd_text}' failed with exit code {result.returncode}")
         raise typer.Exit(result.returncode)
 
 

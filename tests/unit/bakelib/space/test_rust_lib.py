@@ -7,7 +7,7 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.space.lib import PublishResult
+from bakelib.space.lib import PublishResult, PublishStatus
 from bakelib.space.rust_lib import CratesRegistry, RustLibSpace
 
 _CARGO_TOML_CONTENT = """\
@@ -103,7 +103,6 @@ class TestRustLibSpace:
     def test_publish_handles_version_already_exists(
         self,
         mock_ctx: Context,
-        capsys: pytest.CaptureFixture,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -116,7 +115,7 @@ class TestRustLibSpace:
 
         # Mock ctx.run to simulate cargo publish failing due to version already existing
         failed_result = subprocess.CompletedProcess(
-            args=["cargo", "publish", "--allow-dirty", "--dry-run"],
+            args=["cargo", "publish", "--allow-dirty"],
             returncode=1,
             stdout="",
             stderr=(
@@ -132,13 +131,11 @@ class TestRustLibSpace:
 
         monkeypatch.setattr(mock_ctx, "run", mock_run)
         with mock_ctx:
-            result = space._publish_with_token(token=None, registry="crates")
+            result = space._publish_with_token(token="test-token", registry="crates")
 
-        # Verify the result was converted to success (idempotent publish)
+        # Verify the result indicates already exists (idempotent publish)
         assert result.result is not None
-        assert result.result.returncode == 0
-        captured = capsys.readouterr()
-        assert "already exists on crates.io" in captured.out
+        assert result.status == PublishStatus.ALREADY_EXISTS
 
 
 class TestCratesRegistry:
@@ -151,9 +148,7 @@ class TestPublishResult:
     def test_publish_result_fields(self):
         result = PublishResult(
             result=None,
-            is_dry_run=False,
-            is_auth_failed=False,
+            status=PublishStatus.SUCCESS,
         )
         assert result.result is None
-        assert result.is_dry_run is False
-        assert result.is_auth_failed is False
+        assert result.status == PublishStatus.SUCCESS

@@ -19,6 +19,7 @@ else:
 class RustSpace(BaseSpace):
     def _get_mise_tools(self) -> set[str]:
         return super()._get_mise_tools() | {
+            "aqua:cargo-bins/cargo-binstall",
             "aqua:rust-lang/rustup",
             "cargo:cargo-audit",
             "cargo:cargo-tarpaulin",
@@ -30,6 +31,7 @@ class RustSpace(BaseSpace):
         tools["rustc"] = None
         tools["cargo"] = None
         tools["cargo-audit"] = None
+        tools["cargo-binstall"] = None
         tools["cargo-tarpaulin"] = None
         return tools
 
