@@ -12,6 +12,7 @@ from bake import command, console
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
 from .base import BaseSpace
+from .utils import print_subprocess_output
 
 
 class PublishStatus(Enum):
@@ -146,6 +147,10 @@ class BaseLibSpace(BaseSpace):
         if self.ctx.dry_run:
             return
 
+        returncode_display = (
+            publish_result.result.returncode if publish_result.result else "unknown"
+        )
+
         match publish_result.status:
             case PublishStatus.SUCCESS:
                 console.success("Publish succeeded!")
@@ -160,10 +165,15 @@ class BaseLibSpace(BaseSpace):
                 console.error("Authentication failed. Please check your publish token.")
                 raise typer.Exit(1)
             case PublishStatus.ERROR:
-                result = publish_result.result
-                returncode = result.returncode if result else "unknown"
-                console.error(f"Publish failed with unexpected error. Return code: {returncode}")
+                console.error(
+                    f"Publish failed with unexpected error. Return code: {returncode_display}"
+                )
+                print_subprocess_output(publish_result.result)
                 raise typer.Exit(1)
             case _:
-                console.error(f"Unexpected publish status: {publish_result.status}")
+                console.error(
+                    f"Unexpected publish status: {publish_result.status}. "
+                    f"Return code: {returncode_display}"
+                )
+                print_subprocess_output(publish_result.result)
                 raise typer.Exit(1)

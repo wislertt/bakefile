@@ -1,5 +1,6 @@
 import re
 import shutil
+import subprocess
 import sys
 from enum import Enum
 from pathlib import Path
@@ -9,6 +10,7 @@ import pathspec
 from pathspec.patterns.gitignore.basic import GitIgnoreBasicPattern
 
 from bake import Context, console
+from bake.ui.logger.capsys import strip_ansi
 
 
 class Platform(Enum):
@@ -129,3 +131,14 @@ def check_rust_version_matches_stable(ctx: Context):
         f"Current Rust version ({current}) differs from stable ({stable}). "
         f"Update rust-toolchain.toml to stable version."
     )
+
+
+def print_subprocess_output(result: subprocess.CompletedProcess[str] | None) -> None:
+    if not result:
+        return
+
+    if result.stdout:
+        console.err.print(f"[dim]stdout:[/dim] {strip_ansi(result.stdout)}")
+
+    if result.stderr:
+        console.err.print(f"[dim]stderr:[/dim] {strip_ansi(result.stderr)}")

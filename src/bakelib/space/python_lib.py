@@ -46,17 +46,16 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         return self._determine_publish_result(token=token, result=result)
 
     def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
-        # case 1
-        exist_error_message = "already exists, skipping"
-        exist = result.returncode == 0 and exist_error_message in result.stderr
+        # Success case (returncode == 0)
+        if result.returncode == 0 and "already exists, skipping" in result.stderr:
+            return True
 
-        # case 2
-        exist_with_different_hash_message = "Local file and index file do not match"
-        exist_with_different_hash = (
-            result.returncode != 0 and exist_with_different_hash_message in result.stderr
-        )
-
-        return exist_with_different_hash or exist
+        # Error cases (returncode != 0)
+        error_messages = [
+            "Local file and index file do not match",
+            "File already exists",
+        ]
+        return result.returncode != 0 and any(msg in result.stderr for msg in error_messages)
 
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_message = "403 Invalid or non-existent authentication information"

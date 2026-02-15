@@ -1613,15 +1613,15 @@ wheels = [
 
 [[package]]
 name = "zerv-version"
-version = "0.8.3"
+version = "0.8.4"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/33/c5ca4e2e7fa34be00f2360aa94f101b54ef0ded26d396aa3e36843c1168f/zerv_version-0.8.3-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:031ccad435c852d61c54c796aef37a476be902b647fa8a80e16bc0d4393c8c64", size = 2460019, upload-time = "2026-02-12T15:10:07.707Z" },
-    { url = "https://files.pythonhosted.org/packages/78/6c/8e81da118470547254aca56c923b0c12d34c3c41694754dbb5e8bc8c0fa4/zerv_version-0.8.3-py3-none-macosx_11_0_arm64.whl", hash = "sha256:9813bea5850b3ea50e413e400c068fcf3c64ff94894d86c05b79796d29cfe68e", size = 2370903, upload-time = "2026-02-12T15:11:23.168Z" },
-    { url = "https://files.pythonhosted.org/packages/3a/a4/aa2cc47b1978abf8880dd487cc1c0f08c6f60a59540a92018362d37cca50/zerv_version-0.8.3-py3-none-manylinux_2_39_aarch64.whl", hash = "sha256:05427949240d08eabe02e2005298f06277e73374293e6a733b4fee890a3c7986", size = 2483848, upload-time = "2026-02-12T15:10:30.49Z" },
-    { url = "https://files.pythonhosted.org/packages/7c/60/b36251ec042fa11747221144900032af6b0a391afea18144d2ecb1b61200/zerv_version-0.8.3-py3-none-manylinux_2_39_x86_64.whl", hash = "sha256:a950fc811eb60cb63ae8afe41f6508d7f327f2ad468e5864196f5d9d10566020", size = 2634023, upload-time = "2026-02-12T15:10:06.561Z" },
-    { url = "https://files.pythonhosted.org/packages/c0/fe/d791b2d1339c92c02e87cf08880bc272572f8fe7e92293ff086c5b58be47/zerv_version-0.8.3-py3-none-win_amd64.whl", hash = "sha256:8a562c87c911b4c9d1e955cd3b54766d30ff75623cb068897c581c6f63d4089e", size = 2418772, upload-time = "2026-02-12T15:12:10.341Z" },
-    { url = "https://files.pythonhosted.org/packages/02/21/0f35fd28e15ae9f7ebdbb64679c36655c76c370c1bb0ac5a874626f9d1c2/zerv_version-0.8.3-py3-none-win_arm64.whl", hash = "sha256:e105f49fcc324ee4d72c2329e0cf8cdbcfcd528c8c134c71c32493e74ef0230e", size = 2309597, upload-time = "2026-02-12T15:12:59.75Z" },
+    { url = "https://files.pythonhosted.org/packages/53/ea/8a9ea57c2072939dae44577da46111bb9caf9ef212562eedf24f39c01265/zerv_version-0.8.4-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:8f7c6eb777bf10b7fe54a99086e413632f183acd2fdee59b7341e1cfdb948aec", size = 2486513, upload-time = "2026-02-15T08:41:01.669Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/93/5208c7e546874faa37769ac3487cb4c3e0a71594938e2eee55d9ae03a375/zerv_version-0.8.4-py3-none-macosx_11_0_arm64.whl", hash = "sha256:3ba0cc72469cf3fe89c846d47e7412b072a19a2c7016ad56879fde49aef1632e", size = 2399289, upload-time = "2026-02-15T08:42:00.084Z" },
+    { url = "https://files.pythonhosted.org/packages/34/70/b98a490298449d5da8625c192f5c2aeb1f96e158cb391027aabf127d2d9c/zerv_version-0.8.4-py3-none-manylinux_2_39_aarch64.whl", hash = "sha256:7905ead05e9ef4d9cda1f1a753703cdd018a1c84e0581e1b4542058236f3edf2", size = 2513788, upload-time = "2026-02-15T08:42:05.266Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/39/4a5f3808187b7cc8b944cefd71b63f377f87959b4e9e1de820440761e604/zerv_version-0.8.4-py3-none-manylinux_2_39_x86_64.whl", hash = "sha256:b8e792b3d6282a5939e0aee8da57b81f514b8c3faf9fc219e4b94013f7a56eb7", size = 2659787, upload-time = "2026-02-15T08:40:05.617Z" },
+    { url = "https://files.pythonhosted.org/packages/53/0e/89a130d46a1a289c65c4c19b4a4ebdfb3c968c9e436412261377a3c3600d/zerv_version-0.8.4-py3-none-win_amd64.whl", hash = "sha256:6c5d6785c9c85196c84f5b2ee628723aa20acc101e5169708e8345eeb728176b", size = 2445916, upload-time = "2026-02-15T08:44:26.796Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/75/5ac7aeb6a1b6f9333a8b4f2840bd3f6995b1958a66fc5c61acd0c5540714/zerv_version-0.8.4-py3-none-win_arm64.whl", hash = "sha256:387bc92f80f52683f08b5f12f1990f292c9812dd4e6dd1ea67d0a17dfe0cf16a", size = 2338051, upload-time = "2026-02-15T08:44:40.939Z" },
 ]
 
 [[package]]

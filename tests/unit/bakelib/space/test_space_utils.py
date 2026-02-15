@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,7 @@ from bakelib.space.utils import (
     check_rust_version_matches_stable,
     get_platform,
     orjson_default,
+    print_subprocess_output,
     remove_git_clean_candidates,
 )
 
@@ -296,3 +298,46 @@ class TestCheckRustVersionMatchesStable:
         assert "custom-build" in output
         assert "another-build" in output
         assert "differs from stable" in output
+
+
+class TestPrintSubprocessOutput:
+    def test_returns_early_when_result_is_none(self, capsys: pytest.CaptureFixture) -> None:
+        print_subprocess_output(None)
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_prints_stdout(self, capsys: pytest.CaptureFixture) -> None:
+        result = subprocess.CompletedProcess(args=[], returncode=0, stdout="hello world", stderr="")
+        print_subprocess_output(result)
+        captured = capsys.readouterr()
+        assert "stdout:" in captured.err
+        assert "hello world" in captured.err
+
+    def test_prints_stderr(self, capsys: pytest.CaptureFixture) -> None:
+        result = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="error message"
+        )
+        print_subprocess_output(result)
+        captured = capsys.readouterr()
+        assert "stderr:" in captured.err
+        assert "error message" in captured.err
+
+    def test_prints_both_stdout_and_stderr(self, capsys: pytest.CaptureFixture) -> None:
+        result = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="some output", stderr="some error"
+        )
+        print_subprocess_output(result)
+        captured = capsys.readouterr()
+        assert "stdout:" in captured.err
+        assert "some output" in captured.err
+        assert "stderr:" in captured.err
+        assert "some error" in captured.err
+
+    def test_strips_ansi_codes(self, capsys: pytest.CaptureFixture) -> None:
+        result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr="\x1b[36mcolored\x1b[0m"
+        )
+        print_subprocess_output(result)
+        captured = capsys.readouterr()
+        assert "\x1b[36m" not in captured.err
+        assert "colored" in captured.err
