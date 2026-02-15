@@ -180,6 +180,39 @@ class TestBaseLibSpace:
             # Should not raise Exit because dry_run=True causes early return
             space._handle_publish_result(result)
 
+    def test_handle_publish_result_warns_on_already_exists(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+        exists_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=0, stdout="", stderr=""
+        )
+        result = PublishResult(result=exists_result, status=PublishStatus.ALREADY_EXISTS)
+
+        with mock_ctx:
+            space._handle_publish_result(result)
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.err)
+        assert "already exists" in output.lower()
+
+    def test_handle_publish_result_exits_on_unexpected_status(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = MinimalTestLibSpace()
+        mock_ctx.dry_run = False
+        other_result = subprocess.CompletedProcess(
+            args=["publish"], returncode=0, stdout="", stderr=""
+        )
+        result = PublishResult(result=other_result, status=PublishStatus.OTHER)
+
+        with pytest.raises(typer.Exit) as exc_info, mock_ctx:
+            space._handle_publish_result(result)
+        assert exc_info.value.exit_code == 1
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.err)
+        assert "unexpected publish status" in output.lower()
+
     def test_execute_publish_returns_result_on_success(
         self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -345,6 +378,65 @@ class TestBaseLibSpace:
 
         assert result.status == PublishStatus.AUTH_FAILED
         assert result.result is None
+
+
+class TestDeterminePublishResult:
+    """Tests for _determine_publish_result method."""
+
+    def test_returns_dry_run_when_token_is_none(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        with mock_ctx:
+            publish_result = space._determine_publish_result(token=None, result=result)
+
+        assert publish_result.status == PublishStatus.DRY_RUN
+
+    def test_returns_success_on_zero_returncode(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        with mock_ctx:
+            publish_result = space._determine_publish_result(token="test-token", result=result)
+
+        assert publish_result.status == PublishStatus.SUCCESS
+
+    def test_returns_auth_failed_when_is_auth_failure_true(self, mock_ctx: Context) -> None:
+        class AuthFailureSpace(MinimalTestLibSpace):
+            def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
+                _ = result
+                return True
+
+        space = AuthFailureSpace()
+        result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="auth error")
+
+        with mock_ctx:
+            publish_result = space._determine_publish_result(token="test-token", result=result)
+
+        assert publish_result.status == PublishStatus.AUTH_FAILED
+
+    def test_returns_error_on_nonzero_returncode(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="some error")
+
+        with mock_ctx:
+            publish_result = space._determine_publish_result(token="test-token", result=result)
+
+        assert publish_result.status == PublishStatus.ERROR
+
+    def test_returns_already_exists_when_is_already_exists_true(self, mock_ctx: Context) -> None:
+        class AlreadyExistsSpace(MinimalTestLibSpace):
+            def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+                _ = result
+                return True
+
+        space = AlreadyExistsSpace()
+        result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="exists")
+
+        with mock_ctx:
+            publish_result = space._determine_publish_result(token="test-token", result=result)
+
+        assert publish_result.status == PublishStatus.ALREADY_EXISTS
 
 
 class TestBaseLibSpaceSetupTools:

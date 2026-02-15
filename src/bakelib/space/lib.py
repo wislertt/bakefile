@@ -81,13 +81,11 @@ class BaseLibSpace(BaseSpace):
     @abstractmethod
     def _pre_publish_setup(self): ...
 
-    def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
-        _ = result
-        self._method_not_available("_is_auth_failure")
+    @abstractmethod
+    def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool: ...
 
-    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
-        _ = result
-        self._method_not_available("_is_already_exists_error")
+    @abstractmethod
+    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool: ...
 
     def _determine_publish_result(
         self, token: str | None, result: subprocess.CompletedProcess[str]
@@ -156,7 +154,7 @@ class BaseLibSpace(BaseSpace):
             case PublishStatus.DRY_RUN:
                 console.warning(
                     "This was a dry-run. To actually publish, "
-                    "set the BAKE_PUBLISH_TOKEN environment variable"
+                    "set the `BAKE_PUBLISH_TOKEN` environment variable"
                 )
             case PublishStatus.AUTH_FAILED:
                 console.error("Authentication failed. Please check your publish token.")
