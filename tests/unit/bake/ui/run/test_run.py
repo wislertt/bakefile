@@ -694,7 +694,7 @@ class TestCheckExitCodeStreamFalse:
         _ = capsys.readouterr()
 
         # Create a command that fails with stdout but no stderr
-        cmd = f"{sys.executable} -c \"import sys; print('output on stdout'); sys.exit(1)\""
+        cmd = [sys.executable, "-c", "import sys; print('output on stdout'); sys.exit(1)"]
 
         with pytest.raises(typer.Exit) as exc_info:
             run(cmd, check=True, stream=False, echo=False)
