@@ -17,6 +17,7 @@ from bake.bakebook.get import (
     get_bakebook_from_target_dir_path,
     resolve_bakefile_path,
 )
+from bake.manage.find_python import is_standalone_bakefile
 from bake.ui import console, setup_logging
 from bake.utils.constants import (
     DEFAULT_BAKEBOOK_NAME,
@@ -59,6 +60,12 @@ class BakefileObject:
 
     def __post_init__(self):
         validate_file_name(self.file_name)
+
+    @property
+    def is_standalone_bakefile(self) -> bool:
+        if self.bakefile_path is None:
+            return False
+        return is_standalone_bakefile(self.bakefile_path)
 
     def resolve_bakefile_path(self) -> Path | None:
         if self.bakefile_path is not None:

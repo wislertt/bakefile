@@ -384,3 +384,47 @@ class TestBakefileObjectSetupLogging:
         )
         obj.setup_logging()
         mock_setup_logging.assert_called_once()
+
+
+class TestBakefileObjectIsStandalone:
+    def test_is_standalone_bakefile_returns_false_when_path_is_none(self) -> None:
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+        )
+        assert obj.is_standalone_bakefile is False
+
+    @patch("bake.cli.common.obj.is_standalone_bakefile")
+    def test_is_standalone_bakefile_returns_true_for_standalone(
+        self, mock_is_standalone: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_is_standalone.return_value = True
+        bakefile_path = tmp_path / DEFAULT_FILE_NAME
+
+        obj = BakefileObject(
+            chdir=tmp_path,
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+            bakefile_path=bakefile_path,
+        )
+
+        assert obj.is_standalone_bakefile is True
+        mock_is_standalone.assert_called_once_with(bakefile_path)
+
+    @patch("bake.cli.common.obj.is_standalone_bakefile")
+    def test_is_standalone_bakefile_returns_false_for_non_standalone(
+        self, mock_is_standalone: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_is_standalone.return_value = False
+        bakefile_path = tmp_path / DEFAULT_FILE_NAME
+
+        obj = BakefileObject(
+            chdir=tmp_path,
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+            bakefile_path=bakefile_path,
+        )
+
+        assert obj.is_standalone_bakefile is False
+        mock_is_standalone.assert_called_once_with(bakefile_path)

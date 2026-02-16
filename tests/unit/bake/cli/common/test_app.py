@@ -16,7 +16,7 @@ from bake.cli.common.app import (
     rich_markup_mode,
     show_help_if_no_command,
 )
-from bake.cli.common.params import validate_file_name
+from bake.cli.common.params import validate_file_name, verbosity_callback
 from bake.utils.constants import DEFAULT_FILE_NAME
 
 
@@ -72,6 +72,23 @@ class TestValidateFileName:
         """validate_file_name should raise BadParameter for invalid file names."""
         with pytest.raises(typer.BadParameter):
             validate_file_name(file_name)
+
+
+class TestVerbosityCallback:
+    @pytest.mark.parametrize("value", [0, 1, 2])
+    def test_verbosity_callback_valid_values(self, value: int) -> None:
+        """verbosity_callback should return valid verbosity values unchanged."""
+        mock_ctx = MagicMock()
+        mock_param = MagicMock()
+        result = verbosity_callback(mock_ctx, mock_param, value)
+        assert result == value
+
+    def test_verbosity_callback_raises_for_value_over_2(self) -> None:
+        """verbosity_callback should raise BadParameter when value exceeds 2."""
+        mock_ctx = MagicMock()
+        mock_param = MagicMock()
+        with pytest.raises(typer.BadParameter, match="Maximum verbosity is -vv"):
+            verbosity_callback(mock_ctx, mock_param, 3)
 
 
 class TestChdir:

@@ -94,6 +94,8 @@ class BaseSpace(Bakebook):
             self.ctx.run(
                 f"uv run toml-sort --sort-inline-arrays --in-place --sort-table-keys {mise_toml}"
             )
+        if self.ctx.obj.is_standalone_bakefile:
+            self.ctx.run("bakefile lint")
 
     @command(help="Run unit tests")
     def test(self) -> None:
@@ -300,3 +302,6 @@ class BaseSpace(Bakebook):
         self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
         self.ctx.run("uv tool upgrade --all")
+        if self.ctx.obj.is_standalone_bakefile:
+            self.ctx.run("bakefile lock --upgrade")
+            self.ctx.run("bakefile sync")
