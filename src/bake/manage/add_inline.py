@@ -47,7 +47,7 @@ def add_inline_metadata(bakefile_path: Path) -> None:
         console.warning(f"{bakefile_path.name} already has PEP 723 metadata")
 
     run_uv(
-        ["add", "bakefile", "--script", str(bakefile_path.name)],
+        ["add", "bakefile[lib]", "--script", str(bakefile_path.name)],
         cwd=bakefile_path.parent,
         echo=False,
     )

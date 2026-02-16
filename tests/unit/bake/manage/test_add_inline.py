@@ -23,7 +23,7 @@ def test_add_inline_to_existing_bakefile(empty_project_folder_no_inline: Path) -
     assert dependencies in metadata
     assert isinstance(metadata[dependencies], list)
     assert isinstance(metadata[dependencies][0], str)
-    assert metadata[dependencies][0].startswith("bakefile>=")
+    assert metadata[dependencies][0].startswith("bakefile[lib]>=")
 
 
 def test_add_inline_raises_error_when_bakefile_not_found(tmp_path: Path) -> None:

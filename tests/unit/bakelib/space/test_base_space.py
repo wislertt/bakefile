@@ -1,6 +1,6 @@
 from contextlib import suppress
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 import typer
@@ -262,3 +262,95 @@ class TestSetupDev:
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
         assert "dry-run mode" in err.lower()
+
+
+class TestLint:
+    def test_lint_runs_bakefile_lint_when_standalone(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_ctx.dry_run = True
+
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> None:
+            run_calls.append(cmd)
+
+        with (
+            mock_ctx,
+            patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(
+                type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
+            ) as mock_prop,
+        ):
+            mock_prop.return_value = True
+            base_space.lint()
+
+        assert "bakefile lint" in run_calls
+
+    def test_lint_skips_bakefile_lint_when_not_standalone(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_ctx.dry_run = True
+
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> None:
+            run_calls.append(cmd)
+
+        with (
+            mock_ctx,
+            patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(
+                type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
+            ) as mock_prop,
+        ):
+            mock_prop.return_value = False
+            base_space.lint()
+
+        assert "bakefile lint" not in run_calls
+
+
+class TestUpdate:
+    def test_update_runs_bakefile_commands_when_standalone(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_ctx.dry_run = True
+
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> None:
+            run_calls.append(cmd)
+
+        with (
+            mock_ctx,
+            patch("bakelib.space.base.get_platform", return_value="linux"),
+            patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(
+                type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
+            ) as mock_prop,
+        ):
+            mock_prop.return_value = True
+            base_space.update()
+
+        assert "bakefile lock --upgrade" in run_calls
+        assert "bakefile sync" in run_calls
+
+    def test_update_skips_bakefile_commands_when_not_standalone(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_ctx.dry_run = True
+
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> None:
+            run_calls.append(cmd)
+
+        with (
+            mock_ctx,
+            patch("bakelib.space.base.get_platform", return_value="linux"),
+            patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(
+                type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
+            ) as mock_prop,
+        ):
+            mock_prop.return_value = False
+            base_space.update()
+
+        assert "bakefile lock --upgrade" not in run_calls
+        assert "bakefile sync" not in run_calls
