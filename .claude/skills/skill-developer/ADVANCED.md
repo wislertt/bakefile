@@ -172,7 +172,7 @@ Ideas and concepts for future improvements to the skill system.
 
 ## Skill Testing Framework
 
-**Current State:** Manual testing with npx tsx commands
+**Current State:** Manual testing with bunx tsx commands
 
 **Future Enhancement:** Automated skill testing
 

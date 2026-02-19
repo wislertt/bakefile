@@ -642,20 +642,24 @@ run("echo hello && echo world")
 
 # List for direct execution (shell=False)
 run(["echo", "hello"])
+
+# With timeout (raises subprocess.TimeoutExpired if exceeded)
+run("rustup update", timeout=60)
 ```
 
 **Parameters:**
 
-| Parameter        | Type                  | Default  | Description                       |
-| ---------------- | --------------------- | -------- | --------------------------------- |
-| `cmd`            | `str \| list[str]`    | required | Command as string or list         |
-| `echo`           | `bool`                | `True`   | Display command before execution  |
-| `dry_run`        | `bool`                | `False`  | Skip execution, return success    |
-| `capture_output` | `bool`                | `True`   | Capture stdout/stderr             |
-| `check`          | `bool`                | `True`   | Raise `typer.Exit` on non-zero    |
-| `cwd`            | `Path \| str \| None` | `None`   | Working directory                 |
-| `stream`         | `bool`                | `True`   | Stream output in real-time        |
-| `shell`          | `bool \| None`        | `None`   | Auto-detect: str→True, list→False |
+| Parameter        | Type                  | Default  | Description                                             |
+| ---------------- | --------------------- | -------- | ------------------------------------------------------- |
+| `cmd`            | `str \| list[str]`    | required | Command as string or list                               |
+| `echo`           | `bool`                | `True`   | Display command before execution                        |
+| `dry_run`        | `bool`                | `False`  | Skip execution, return success                          |
+| `capture_output` | `bool`                | `True`   | Capture stdout/stderr                                   |
+| `check`          | `bool`                | `True`   | Raise `typer.Exit` on non-zero                          |
+| `cwd`            | `Path \| str \| None` | `None`   | Working directory                                       |
+| `stream`         | `bool`                | `True`   | Stream output in real-time                              |
+| `shell`          | `bool \| None`        | `None`   | Auto-detect: str→True, list→False                       |
+| `timeout`        | `float \| None`       | `None`   | Timeout in seconds (raises `subprocess.TimeoutExpired`) |
 
 **Key behaviors:**
 
@@ -663,6 +667,7 @@ run(["echo", "hello"])
 - List/tuple commands use `shell=False` for safer direct execution
 - On Unix, uses PTY to preserve ANSI color codes
 - `echo` and `dry_run` are independent (no auto-coupling)
+- `timeout` kills the process tree on expiry (uses `taskkill /F /T` on Windows, `proc.kill()` on Unix)
 
 #### `run_script()` - Execute Shell Scripts
 
@@ -700,6 +705,7 @@ run_script("Deploy", "...", dry_run=True)
 | `check`          | `bool`                | `True`   | Raise `typer.Exit` on non-zero |
 | `cwd`            | `Path \| str \| None` | `None`   | Working directory              |
 | `stream`         | `bool`                | `True`   | Stream output in real-time     |
+| `timeout`        | `float \| None`       | `None`   | Timeout in seconds             |
 
 **Key behaviors:**
 
