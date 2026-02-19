@@ -29,7 +29,7 @@ class MyBakebook(PythonLibSpace):
     def _update_hooks(self) -> None:
         hooks_dir = Path(".claude/hooks")
         console.start(f"Updating {hooks_dir}")
-        self.ctx.run("npm update", cwd=hooks_dir)
+        self.ctx.run("bun update", cwd=hooks_dir)
 
     @command()
     def uvx_install_bake_local(

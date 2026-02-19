@@ -273,14 +273,15 @@ class BaseSpace(Bakebook):
     @command(help="Assert development environment setup")
     def assert_setup_dev(
         self,
-        skip_test: Annotated[
-            bool,
+        fast: Annotated[
+            int,
             typer.Option(
-                "--skip-test",
-                "-s",
-                help="Skip running tests",
+                "--fast",
+                "-f",
+                count=True,
+                help="Skip steps: -f skips tests, -ff skips tests and lint",
             ),
-        ] = False,
+        ] = 0,
     ) -> None:
         tools = self._get_required_cli_tools()
         if tools:
@@ -288,9 +289,10 @@ class BaseSpace(Bakebook):
         for tool_name, tool_paths in tools.items():
             self._assert_which_path(tool_name, tool_paths)
 
-        console.start("Linting")
-        self.lint()
-        if not skip_test:
+        if fast < 2:
+            console.start("Linting")
+            self.lint()
+        if fast < 1:
             console.start("Testing")
             self.test()
 
