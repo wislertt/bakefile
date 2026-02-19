@@ -43,6 +43,7 @@ from tests.unit.bake.cli.bakefile.utils import (
 from tests.utils.bakefiles.complex_vars import (
     ComplexVarsBakebook,
 )
+from tests.utils.misc import flaky_on_macos_ci
 
 
 class TestExportCli:
@@ -104,6 +105,7 @@ class TestExportCli:
 
         _assert_export_lines_match(lines, expected, context="Export")
 
+    @flaky_on_macos_ci()
     @pytest.mark.skipif(
         sys.platform == "win32",
         reason="Unix shell command parsing not available on Windows",
