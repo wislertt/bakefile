@@ -1,9 +1,12 @@
 import re
+import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import zerv
+from tenacity import retry, retry_if_exception_type, stop_after_attempt
 
 from bake import console
 
@@ -14,6 +17,23 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib  # type: ignore[import-not-found]
+
+
+def run_rustup_update(
+    run_fn: Callable[..., subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]],
+    timeout: float = 60,
+    max_attempts: int = 5,
+) -> None:
+
+    @retry(
+        stop=stop_after_attempt(max_attempts),
+        retry=retry_if_exception_type(subprocess.TimeoutExpired),
+        reraise=True,
+    )
+    def _run():
+        run_fn("rustup update", timeout=timeout)
+
+    _run()
 
 
 class RustSpace(BaseSpace):
@@ -38,7 +58,7 @@ class RustSpace(BaseSpace):
 
     def setup_tools(self) -> None:
         super().setup_tools()
-        self.ctx.run("rustup update")
+        run_rustup_update(self.ctx.run)
         self.ctx.run("rustup install stable")
 
     def lint(self) -> None:
@@ -51,7 +71,7 @@ class RustSpace(BaseSpace):
 
     def update(self) -> None:
         super().update()
-        self.ctx.run("rustup update")
+        run_rustup_update(self.ctx.run)
         self.ctx.run("cargo update")
         check_rust_version_matches_stable(self.ctx)
 
