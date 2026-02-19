@@ -564,7 +564,10 @@ bakebook = MyBakebook()
 ```python
 # Run commands
 self.ctx.run("cargo test")
-self.ctx.run("npm install", check=False)
+self.ctx.run("bun install", check=False)
+
+# With timeout (raises subprocess.TimeoutExpired if exceeded)
+self.ctx.run("rustup update", timeout=60)
 
 # Dry run mode
 if self.ctx.dry_run:
@@ -766,7 +769,7 @@ setup_logging(
 
 ### Single Cache Step (Fast Dependencies)
 
-For dependencies that are quick to reinstall (Python venv, npm):
+For dependencies that are quick to reinstall (Python venv, bun):
 
 **Use step-level env vars to reduce repetition and keep lines short:**
 
@@ -871,7 +874,7 @@ jobs:
 | Rust cargo   | ✅ Yes     | Compilation is expensive - save partial progress |
 | Large builds | ✅ Yes     | Don't waste hours of build time                  |
 | Python venv  | ❌ No      | `uv sync` is fast enough                         |
-| npm deps     | ❌ No      | `npm install` is relatively fast                 |
+| bun deps     | ❌ No      | `bun install` is relatively fast                 |
 
 ### Cache Step Placement
 

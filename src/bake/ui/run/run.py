@@ -70,6 +70,7 @@ def _run_with_temp_file(
     stream: bool,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     echo_cmd: str | None = None,
     **kwargs,
@@ -144,6 +145,7 @@ def _run_with_temp_file(
             echo=False,
             echo_cmd=echo_cmd,
             env=env,
+            timeout=timeout,
             _encoding=_encoding,
             **kwargs,
         )
@@ -172,6 +174,7 @@ def run(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
@@ -191,6 +194,7 @@ def run(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
@@ -209,6 +213,7 @@ def run(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -256,6 +261,10 @@ def run(
         Environment variables for the subprocess. Merged with system environment
         to preserve critical variables like SYSTEMROOT on Windows. User-provided
         variables override defaults. Default is None (use system environment).
+    timeout : float | None, optional
+        Maximum time in seconds to wait for the command to complete.
+        If the command exceeds this time, it will be killed and
+        subprocess.TimeoutExpired will be raised. Default is None (no timeout).
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -269,6 +278,8 @@ def run(
     ------
     typer.Exit
         When check=True and command returns non-zero exit code.
+    subprocess.TimeoutExpired
+        When timeout is exceeded.
 
     Examples
     --------
@@ -279,6 +290,7 @@ def run(
     >>> run("ls *.py | wc -l")                # Pipes and wildcards
     >>> run(["echo", "hello"])                # List for direct execution
     >>> run("/path/to/binary arg", echo_cmd="binary arg")  # Override display
+    >>> run("slow-command", timeout=30)       # Timeout after 30 seconds
     """
     _validate_params(stream=stream, capture_output=capture_output)
     shell = _detect_shell(cmd=cmd, shell=shell)
@@ -319,6 +331,7 @@ def run(
             stream=stream,
             keep_temp_file=keep_temp_file,
             env=env,
+            timeout=timeout,
             _encoding=_encoding,
             echo_cmd=echo_cmd,
             **kwargs,
@@ -339,6 +352,7 @@ def run(
         cwd=cwd,
         capture_output=capture_output,
         env=env,
+        timeout=timeout,
         _encoding=_encoding,
         **kwargs,
     )
@@ -562,6 +576,7 @@ def _run_with_stream(
     cwd: Path | str | None,
     capture_output: bool,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -579,10 +594,37 @@ def _run_with_stream(
         **kwargs,
     )
 
-    setup.proc.wait()
+    try:
+        setup.proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_process_tree(setup.proc)
+        setup.proc.wait()
+        setup.splitter.finalize(setup.threads)
+        raise
+
     setup.splitter.finalize(setup.threads)
 
     return _process_stream_output(setup.splitter, setup.proc, cmd, capture_output)
+
+
+def _kill_process_tree(proc: subprocess.Popen) -> None:
+    """Kill a process and all its children (cross-platform)."""
+    if sys.platform == "win32":
+        # On Windows, proc.kill() only kills the parent, not children.
+        # Use taskkill to kill the entire process tree.
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=5,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            proc.kill()
+    else:
+        # On Unix, proc.kill() sends SIGKILL to the process.
+        # For shell commands, this kills the shell but children may survive.
+        # To fully kill the tree, the process would need start_new_session=True.
+        proc.kill()
 
 
 def _run_without_stream(
@@ -591,6 +633,7 @@ def _run_without_stream(
     cwd: Path | str | None,
     capture_output: bool,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -608,6 +651,7 @@ def _run_without_stream(
             env=env,
             encoding=_encoding,
             errors="replace",
+            timeout=timeout,
             **kwargs,
         )
     else:
@@ -619,6 +663,7 @@ def _run_without_stream(
             check=False,
             shell=shell,
             env=env,
+            timeout=timeout,
             **kwargs,
         )
 

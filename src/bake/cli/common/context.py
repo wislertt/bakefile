@@ -61,6 +61,7 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[str]: ...
 
@@ -79,6 +80,7 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[None]: ...
 
@@ -96,6 +98,7 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
         _encoding: str | None = None,
         **kwargs,
     ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -111,6 +114,7 @@ class Context(typer.Context):
             dry_run=self.obj.dry_run if dry_run is None else dry_run,
             keep_temp_file=keep_temp_file,
             env=env,
+            timeout=timeout,
             _encoding=_encoding,
             **kwargs,
         )

@@ -118,7 +118,7 @@ Test the hook manually:
 
 ```bash
 echo '{"session_id":"debug","prompt":"your test prompt here"}' | \
-  npx tsx .claude/hooks/skill-activation-prompt.ts
+  bunx tsx .claude/hooks/skill-activation-prompt.ts
 ```
 
 Expected: Your skill should appear in the output.
@@ -262,7 +262,7 @@ unset SKIP_DB_VERIFICATION
 Test the hook manually:
 
 ```bash
-cat <<'EOF' | npx tsx .claude/hooks/skill-verification-guard.ts 2>&1
+cat <<'EOF' | bunx tsx .claude/hooks/skill-verification-guard.ts 2>&1
 {
   "session_id": "debug",
   "tool_name": "Edit",
@@ -453,12 +453,12 @@ Expected: `#!/bin/bash`
 
 **Fix:** Add correct shebang to first line
 
-### 4. npx/tsx Not Available
+### 4. bunx/tsx Not Available
 
 **Check:**
 
 ```bash
-npx tsx --version
+bunx tsx --version
 ```
 
 Expected: Version number
@@ -467,7 +467,7 @@ Expected: Version number
 
 ```bash
 cd .claude/hooks
-npm install
+bun install
 ```
 
 ### 5. TypeScript Compilation Error
@@ -476,7 +476,7 @@ npm install
 
 ```bash
 cd .claude/hooks
-npx tsc --noEmit skill-activation-prompt.ts
+bunx tsc --noEmit skill-activation-prompt.ts
 ```
 
 Expected: No output (no errors)
@@ -552,10 +552,10 @@ Content pattern matching reads entire file - slow for large files.
 
 ```bash
 # UserPromptSubmit
-time echo '{"prompt":"test"}' | npx tsx .claude/hooks/skill-activation-prompt.ts
+time echo '{"prompt":"test"}' | bunx tsx .claude/hooks/skill-activation-prompt.ts
 
 # PreToolUse
-time cat <<'EOF' | npx tsx .claude/hooks/skill-verification-guard.ts
+time cat <<'EOF' | bunx tsx .claude/hooks/skill-verification-guard.ts
 {"tool_name":"Edit","tool_input":{"file_path":"test.ts"}}
 EOF
 ```

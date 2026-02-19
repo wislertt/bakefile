@@ -26,6 +26,14 @@ bake test-all          # Run all tests with coverage
 bake lint              # Run linters and formatters
 ```
 
+**Development setup commands:**
+
+```bash
+bake setup-dev         # Setup development environment (tools, pre-commit, etc.)
+bake assert-setup-dev  # Verify dev environment is properly configured
+bake update            # Update dependencies (project + examples + hooks)
+```
+
 **Verification workflow:**
 
 1. Make changes
@@ -81,7 +89,7 @@ bakefile.py      # Example bakefile
 - Use mocks to avoid subprocess calls
 - Test individual functions and classes in isolation
 - Run with `bake test` (completes in ~50 seconds)
-- 824 tests currently
+- ~1500 tests currently
 
 **Integration Tests (`tests/integration/`)** - Slow, real-world tests
 

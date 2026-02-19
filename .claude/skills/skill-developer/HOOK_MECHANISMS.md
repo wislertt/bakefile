@@ -23,7 +23,7 @@ User submits prompt
     ↓
 skill-activation-prompt.sh executes
     ↓
-npx tsx skill-activation-prompt.ts
+bunx tsx skill-activation-prompt.ts
     ↓
 Hook reads stdin (JSON with prompt)
     ↓
@@ -90,7 +90,7 @@ Claude calls Edit/Write tool
     ↓
 skill-verification-guard.sh executes
     ↓
-npx tsx skill-verification-guard.ts
+bunx tsx skill-verification-guard.ts
     ↓
 Hook reads stdin (JSON with tool_name, tool_input)
     ↓

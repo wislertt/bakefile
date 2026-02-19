@@ -179,13 +179,13 @@ See [SKILL_RULES_REFERENCE.md](SKILL_RULES_REFERENCE.md) for complete schema.
 
 ```bash
 echo '{"session_id":"test","prompt":"your test prompt"}' | \
-  npx tsx .claude/hooks/skill-activation-prompt.ts
+  bunx tsx .claude/hooks/skill-activation-prompt.ts
 ```
 
 **Test PreToolUse:**
 
 ```bash
-cat <<'EOF' | npx tsx .claude/hooks/skill-verification-guard.ts
+cat <<'EOF' | bunx tsx .claude/hooks/skill-verification-guard.ts
 {"session_id":"test","tool_name":"Edit","tool_input":{"file_path":"test.ts"}}
 EOF
 ```
@@ -386,7 +386,7 @@ Future enhancements and ideas:
 
 1. Create `.claude/skills/{name}/SKILL.md` with frontmatter
 2. Add entry to `.claude/skills/skill-rules.json`
-3. Test with `npx tsx` commands
+3. Test with `bunx tsx` commands
 4. Refine patterns based on testing
 5. Keep SKILL.md under 500 lines
 
@@ -427,10 +427,10 @@ Test hooks manually:
 
 ```bash
 # UserPromptSubmit
-echo '{"prompt":"test"}' | npx tsx .claude/hooks/skill-activation-prompt.ts
+echo '{"prompt":"test"}' | bunx tsx .claude/hooks/skill-activation-prompt.ts
 
 # PreToolUse
-cat <<'EOF' | npx tsx .claude/hooks/skill-verification-guard.ts
+cat <<'EOF' | bunx tsx .claude/hooks/skill-verification-guard.ts
 {"tool_name":"Edit","tool_input":{"file_path":"test.ts"}}
 EOF
 ```

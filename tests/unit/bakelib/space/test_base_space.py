@@ -225,17 +225,18 @@ class TestAssertWhichPath:
 
 
 class TestAssertSetupDev:
-    def test_assert_setup_dev_with_skip_test_true(self, mock_ctx: Context) -> None:
+    def test_assert_setup_dev_with_fast_1_skips_test(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
         mock_result = MagicMock()
         mock_result.stdout = "/usr/bin/test"
 
         with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
             mock_ctx.dry_run = True
-            with patch.object(type(base_space), "lint"):
-                base_space.assert_setup_dev(skip_test=True)
+            with patch.object(type(base_space), "lint") as mock_lint:
+                base_space.assert_setup_dev(fast=1)
+                mock_lint.assert_called_once()
 
-    def test_assert_setup_dev_with_skip_test_false_calls_test(self, mock_ctx: Context) -> None:
+    def test_assert_setup_dev_with_fast_0_runs_all(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
         mock_result = MagicMock()
         mock_result.stdout = "/usr/bin/test"
@@ -243,11 +244,28 @@ class TestAssertSetupDev:
         with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
             mock_ctx.dry_run = True
             with (
-                patch.object(type(base_space), "lint"),
-                patch.object(type(base_space), "test"),
+                patch.object(type(base_space), "lint") as mock_lint,
+                patch.object(type(base_space), "test") as mock_test,
                 suppress(typer.Exit),
             ):
-                base_space.assert_setup_dev(skip_test=False)
+                base_space.assert_setup_dev(fast=0)
+                mock_lint.assert_called_once()
+                mock_test.assert_called_once()
+
+    def test_assert_setup_dev_with_fast_2_skips_test_and_lint(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_result = MagicMock()
+        mock_result.stdout = "/usr/bin/test"
+
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=mock_result):
+            mock_ctx.dry_run = True
+            with (
+                patch.object(type(base_space), "lint") as mock_lint,
+                patch.object(type(base_space), "test") as mock_test,
+            ):
+                base_space.assert_setup_dev(fast=2)
+                mock_lint.assert_not_called()
+                mock_test.assert_not_called()
 
 
 class TestSetupDev:

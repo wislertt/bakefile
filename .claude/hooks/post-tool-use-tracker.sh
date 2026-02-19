@@ -93,15 +93,17 @@ get_build_command() {
     # Check if package.json exists and has a build script
     if [[ -f "$repo_path/package.json" ]]; then
         if grep -q '"build"' "$repo_path/package.json" 2>/dev/null; then
-            # Detect package manager (prefer pnpm, then npm, then yarn)
-            if [[ -f "$repo_path/pnpm-lock.yaml" ]]; then
+            # Detect package manager (prefer bun, then pnpm, then npm, then yarn)
+            if [[ -f "$repo_path/bun.lockb" ]] || [[ -f "$repo_path/bun.lock" ]]; then
+                echo "cd $repo_path && bun run build"
+            elif [[ -f "$repo_path/pnpm-lock.yaml" ]]; then
                 echo "cd $repo_path && pnpm build"
             elif [[ -f "$repo_path/package-lock.json" ]]; then
                 echo "cd $repo_path && npm run build"
             elif [[ -f "$repo_path/yarn.lock" ]]; then
                 echo "cd $repo_path && yarn build"
             else
-                echo "cd $repo_path && npm run build"
+                echo "cd $repo_path && bun run build"
             fi
             return
         fi
@@ -110,7 +112,7 @@ get_build_command() {
     # Special case for database with Prisma
     if [[ "$repo" == "database" ]] || [[ "$repo" =~ prisma ]]; then
         if [[ -f "$repo_path/schema.prisma" ]] || [[ -f "$repo_path/prisma/schema.prisma" ]]; then
-            echo "cd $repo_path && npx prisma generate"
+            echo "cd $repo_path && bunx prisma generate"
             return
         fi
     fi
@@ -129,9 +131,9 @@ get_tsc_command() {
     if [[ -f "$repo_path/tsconfig.json" ]]; then
         # Check for Vite/React-specific tsconfig
         if [[ -f "$repo_path/tsconfig.app.json" ]]; then
-            echo "cd $repo_path && npx tsc --project tsconfig.app.json --noEmit"
+            echo "cd $repo_path && bunx tsc --project tsconfig.app.json --noEmit"
         else
-            echo "cd $repo_path && npx tsc --noEmit"
+            echo "cd $repo_path && bunx tsc --noEmit"
         fi
         return
     fi

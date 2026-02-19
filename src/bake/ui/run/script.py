@@ -20,6 +20,7 @@ def run_script(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
     """Run a multi-line script with shebang support.
@@ -70,5 +71,6 @@ def run_script(
         shell=True,
         keep_temp_file=keep_temp_file,
         env=env,
+        timeout=timeout,
         **kwargs,
     )

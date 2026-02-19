@@ -1,5 +1,7 @@
+import inspect
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -16,6 +18,8 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
+from bake.ui.run import run as run_fn
+from bake.ui.run import run_script, run_uv
 from tests.utils.misc import flaky_on_macos_ci
 
 
@@ -780,3 +784,108 @@ class TestCheckExitCodeStreamFalse:
         assert "nonexistent_path_xyz" in capture.err
         # Should not have the generic error message
         assert "failed with exit code" not in capture.err
+
+
+# ============================================================================
+# Timeout Tests
+# ============================================================================
+
+
+class TestTimeout:
+    """Tests for the timeout parameter."""
+
+    @pytest.mark.parametrize("stream", [True, False])
+    def test_timeout_raises_timeout_expired(self, stream: bool) -> None:
+        """TimeoutExpired is raised when command exceeds timeout."""
+        # sleep 10 should exceed 0.1 second timeout
+        with pytest.raises(subprocess.TimeoutExpired):
+            run("sleep 10", timeout=0.1, stream=stream, echo=False)
+
+    @flaky_on_macos_ci()
+    @pytest.mark.parametrize("stream", [True, False])
+    def test_timeout_completes_within_limit(self, stream: bool) -> None:
+        """Command completes successfully when within timeout."""
+        result = run(["echo", "fast"], timeout=5.0, stream=stream, echo=False)
+
+        assert result.returncode == 0
+        assert "fast" in result.stdout
+
+    @pytest.mark.parametrize("stream", [True, False])
+    def test_timeout_none_waits_indefinitely(self, stream: bool) -> None:
+        """timeout=None (default) waits for command to complete."""
+        # This should complete, not raise timeout
+        result = run(["echo", "no timeout"], timeout=None, stream=stream, echo=False)
+
+        assert result.returncode == 0
+        assert "no timeout" in result.stdout
+
+    def test_timeout_stream_shows_output_before_timeout(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When streaming with timeout, output is shown before timeout occurs."""
+        _ = capsys.readouterr()
+
+        # Command that outputs before sleeping
+        cmd = 'echo "before timeout" && sleep 10'
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            run(cmd, timeout=0.5, stream=True, echo=False)
+
+        capture = capsys.readouterr()
+        # Output should have been streamed before timeout
+        assert "before timeout" in capture.out
+
+    def test_timeout_kills_process(self) -> None:
+        """Timed out process is killed (not left running)."""
+        import time
+
+        # Use a long-running command
+        start = time.perf_counter()
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            run("sleep 60", timeout=0.2, stream=True, echo=False)
+
+        elapsed = time.perf_counter() - start
+
+        # If process wasn't killed, this would take ~60 seconds
+        # With kill, it should be near the timeout value
+        assert elapsed < 2.0, f"Process may not have been killed, elapsed={elapsed}s"
+
+
+# ============================================================================
+# Signature Compatibility Tests
+# ============================================================================
+
+
+class TestSignatureCompatibility:
+    """Tests to ensure run wrappers have compatible signatures with run()."""
+
+    def test_run_script_has_common_params(self) -> None:
+        """run_script should have all common params from run()."""
+        excluded = {
+            "cmd",  # uses 'script' instead
+            "shell",  # always uses shell=True
+            "echo_cmd",  # handles its own display
+            "_encoding",  # private param
+        }
+        run_params = set(inspect.signature(run_fn).parameters.keys())
+        script_params = set(inspect.signature(run_script).parameters.keys())
+        expected = run_params - excluded
+
+        missing = expected - script_params
+        assert not missing, f"run_script missing params: {missing}"
+
+    def test_run_uv_has_common_params(self) -> None:
+        """run_uv should have all common params from run()."""
+        excluded = {
+            "cmd",  # constructs its own from uv_bin + args
+            "shell",  # always uses shell=False
+            "echo_cmd",  # handles its own display
+            "_encoding",  # private param
+        }
+        run_params = set(inspect.signature(run_fn).parameters.keys())
+        uv_params = set(inspect.signature(run_uv).parameters.keys())
+        expected = run_params - excluded
+
+        missing = expected - uv_params
+        assert not missing, f"run_uv missing params: {missing}"
