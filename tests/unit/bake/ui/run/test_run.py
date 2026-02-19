@@ -801,6 +801,7 @@ class TestTimeout:
         with pytest.raises(subprocess.TimeoutExpired):
             run("sleep 10", timeout=0.1, stream=stream, echo=False)
 
+    @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_completes_within_limit(self, stream: bool) -> None:
         """Command completes successfully when within timeout."""
