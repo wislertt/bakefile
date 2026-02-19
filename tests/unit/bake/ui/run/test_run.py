@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import subprocess
@@ -17,6 +18,8 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
+from bake.ui.run import run as run_fn
+from bake.ui.run import run_script, run_uv
 from tests.utils.misc import flaky_on_macos_ci
 
 
@@ -846,3 +849,42 @@ class TestTimeout:
         # If process wasn't killed, this would take ~60 seconds
         # With kill, it should be near the timeout value
         assert elapsed < 2.0, f"Process may not have been killed, elapsed={elapsed}s"
+
+
+# ============================================================================
+# Signature Compatibility Tests
+# ============================================================================
+
+
+class TestSignatureCompatibility:
+    """Tests to ensure run wrappers have compatible signatures with run()."""
+
+    def test_run_script_has_common_params(self) -> None:
+        """run_script should have all common params from run()."""
+        excluded = {
+            "cmd",  # uses 'script' instead
+            "shell",  # always uses shell=True
+            "echo_cmd",  # handles its own display
+            "_encoding",  # private param
+        }
+        run_params = set(inspect.signature(run_fn).parameters.keys())
+        script_params = set(inspect.signature(run_script).parameters.keys())
+        expected = run_params - excluded
+
+        missing = expected - script_params
+        assert not missing, f"run_script missing params: {missing}"
+
+    def test_run_uv_has_common_params(self) -> None:
+        """run_uv should have all common params from run()."""
+        excluded = {
+            "cmd",  # constructs its own from uv_bin + args
+            "shell",  # always uses shell=False
+            "echo_cmd",  # handles its own display
+            "_encoding",  # private param
+        }
+        run_params = set(inspect.signature(run_fn).parameters.keys())
+        uv_params = set(inspect.signature(run_uv).parameters.keys())
+        expected = run_params - excluded
+
+        missing = expected - uv_params
+        assert not missing, f"run_uv missing params: {missing}"

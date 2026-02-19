@@ -597,7 +597,7 @@ def _run_with_stream(
     try:
         setup.proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        setup.proc.kill()
+        _kill_process_tree(setup.proc)
         setup.proc.wait()
         setup.splitter.finalize(setup.threads)
         raise
@@ -605,6 +605,26 @@ def _run_with_stream(
     setup.splitter.finalize(setup.threads)
 
     return _process_stream_output(setup.splitter, setup.proc, cmd, capture_output)
+
+
+def _kill_process_tree(proc: subprocess.Popen) -> None:
+    """Kill a process and all its children (cross-platform)."""
+    if sys.platform == "win32":
+        # On Windows, proc.kill() only kills the parent, not children.
+        # Use taskkill to kill the entire process tree.
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=5,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            proc.kill()
+    else:
+        # On Unix, proc.kill() sends SIGKILL to the process.
+        # For shell commands, this kills the shell but children may survive.
+        # To fully kill the tree, the process would need start_new_session=True.
+        proc.kill()
 
 
 def _run_without_stream(

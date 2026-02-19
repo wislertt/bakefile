@@ -20,6 +20,7 @@ def run_uv(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str]: ...
@@ -37,6 +38,7 @@ def run_uv(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[None]: ...
@@ -53,6 +55,7 @@ def run_uv(
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
@@ -70,6 +73,7 @@ def run_uv(
         dry_run=dry_run,
         keep_temp_file=keep_temp_file,
         env=env,
+        timeout=timeout,
         _encoding=_encoding,
         **kwargs,
     )
