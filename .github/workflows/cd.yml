@@ -70,4 +70,6 @@ jobs:
             python_version: "3.14"
             registry: test-pypi
         secrets:
-            PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+            # skip test pypi bug for version 0.1.0 and 0.0.30
+            # PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+            PYPI_API_TOKEN: ""
