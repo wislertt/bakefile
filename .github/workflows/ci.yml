@@ -61,5 +61,6 @@ jobs:
             version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}
             python_version: "3.14"
             registry: test-pypi
+            allow_fail: true # test-pypi is unreliable
         secrets:
             PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
