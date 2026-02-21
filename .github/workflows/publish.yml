@@ -16,6 +16,11 @@ on:
                 required: false
                 type: string
                 description: "Python version"
+            allow_fail:
+                required: false
+                type: boolean
+                description: "Allow publish to fail without failing the workflow"
+                default: false
         secrets:
             PYPI_API_TOKEN:
                 required: true
@@ -41,6 +46,7 @@ jobs:
               run: echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
 
             - name: publish
+              continue-on-error: ${{ inputs.allow_fail }}
               run: |
                   BAKE_PUBLISH_TOKEN=${{ secrets.PYPI_API_TOKEN }} \
                   bake publish \
