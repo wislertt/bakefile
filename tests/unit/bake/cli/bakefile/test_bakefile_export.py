@@ -582,6 +582,7 @@ class TestFormatDotEnvValueUnit:
 
         # Extract the parsed value from the dict
         parsed_result = parsed_dict["VALUE"]
+        assert isinstance(parsed_result, str)
 
         reversed_value = reverse_func(parsed_result) if reverse_func else parsed_result
 
