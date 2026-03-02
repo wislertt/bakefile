@@ -162,7 +162,14 @@ class BaseSpace(Bakebook):
         setup_mise(self.ctx)
 
     def _get_mise_tools(self) -> set[str]:
-        return {"bun", "pipx:bakefile", "pipx:toml-sort", "pipx:zerv-version", "pre-commit", "uv"}
+        return {
+            "bun",
+            "pipx:bakefile",
+            "pipx:toml-sort",
+            "pipx:zerv-version",
+            "pipx:pre-commit",
+            "uv",
+        }
 
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         return {
@@ -254,6 +261,13 @@ class BaseSpace(Bakebook):
         console.warning(f"{tool_name}: unexpected location (got {actual_path})")
         return False
 
+    def _assert_tools(self):
+        tools = self._get_required_cli_tools()
+        if tools:
+            console.start("Asserting required CLI tools")
+        for tool_name, tool_paths in tools.items():
+            self._assert_which_path(tool_name, tool_paths)
+
     @command(help="List development tools")
     def tools(
         self,
@@ -283,11 +297,7 @@ class BaseSpace(Bakebook):
             ),
         ] = 0,
     ) -> None:
-        tools = self._get_required_cli_tools()
-        if tools:
-            console.start("Asserting required CLI tools")
-        for tool_name, tool_paths in tools.items():
-            self._assert_which_path(tool_name, tool_paths)
+        self._assert_tools()
 
         if fast < 2:
             console.start("Linting")
