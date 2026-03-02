@@ -810,6 +810,7 @@ class TestTimeout:
         assert result.returncode == 0
         assert "fast" in result.stdout
 
+    @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_none_waits_indefinitely(self, stream: bool) -> None:
         """timeout=None (default) waits for command to complete."""

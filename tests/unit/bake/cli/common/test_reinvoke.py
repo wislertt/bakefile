@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from bake.cli.bake import reinvocation
-from bake.cli.bake.reinvocation import _reinvoke_with_detected_python
+from bake.cli.common import reinvocation
+from bake.cli.common.reinvocation import _reinvoke_with_detected_python
 from bake.utils import ENV__BAKE_REINVOKED, settings
 
 
@@ -24,7 +24,7 @@ def subprocess_mock(monkeypatch: pytest.MonkeyPatch):
         calls.append(SubprocessCall(args=args, env=env or {}))
         return type("CompletedProcess", (), {"returncode": 0})()
 
-    monkeypatch.setattr("bake.cli.bake.reinvocation.subprocess.run", fake_run)
+    monkeypatch.setattr("bake.cli.common.reinvocation.subprocess.run", fake_run)
     return calls
 
 
@@ -60,10 +60,10 @@ def test_reinvoke_with_detected_python(
     ):
         if should_reinvoke:
             with pytest.raises(SystemExit) as exc_info:
-                _reinvoke_with_detected_python(Path("bakefile.py"))
+                _reinvoke_with_detected_python(Path("bakefile.py"), "bake.cli.bake")
             assert exc_info.value.code == 0
         else:
-            _reinvoke_with_detected_python(Path("bakefile.py"))
+            _reinvoke_with_detected_python(Path("bakefile.py"), "bake.cli.bake")
 
     assert len(subprocess_mock) == (1 if should_reinvoke else 0)
 
@@ -85,6 +85,6 @@ def test_reinvoke_graceful_degradation_on_error(
     importlib.reload(reinvocation)
 
     with patch("bake.manage.find_python.find_python_path", side_effect=Exception("Failed")):
-        _reinvoke_with_detected_python(Path("bakefile.py"))
+        _reinvoke_with_detected_python(Path("bakefile.py"), "bake.cli.bake")
 
     assert len(subprocess_mock) == 0

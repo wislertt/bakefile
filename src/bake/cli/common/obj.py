@@ -39,6 +39,7 @@ from .params import (
     validate_file_name,
     verbosity_option,
 )
+from .reinvocation import _reinvoke_with_detected_python
 
 if TYPE_CHECKING:
     from bake.bakebook.bakebook import Bakebook
@@ -79,6 +80,9 @@ class BakefileObject:
     def get_bakebook(self, allow_missing: bool):
         if self.bakebook is not None:
             return
+
+        if not allow_missing:
+            _reinvoke_with_detected_python(self.bakefile_path, "bake.cli.bakefile")
 
         try:
             if self.bakefile_path is None:

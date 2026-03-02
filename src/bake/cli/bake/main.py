@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from bake.cli.bake.reinvocation import _reinvoke_with_detected_python
 from bake.cli.common.app import (
     add_completion,
     call_app_with_chdir,
@@ -23,6 +22,7 @@ from bake.cli.common.params import (
     verbosity_option,
     version_option,
 )
+from bake.cli.common.reinvocation import _reinvoke_with_detected_python
 from bake.ui import console
 from bake.utils.constants import (
     DEFAULT_BAKEBOOK_NAME,
@@ -83,7 +83,7 @@ def main():
 
     # Check re-invocation with resolved bakefile path
     # If re-invocation happens, process is replaced and we don't return
-    _reinvoke_with_detected_python(bakefile_obj.bakefile_path)
+    _reinvoke_with_detected_python(bakefile_obj.bakefile_path, "bake.cli.bake")
     # If returned above, we're in the correct Python
 
     bakefile_obj.get_bakebook(

@@ -372,3 +372,49 @@ class TestUpdate:
 
         assert "bakefile lock --upgrade" not in run_calls
         assert "bakefile sync" not in run_calls
+
+
+class TestSetupProject:
+    def test_setup_project_runs_bakefile_sync_when_standalone(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_ctx.dry_run = True
+
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> None:
+            run_calls.append(cmd)
+
+        with (
+            mock_ctx,
+            patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(
+                type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
+            ) as mock_prop,
+        ):
+            mock_prop.return_value = True
+            base_space.setup_project()
+
+        assert "pre-commit install" in run_calls
+        assert "bakefile sync --frozen" in run_calls
+
+    def test_setup_project_skips_bakefile_sync_when_not_standalone(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        mock_ctx.dry_run = True
+
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> None:
+            run_calls.append(cmd)
+
+        with (
+            mock_ctx,
+            patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(
+                type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
+            ) as mock_prop,
+        ):
+            mock_prop.return_value = False
+            base_space.setup_project()
+
+        assert "pre-commit install" in run_calls
+        assert "bakefile sync --frozen" not in run_calls
