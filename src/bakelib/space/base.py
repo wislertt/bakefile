@@ -205,6 +205,8 @@ class BaseSpace(Bakebook):
 
     def setup_project(self) -> None:
         self.ctx.run("pre-commit install")
+        if self.ctx.obj.is_standalone_bakefile:
+            self.ctx.run("bakefile sync --frozen")
 
     @command(help="Setup development environment")
     def setup_dev(self) -> None:
