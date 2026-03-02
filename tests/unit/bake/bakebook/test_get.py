@@ -195,7 +195,7 @@ class TestRetryLoadModuleWithUvSyncDryRun:
 
             mock_run_uv_sync.assert_called_once_with(
                 bakefile_path=bakefile_path,
-                cmd=["--all-groups", "--frozen", "--all-extras"],
+                cmd=["--frozen"],
                 dry_run=True,
             )
             loader_mock.exec_module.assert_called_once_with(module)
@@ -225,7 +225,7 @@ class TestRetryLoadModuleWithUvSyncDryRun:
             )
 
             mock_run_uv.assert_called_once_with(
-                ("sync", "--all-groups", "--frozen", "--all-extras"),
+                ("sync", "--frozen", "--all-groups", "--all-extras"),
                 cwd=parent_dir,
                 capture_output=True,
                 stream=True,
@@ -268,7 +268,7 @@ class TestRetryLoadModuleWithUvSyncDryRun:
 
             mock_run_uv_sync.assert_called_once_with(
                 bakefile_path=bakefile_path,
-                cmd=["--all-groups", "--frozen", "--all-extras"],
+                cmd=["--frozen"],
                 dry_run=True,
             )
             mock_console_error.assert_called_once()
