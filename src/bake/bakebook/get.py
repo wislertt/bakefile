@@ -64,7 +64,7 @@ def retry_load_module_with_uv_sync(
 ):
     logger.debug(f"Missing dependency: {error.name}. Running sync...")
 
-    sync_args = ["--all-groups", "--frozen", "--all-extras"]
+    sync_args = ["--frozen"]
 
     if is_standalone_bakefile(target_dir_path):
         # Standalone bakefile: use --script flag
@@ -75,6 +75,7 @@ def retry_load_module_with_uv_sync(
         )
     else:
         # Project-level: use uv sync directly
+        sync_args.extend(["--all-groups", "--all-extras"])
         run_uv(
             ("sync", *sync_args),
             cwd=parent_dir,
