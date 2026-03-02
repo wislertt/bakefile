@@ -38,8 +38,6 @@ def init(
         bakebook_name=ctx.obj.bakebook_name,
         sample_module=simple,
     )
-    ctx.obj.get_bakebook(allow_missing=False)
-    assert ctx.obj.bakebook is not None
 
     if inline:
         try:
