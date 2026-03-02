@@ -1,11 +1,13 @@
+import subprocess
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
 from bake import Context
+from bake.ui.logger import strip_ansi
 from bakelib.space.base import BaseSpace
-from bakelib.space.rust import RustSpace
+from bakelib.space.rust import RustSpace, run_rustup_update
 
 _CARGO_TOML_CONTENT = """\
 [package]
@@ -84,3 +86,14 @@ class TestRustSpace:
             space.setup_tools()
         captured = capsys.readouterr()
         assert "rustup update" in captured.err
+
+
+class TestRunRustupUpdate:
+    def test_timeout_logs_warning(self, capsys: pytest.CaptureFixture) -> None:
+        def mock_run_timeout(*_, **__):
+            raise subprocess.TimeoutExpired(cmd="rustup update", timeout=30)
+
+        run_rustup_update(mock_run_timeout, timeout=0.1, max_attempts=1)
+
+        captured = capsys.readouterr()
+        assert "`rustup update` timed out after 1 attempts" in strip_ansi(captured.err)

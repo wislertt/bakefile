@@ -8,7 +8,7 @@ from typing import Any
 import zerv
 from tenacity import retry, retry_if_exception_type, stop_after_attempt
 
-from bake import console
+from bake import console, style
 
 from .base import BaseSpace
 from .utils import check_rust_version_matches_stable
@@ -21,8 +21,8 @@ else:
 
 def run_rustup_update(
     run_fn: Callable[..., subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]],
-    timeout: float = 60,
-    max_attempts: int = 5,
+    timeout: float = 30,
+    max_attempts: int = 3,
 ) -> None:
 
     @retry(
@@ -33,7 +33,13 @@ def run_rustup_update(
     def _run():
         run_fn("rustup update", timeout=timeout)
 
-    _run()
+    try:
+        _run()
+    except subprocess.TimeoutExpired:
+        console.warning(
+            f"{style.code('rustup update')} timed out after {max_attempts} attempts, skipping",
+            highlight=False,
+        )
 
 
 class RustSpace(BaseSpace):
