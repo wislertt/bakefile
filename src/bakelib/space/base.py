@@ -162,7 +162,14 @@ class BaseSpace(Bakebook):
         setup_mise(self.ctx)
 
     def _get_mise_tools(self) -> set[str]:
-        return {"bun", "pipx:bakefile", "pipx:toml-sort", "pipx:zerv-version", "pre-commit", "uv"}
+        return {
+            "bun",
+            "pipx:bakefile",
+            "pipx:toml-sort",
+            "pipx:zerv-version",
+            "pipx:pre-commit",
+            "uv",
+        }
 
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         return {
