@@ -3,7 +3,7 @@ pipx.uvx = true
 
 [tools]
 bun = "latest"
-"pipx:bakefile" = "latest"
+# "pipx:bakefile" = "latest"
 "pipx:pre-commit" = "latest"
 "pipx:toml-sort" = "latest"
 "pipx:zerv-version" = "latest"

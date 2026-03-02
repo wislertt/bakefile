@@ -3,26 +3,29 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Literal
 
 from bake.utils.settings import ENV__BAKE_REINVOKED, bake_settings
 
 logger = logging.getLogger(__name__)
 
+CliModule = Literal["bake.cli.bake", "bake.cli.bakefile"]
 
-def _reinvoke_with_detected_python(bakefile_path: Path | None) -> None:
-    """Re-invoke bake CLI with detected Python if needed.
+
+def _reinvoke_with_detected_python(bakefile_path: Path | None, cli_module: CliModule) -> None:
+    """Re-invoke CLI with detected Python if needed.
 
     Checks if the current Python is the correct one for the bakefile.
-    If not, re-invokes the bake CLI with the detected Python using os.execve().
+    If not, re-invokes the CLI with the detected Python.
 
     Args:
         bakefile_path: Path to the bakefile, or None if not found
+        cli_module: The CLI module to reinvoke ("bake.cli.bake" or "bake.cli.bakefile")
 
     Returns:
-        None. Either calls os.execve() (replaces process) or returns normally.
+        None. Either calls subprocess and exits, or returns normally.
     """
-    # Access via module path so tests can reassign
-    # from bake.utils import settings
+    logger.debug("Starting _reinvoke_with_detected_python")
 
     # 1. Check marker to prevent infinite loops
     if bake_settings.bake_reinvoked:
@@ -51,8 +54,8 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None) -> None:
 
     # 4. Re-invoke with detected Python
     logger.debug(
-        f"Re-invoking bake with detected Python: {target_python} (current: {current_python})",
-        extra={"target_python": str(target_python)},
+        f"Re-invoking with detected Python: {target_python} (current: {current_python})",
+        extra={"target_python": str(target_python), "cli_module": cli_module},
     )
     env = os.environ.copy()
     env[ENV__BAKE_REINVOKED] = "1"
@@ -60,7 +63,7 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None) -> None:
     sys.stdout.flush()
     sys.stderr.flush()
     result = subprocess.run(
-        [str(target_python), "-m", "bake.cli.bake", *sys.argv[1:]],
+        [str(target_python), "-m", cli_module, *sys.argv[1:]],
         env=env,
     )
     raise SystemExit(result.returncode)
