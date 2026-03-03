@@ -60,10 +60,10 @@ def test_reinvoke_with_detected_python(
     ):
         if should_reinvoke:
             with pytest.raises(SystemExit) as exc_info:
-                _reinvoke_with_detected_python(Path("bakefile.py"), "bake.cli.bake")
+                _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
             assert exc_info.value.code == 0
         else:
-            _reinvoke_with_detected_python(Path("bakefile.py"), "bake.cli.bake")
+            _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
 
     assert len(subprocess_mock) == (1 if should_reinvoke else 0)
 
@@ -85,6 +85,6 @@ def test_reinvoke_graceful_degradation_on_error(
     importlib.reload(reinvocation)
 
     with patch("bake.manage.find_python.find_python_path", side_effect=Exception("Failed")):
-        _reinvoke_with_detected_python(Path("bakefile.py"), "bake.cli.bake")
+        _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
 
     assert len(subprocess_mock) == 0

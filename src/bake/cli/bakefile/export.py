@@ -204,7 +204,7 @@ def export(
         bakefile export --format json --output config.json
     """
     if ctx.obj.bakebook is None:
-        ctx.obj.get_bakebook(allow_missing=False)
+        ctx.obj.get_bakebook(allow_missing=False, reinvoke_cli_module="bake.cli.bakefile")
 
     if ctx.obj.bakebook is None:
         raise RuntimeError("Bakebook not found.")
