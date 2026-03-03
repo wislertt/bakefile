@@ -1,10 +1,13 @@
+import logging
 import types
+import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 import click
 import typer
 from pydantic import PrivateAttr
+from pydantic.warnings import PydanticDeprecationWarning
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typer.core import TyperCommand
 from typer.models import CommandFunctionType, Default
@@ -13,10 +16,13 @@ from bake.cli.common.context import BakeCommand, Context
 from bake.utils.constants import BAKE_COMMAND_KWARGS
 from bake.utils.exceptions import ContextNotAvailableError
 
+logger = logging.getLogger(__name__)
+
 
 class Bakebook(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     _app: typer.Typer = PrivateAttr(default_factory=typer.Typer)
+    exclude_command_methods: ClassVar[list[str]] = []
 
     @property
     def ctx(self) -> Context:
@@ -51,18 +57,31 @@ class Bakebook(BaseSettings):
 
         return None
 
-    def _register_marked_methods(self) -> None:
-        base_names = set(dir(BaseSettings()))
-        method_names = [
-            name for name in dir(self) if not name.startswith("_") and name not in base_names
-        ]
-        for name in method_names:
-            try:
+    def _get_bound_method(self, name: str) -> types.MethodType | None:
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    category=PydanticDeprecationWarning,
+                    message=".*is deprecated.*",
+                )
                 bound_method = getattr(self, name)
-            except Exception:
+                if isinstance(bound_method, types.MethodType):
+                    return bound_method
+        except Exception:
+            pass
+        return None
+
+    def _register_marked_methods(self) -> None:
+        excluded = set(self.__class__.exclude_command_methods)
+        logger.debug("Excluding %d methods: %s", len(excluded), excluded)
+
+        for name in dir(self):
+            if name in excluded:
                 continue
 
-            if not isinstance(bound_method, types.MethodType):
+            bound_method = self._get_bound_method(name)
+            if bound_method is None:
                 continue
 
             cmd_kwargs = self._get_command_kwargs(bound_method)

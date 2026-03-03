@@ -22,7 +22,6 @@ from bake.cli.common.params import (
     verbosity_option,
     version_option,
 )
-from bake.cli.common.reinvocation import _reinvoke_with_detected_python
 from bake.ui import console
 from bake.utils.constants import (
     DEFAULT_BAKEBOOK_NAME,
@@ -81,13 +80,9 @@ def main():
     bakefile_obj.setup_logging()
     bakefile_obj.resolve_bakefile_path()
 
-    # Check re-invocation with resolved bakefile path
-    # If re-invocation happens, process is replaced and we don't return
-    _reinvoke_with_detected_python(bakefile_obj.bakefile_path, "bake.cli.bake")
-    # If returned above, we're in the correct Python
-
     bakefile_obj.get_bakebook(
-        allow_missing=is_bakebook_optional(remaining_args=bakefile_obj.remaining_args)
+        allow_missing=is_bakebook_optional(remaining_args=bakefile_obj.remaining_args),
+        reinvoke_cli_module="bake.cli.bake",
     )
 
     bakefile_obj.warn_if_no_bakebook(color_echo=bake_settings.should_use_colors())

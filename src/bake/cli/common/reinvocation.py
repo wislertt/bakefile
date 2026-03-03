@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 CliModule = Literal["bake.cli.bake", "bake.cli.bakefile"]
 
 
-def _reinvoke_with_detected_python(bakefile_path: Path | None, cli_module: CliModule) -> None:
+def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: CliModule) -> None:
     """Re-invoke CLI with detected Python if needed.
 
     Checks if the current Python is the correct one for the bakefile.
