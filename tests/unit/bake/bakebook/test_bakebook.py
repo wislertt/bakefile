@@ -2,6 +2,7 @@ import inspect
 import re
 import types
 from pathlib import Path
+from typing import ClassVar
 
 import click
 import pytest
@@ -300,3 +301,76 @@ class TestBakebookCtxProperty:
         assert match, f"Expected pattern not found in: {result.out}"
         ctx_id, self_ctx_id = match.groups()
         assert ctx_id == self_ctx_id
+
+
+class TestExcludeCommandMethods:
+    def test_exclude_uses_method_name_not_command_name(self) -> None:
+        """exclude_command_methods uses method name, not command name."""
+
+        class ParentBakebook(Bakebook):
+            @command(name="deploy-prod")
+            def deploy_to_production(self):
+                return "deploying"
+
+            @command()
+            def build(self):
+                return "building"
+
+        class ChildBakebook(ParentBakebook):
+            exclude_command_methods: ClassVar[list[str]] = ["deploy_to_production"]
+
+        child = ChildBakebook()
+        assert_commands(
+            child,
+            {
+                "build": ExpectedCommand(
+                    name="build", command_type=types.MethodType, output="building"
+                ),
+            },
+            msg="ChildBakebook excludes by method name, not command name",
+        )
+
+    def test_grandchild_overrides_parent_exclude(self) -> None:
+        """Grandchild's exclude_command_methods overrides parent's."""
+
+        class GrandParentBakebook(Bakebook):
+            @command()
+            def legacy(self):
+                return "legacy"
+
+            @command()
+            def deploy(self):
+                return "deploying"
+
+        class ParentBakebook(GrandParentBakebook):
+            exclude_command_methods: ClassVar[list[str]] = ["legacy"]
+
+        class ChildBakebook(ParentBakebook):
+            exclude_command_methods: ClassVar[list[str]] = ["deploy"]
+
+        child = ChildBakebook()
+        assert_commands(
+            child,
+            {
+                "legacy": ExpectedCommand(
+                    name="legacy", command_type=types.MethodType, output="legacy"
+                ),
+            },
+            msg="Child's exclude overrides parent's (legacy restored, deploy excluded)",
+        )
+
+    def test_cannot_set_exclude_on_instance(self) -> None:
+        """Pydantic enforces ClassVar cannot be set on instance (plain Python allows it)."""
+
+        class ParentBakebook(Bakebook):
+            @command()
+            def deploy(self):
+                return "deploying"
+
+        class ChildBakebook(ParentBakebook):
+            exclude_command_methods: ClassVar[list[str]] = ["deploy"]
+
+        child = ChildBakebook()
+        with pytest.raises(AttributeError, match=r"is a ClassVar.*cannot be set on an instance"):
+            exclude_command_methods: list[str] = ["build"]
+            child.exclude_command_methods = exclude_command_methods  # ty: ignore[invalid-attribute-access]
