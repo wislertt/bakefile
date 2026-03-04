@@ -249,7 +249,7 @@ class BaseSpace(Bakebook):
             console.error(f"{tool_name}: not found in PATH")
             return False
 
-        actual_path = Path(actual_path)
+        actual_path = Path(actual_path).absolute()
 
         if tool_paths is None:
             console.success(f"{tool_name}: {actual_path}")
