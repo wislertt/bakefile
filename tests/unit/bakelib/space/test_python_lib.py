@@ -5,77 +5,95 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.space.lib import PublishResult, PublishStatus
+from bakelib.publisher import PublishResult, PublishStatus
 from bakelib.space.python_lib import PythonLibSpace
 
 
-class TestPythonLibSpace:
-    def test_validate_registry_returns_valid_indices(self):
-        space = PythonLibSpace()
-        assert space._validate_registry("test-pypi") == "test-pypi"
-        assert space._validate_registry("pypi") == "pypi"
+class TestPyPIPublisher:
+    def test_validate_registry_returns_valid_indices(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            assert publisher.registry == "test-pypi"
+            publisher = space.get_publisher("pypi")
+            assert publisher.registry == "pypi"
 
-    def test_validate_registry_raises_error_for_invalid_registry(self):
-        space = PythonLibSpace()
-        with pytest.raises(typer.Exit):
-            space._validate_registry("invalid")
+    def test_validate_registry_raises_error_for_invalid_registry(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            with pytest.raises(typer.Exit):
+                space.get_publisher("invalid")
 
-    def test_get_publish_token_from_remote_returns_none(self):
-        space = PythonLibSpace()
-        token = space._get_publish_token_from_remote("test-pypi")
-        assert token is None
+    def test_get_publish_token_from_remote_returns_none(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            token = publisher._get_publish_token_from_remote()
+            assert token is None
 
-    def test_is_auth_failure_detects_403_error(self):
-        space = PythonLibSpace()
-        result = subprocess.CompletedProcess(
-            args=[],
-            returncode=1,
-            stderr="403 Invalid or non-existent authentication information",
-        )
-        assert space._is_auth_failure(result) is True
+    def test_is_auth_failure_detects_403_error(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            result = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stderr="403 Invalid or non-existent authentication information",
+            )
+            assert publisher._is_auth_failure(result) is True
 
-    def test_is_auth_failure_returns_false_for_non_403_errors(self):
-        space = PythonLibSpace()
-        result = subprocess.CompletedProcess(
-            args=[],
-            returncode=1,
-            stderr="Some other error",
-        )
-        assert space._is_auth_failure(result) is False
+    def test_is_auth_failure_returns_false_for_non_403_errors(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            result = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stderr="Some other error",
+            )
+            assert publisher._is_auth_failure(result) is False
 
-    def test_is_auth_failure_returns_false_for_success(self):
-        space = PythonLibSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=0, stderr="")
-        assert space._is_auth_failure(result) is False
+    def test_is_auth_failure_returns_false_for_success(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            result = subprocess.CompletedProcess(args=[], returncode=0, stderr="")
+            assert publisher._is_auth_failure(result) is False
 
-    def test_is_already_exists_error_detects_already_exists_skipping(self):
+    def test_is_already_exists_error_detects_already_exists_skipping(self, mock_ctx: Context):
         """Case 1: returncode=0 with 'already exists, skipping' message."""
-        space = PythonLibSpace()
-        result = subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stderr="File already exists, skipping upload",
-        )
-        assert space._is_already_exists_error(result) is True
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            result = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stderr="File already exists, skipping upload",
+            )
+            assert publisher._is_already_exists_error(result) is True
 
-    def test_is_already_exists_error_detects_different_hash_error(self):
+    def test_is_already_exists_error_detects_different_hash_error(self, mock_ctx: Context):
         """Case 2: returncode!=0 with 'Local file and index file do not match' message."""
-        space = PythonLibSpace()
-        result = subprocess.CompletedProcess(
-            args=[],
-            returncode=1,
-            stderr="Local file and index file do not match",
-        )
-        assert space._is_already_exists_error(result) is True
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            result = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stderr="Local file and index file do not match",
+            )
+            assert publisher._is_already_exists_error(result) is True
 
-    def test_is_already_exists_error_returns_false_for_other_errors(self):
-        space = PythonLibSpace()
-        result = subprocess.CompletedProcess(
-            args=[],
-            returncode=1,
-            stderr="Some other error",
-        )
-        assert space._is_already_exists_error(result) is False
+    def test_is_already_exists_error_returns_false_for_other_errors(self, mock_ctx: Context):
+        with mock_ctx:
+            space = PythonLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            result = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stderr="Some other error",
+            )
+            assert publisher._is_already_exists_error(result) is False
 
     def test_publish_runs_build_and_publish(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
