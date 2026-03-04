@@ -1,8 +1,11 @@
 import shutil
 import subprocess
-from typing import Literal, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 from . import Publisher
+
+if TYPE_CHECKING:
+    from bake.cli.common.context import Context
 
 PyPIRegistry = Literal["test-pypi", "pypi"]
 
@@ -46,5 +49,7 @@ class PyPIPublisher(Publisher):
         auth_error_message = "403 Invalid or non-existent authentication information"
         return result.returncode != 0 and auth_error_message in result.stderr
 
-    def _pre_publish_setup(self):
+    @classmethod
+    def _pre_publish_setup(cls, ctx: "Context") -> None:
+        _ = ctx
         shutil.rmtree("dist", ignore_errors=True)

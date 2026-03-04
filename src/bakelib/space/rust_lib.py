@@ -5,6 +5,7 @@ import typer
 from bakelib.publisher.crates import CratesPublisher
 
 from .lib import BaseLibSpace
+from .params import publish_token_option, publish_version_option
 from .rust import RustSpace
 
 
@@ -17,7 +18,7 @@ class RustLibSpace(RustSpace, BaseLibSpace):
         self,
         *,
         registry: Annotated[str, typer.Option(help="Publish registry (crates)")] = "crates",
-        token: Annotated[str | None, typer.Option(help="Publish token")] = None,
-        version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
+        token: publish_token_option = None,
+        version: publish_version_option = None,
     ):
         return super().publish(registry=registry, token=token, version=version)

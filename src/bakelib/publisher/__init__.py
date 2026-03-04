@@ -85,10 +85,13 @@ class Publisher(ABC):
         """Check if the result indicates an authentication failure."""
         ...
 
-    @abstractmethod
-    def _pre_publish_setup(self):
-        """Perform setup before publishing."""
-        ...
+    @classmethod
+    def _pre_publish_setup(cls, ctx: "Context") -> None:
+        """Perform setup before publishing.
+
+        Subclasses must override this to provide platform-specific setup.
+        """
+        raise NotImplementedError(f"{cls.__name__}._pre_publish_setup() must be overridden")
 
     def _determine_publish_result(
         self, token: str | None, result: subprocess.CompletedProcess[str]

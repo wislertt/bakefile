@@ -10,6 +10,7 @@ from bakelib.publisher import PublishResult, PublishStatus
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 
 from .base import BaseSpace
+from .params import publish_token_option, publish_version_option
 from .utils import print_subprocess_output
 
 if TYPE_CHECKING:
@@ -62,8 +63,8 @@ class BaseLibSpace(BaseSpace):
         self,
         *,
         registry: Annotated[str, typer.Option(help="Publish registry")] = "default",
-        token: Annotated[str | None, typer.Option(help="Publish token")] = None,
-        version: Annotated[str | None, typer.Option(help="Version to publish")] = None,
+        token: publish_token_option = None,
+        version: publish_version_option = None,
     ):
         publisher = self.get_publisher(registry)
         cached_publish_token = self._get_cached_publish_token(
@@ -71,7 +72,7 @@ class BaseLibSpace(BaseSpace):
         )
 
         console.start(f"Publishing to [bold cyan]{registry}[/bold cyan]")
-        publisher._pre_publish_setup()
+        self._pre_publish_setup(publisher)
 
         with self._version_bump_context(version):
             publisher._build_for_publish()
@@ -80,6 +81,14 @@ class BaseLibSpace(BaseSpace):
             )
 
         self._handle_publish_result(publish_result=publish_result)
+
+    def _pre_publish_setup(self, publisher: "Publisher") -> None:
+        """Default pre-publish setup - delegates to publisher class method.
+
+        Subclasses can override this to add custom setup before/after
+        calling the publisher's setup.
+        """
+        publisher._pre_publish_setup(self.ctx)
 
     def _execute_publish(
         self, publisher: "Publisher", cached_publish_token: ChainedCache[str | None]

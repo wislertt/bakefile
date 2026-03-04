@@ -1,8 +1,11 @@
 import shutil
 import subprocess
-from typing import Literal, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 from . import Publisher
+
+if TYPE_CHECKING:
+    from bake.cli.common.context import Context
 
 CratesRegistry = Literal["crates"]
 
@@ -38,5 +41,7 @@ class CratesPublisher(Publisher):
         auth_error_messages = ["status 403 Forbidden", "status 401 Unauthorized"]
         return result.returncode != 0 and any(msg in result.stderr for msg in auth_error_messages)
 
-    def _pre_publish_setup(self):
+    @classmethod
+    def _pre_publish_setup(cls, ctx: "Context") -> None:
+        _ = ctx
         shutil.rmtree("target/package", ignore_errors=True)

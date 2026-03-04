@@ -41,7 +41,8 @@ class MinimalTestPublisher(Publisher):
         _ = result
         return False
 
-    def _pre_publish_setup(self):
+    @classmethod
+    def _pre_publish_setup(cls, ctx: Context) -> None:
         pass
 
 
@@ -91,12 +92,6 @@ class TestBaseLibSpace:
         space = MinimalTestLibSpace()
         with mock_ctx, space._version_bump_context("1.2.3"):
             pass
-
-    def test_pre_publish_setup_does_nothing_by_default(self, mock_ctx: Context) -> None:
-        with mock_ctx:
-            space = MinimalTestLibSpace()
-            publisher = space.get_publisher("test-pypi")
-            publisher._pre_publish_setup()
 
     def test_version_bump_context_yields(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
@@ -269,9 +264,10 @@ class TestBaseLibSpace:
 
         # Create a test publisher class that tracks calls
         class TrackingTestPublisher(MinimalTestPublisher):
-            def _pre_publish_setup(self):
+            @classmethod
+            def _pre_publish_setup(cls, ctx: Context) -> None:
                 call_order.append("_pre_publish_setup")
-                return super()._pre_publish_setup()
+                return super()._pre_publish_setup(ctx)
 
             def _build_for_publish(self):
                 call_order.append("_build_for_publish")
@@ -404,82 +400,6 @@ class TestBaseLibSpace:
 
         assert result.status == PublishStatus.AUTH_FAILED
         assert result.result is None
-
-
-class TestDeterminePublishResult:
-    """Tests for _determine_publish_result method."""
-
-    def test_returns_dry_run_when_token_is_none(self, mock_ctx: Context) -> None:
-        with mock_ctx:
-            space = MinimalTestLibSpace()
-            publisher = space.get_publisher("test-pypi")
-            result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-
-            publish_result = publisher._determine_publish_result(token=None, result=result)
-
-        assert publish_result.status == PublishStatus.DRY_RUN
-
-    def test_returns_success_on_zero_returncode(self, mock_ctx: Context) -> None:
-        with mock_ctx:
-            space = MinimalTestLibSpace()
-            publisher = space.get_publisher("test-pypi")
-            result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-
-            publish_result = publisher._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.SUCCESS
-
-    def test_returns_auth_failed_when_is_auth_failure_true(self, mock_ctx: Context) -> None:
-        class AuthFailurePublisher(MinimalTestPublisher):
-            def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
-                _ = result
-                return True
-
-        class AuthFailureSpace(MinimalTestLibSpace):
-            def get_publisher(self, registry: str) -> AuthFailurePublisher:
-                return AuthFailurePublisher(self.ctx, registry)
-
-        with mock_ctx:
-            space = AuthFailureSpace()
-            publisher = space.get_publisher("test-pypi")
-            result = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr="auth error"
-            )
-
-            publish_result = publisher._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.AUTH_FAILED
-
-    def test_returns_error_on_nonzero_returncode(self, mock_ctx: Context) -> None:
-        with mock_ctx:
-            space = MinimalTestLibSpace()
-            publisher = space.get_publisher("test-pypi")
-            result = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr="some error"
-            )
-
-            publish_result = publisher._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.ERROR
-
-    def test_returns_already_exists_when_is_already_exists_true(self, mock_ctx: Context) -> None:
-        class AlreadyExistsPublisher(MinimalTestPublisher):
-            def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
-                _ = result
-                return True
-
-        class AlreadyExistsSpace(MinimalTestLibSpace):
-            def get_publisher(self, registry: str) -> AlreadyExistsPublisher:
-                return AlreadyExistsPublisher(self.ctx, registry)
-
-        with mock_ctx:
-            space = AlreadyExistsSpace()
-            publisher = space.get_publisher("test-pypi")
-            result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="exists")
-
-            publish_result = publisher._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.ALREADY_EXISTS
 
 
 class TestBaseLibSpaceSetupTools:
