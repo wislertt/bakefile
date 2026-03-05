@@ -19,7 +19,8 @@ def _get_python_version() -> str | None:
 class PythonSpace(BaseSpace):
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         tools = super()._get_required_cli_tools()
-        tools["python"] = {VENV_BIN}  # local - must be from venv
+        tools["python"] = {VENV_BIN}  # local - should be from venv
+        tools[".venv/bin/python"] = {VENV_BIN}
         return tools
 
     def lint(self) -> None:

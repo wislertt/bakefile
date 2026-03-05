@@ -7,20 +7,50 @@ from pydantic import SecretStr
 
 from bake import Context
 from bake.ui.logger import strip_ansi
+from bakelib.publisher import Publisher
 from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import BaseLibSpace, PublishResult, PublishStatus
 
 
+class MinimalTestPublisher(Publisher):
+    """Minimal test publisher for testing BaseLibSpace."""
+
+    valid_registries: tuple[str, ...] = ("test-pypi", "pypi", "crates")
+
+    def _get_publish_token_from_remote(self) -> str | None:
+        return None
+
+    def _build_for_publish(self):
+        pass
+
+    def _setup_token_env(self, env: dict[str, str], token: str) -> None:
+        _ = env, token  # Token not needed for minimal test
+
+    def _execute_publish_command(
+        self, env: dict[str, str], token: str | None
+    ) -> subprocess.CompletedProcess[str]:
+        _ = env, token
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
+        _ = result
+        return False
+
+    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+        _ = result
+        return False
+
+    @classmethod
+    def _pre_publish_setup(cls, ctx: Context) -> None:
+        pass
+
+
 class MinimalTestLibSpace(BaseLibSpace):
     """Minimal concrete implementation of BaseLibSpace for testing default methods."""
 
-    def _validate_registry(self, registry: str) -> str:
-        return registry
-
-    def _get_publish_token_from_remote(self, registry: str) -> str | None:
-        _ = registry
-        return None
+    def get_publisher(self, registry: str) -> MinimalTestPublisher:
+        return MinimalTestPublisher(self.ctx, registry)
 
     @property
     def _package_name(self) -> str:
@@ -33,25 +63,6 @@ class MinimalTestLibSpace(BaseLibSpace):
     @_version.setter
     def _version(self, value: str) -> None:
         _ = value
-
-    def _build_for_publish(self):
-        pass
-
-    def _publish_with_token(self, token: str | None, registry: str) -> PublishResult:
-        _ = token, registry
-        status = PublishStatus.DRY_RUN if self.ctx.dry_run else PublishStatus.SUCCESS
-        return PublishResult(result=None, status=status)
-
-    def _pre_publish_setup(self):
-        pass
-
-    def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
-        _ = result
-        return False
-
-    def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
-        _ = result
-        return False
 
 
 def test_baselib_space_is_base_space() -> None:
@@ -81,11 +92,6 @@ class TestBaseLibSpace:
         space = MinimalTestLibSpace()
         with mock_ctx, space._version_bump_context("1.2.3"):
             pass
-
-    def test_pre_publish_setup_does_nothing_by_default(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
-        with mock_ctx:
-            space._pre_publish_setup()
 
     def test_version_bump_context_yields(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
@@ -216,92 +222,100 @@ class TestBaseLibSpace:
     def test_execute_publish_returns_result_on_success(
         self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        space = MinimalTestLibSpace()
-
         def fetch_token() -> str | None:
             return "test-token"
 
-        cached_publish_token = ChainedCache(
-            backends=[KeyringCache, NullCache],
-            namespace="test-namespace",
-            key="test-key",
-            fetch_fn=fetch_token,
-        )
-        cached_publish_token.set("test-token")
-
-        success_result = subprocess.CompletedProcess(
-            args=["publish"], returncode=0, stdout="Success", stderr=""
-        )
-
-        def mock_publish(token: str | None, registry: str) -> PublishResult:
-            _ = token, registry
-            return PublishResult(result=success_result, status=PublishStatus.SUCCESS)
-
-        monkeypatch.setattr(space, "_publish_with_token", mock_publish)
-
         with mock_ctx:
-            result = space._execute_publish(cached_publish_token, "test-pypi")
+            space = MinimalTestLibSpace()
+
+            cached_publish_token = ChainedCache(
+                backends=[KeyringCache, NullCache],
+                namespace="test-namespace",
+                key="test-key",
+                fetch_fn=fetch_token,
+            )
+            cached_publish_token.set("test-token")
+
+            success_result = subprocess.CompletedProcess(
+                args=["publish"], returncode=0, stdout="Success", stderr=""
+            )
+
+            publisher = space.get_publisher("test-pypi")
+
+            def mock_publish(token: str | None) -> PublishResult:
+                _ = token
+                return PublishResult(result=success_result, status=PublishStatus.SUCCESS)
+
+            monkeypatch.setattr(publisher, "_publish_with_token", mock_publish)
+
+            result = space._execute_publish(
+                publisher=publisher, cached_publish_token=cached_publish_token
+            )
 
         assert result.status == PublishStatus.SUCCESS
         assert result.result is not None
         assert result.result.returncode == 0
 
     def test_publish_calls_all_methods_in_correct_order(
-        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        space = MinimalTestLibSpace()
-        mock_ctx.dry_run = False
-
         # Track method calls
         call_order = []
 
-        original_get_cached_publish_token = space._get_cached_publish_token
-        original_handle_publish_result = space._handle_publish_result
+        # Create a test publisher class that tracks calls
+        class TrackingTestPublisher(MinimalTestPublisher):
+            @classmethod
+            def _pre_publish_setup(cls, ctx: Context) -> None:
+                call_order.append("_pre_publish_setup")
+                return super()._pre_publish_setup(ctx)
 
-        def mock_get_cached_publish_token(*args, **kwargs):
-            call_order.append("_get_cached_publish_token")
-            return original_get_cached_publish_token(*args, **kwargs)
+            def _build_for_publish(self):
+                call_order.append("_build_for_publish")
+                return super()._build_for_publish()
 
-        def mock_pre_publish_setup():
-            call_order.append("_pre_publish_setup")
+        # Create a test space with tracking
+        class TrackingTestLibSpace(MinimalTestLibSpace):
+            def get_publisher(self, registry: str) -> TrackingTestPublisher:
+                return TrackingTestPublisher(self.ctx, registry)
 
-        def mock_version_bump_context(_version, **kwargs):
-            _ = kwargs
-            call_order.append("_version_bump_context")
+            def _get_cached_publish_token(self, *args, **kwargs):
+                call_order.append("_get_cached_publish_token")
+                return super()._get_cached_publish_token(*args, **kwargs)
 
-            @contextmanager
-            def context():
-                call_order.append("_version_bump_context_enter")
-                yield
+            def _version_bump_context(
+                self,
+                version: str | None,
+                version_format="semver",
+                schema="standard-base-prerelease-post-dev",
+            ):
+                _ = version, version_format, schema
+                call_order.append("_version_bump_context")
 
-            return context()
+                @contextmanager
+                def context():
+                    call_order.append("_version_bump_context_enter")
+                    yield
 
-        def mock_build_for_publish(**kwargs):
-            _ = kwargs
-            call_order.append("_build_for_publish")
+                return context()
 
-        def mock_execute_publish(**kwargs):
-            _ = kwargs
-            call_order.append("_execute_publish")
-            success_result = subprocess.CompletedProcess(
-                args=["publish"], returncode=0, stdout="Success", stderr=""
-            )
-            return PublishResult(result=success_result, status=PublishStatus.SUCCESS)
+            def _execute_publish(self, publisher, cached_publish_token) -> PublishResult:
+                _ = publisher, cached_publish_token
+                call_order.append("_execute_publish")
+                success_result = subprocess.CompletedProcess(
+                    args=["publish"], returncode=0, stdout="Success", stderr=""
+                )
+                return PublishResult(result=success_result, status=PublishStatus.SUCCESS)
 
-        def mock_handle_publish_result(*args, **kwargs):
-            call_order.append("_handle_publish_result")
-            return original_handle_publish_result(*args, **kwargs)
-
-        monkeypatch.setattr(space, "_get_cached_publish_token", mock_get_cached_publish_token)
-        monkeypatch.setattr(space, "_pre_publish_setup", mock_pre_publish_setup)
-        monkeypatch.setattr(space, "_version_bump_context", mock_version_bump_context)
-        monkeypatch.setattr(space, "_build_for_publish", mock_build_for_publish)
-        monkeypatch.setattr(space, "_execute_publish", mock_execute_publish)
-        monkeypatch.setattr(space, "_handle_publish_result", mock_handle_publish_result)
-
-        _ = capsys
+            def _handle_publish_result(self, *args, **kwargs):
+                call_order.append("_handle_publish_result")
+                return super()._handle_publish_result(*args, **kwargs)
 
         with mock_ctx:
+            space = TrackingTestLibSpace()
+            mock_ctx.dry_run = False
+
+            _ = capsys
+
             space.publish(registry="test-pypi", token="test-token", version="1.0.0")
 
         # Verify methods were called in correct order
@@ -330,18 +344,22 @@ class TestBaseLibSpace:
         assert exc_info.value.exit_code == 1
 
     def test_get_cached_publish_token_with_no_local_token(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
         with mock_ctx:
-            cached_token = space._get_cached_publish_token(token=None, registry="test-pypi")
+            space = MinimalTestLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            cached_token = space._get_cached_publish_token(
+                token=None, registry="test-pypi", publisher=publisher
+            )
         cached_token.delete()
         result = cached_token.get_value()
         assert result is None
 
     def test_get_cached_publish_token_with_local_token(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
         with mock_ctx:
+            space = MinimalTestLibSpace()
+            publisher = space.get_publisher("test-pypi")
             cached_token = space._get_cached_publish_token(
-                token="local-token", registry="test-pypi"
+                token="local-token", registry="test-pypi", publisher=publisher
             )
         result = cached_token.get_value()
         assert result == "local-token"
@@ -349,94 +367,39 @@ class TestBaseLibSpace:
     def test_execute_publish_returns_auth_failed_on_refresh_needed_error(
         self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        space = MinimalTestLibSpace()
-
         def fetch_token() -> str | None:
             return "dummy-token"
 
-        cached_publish_token = ChainedCache(
-            backends=[KeyringCache, NullCache],
-            namespace="test-namespace",
-            key="test-key",
-            fetch_fn=fetch_token,
-        )
-        cached_publish_token.set("dummy-token")
-
-        def mock_publish(token: str | None, registry: str) -> PublishResult:
-            _ = token, registry
-            failed_result = subprocess.CompletedProcess(
-                args=[],
-                returncode=1,
-                stderr="403 Invalid or non-existent authentication information",
-            )
-            return PublishResult(result=failed_result, status=PublishStatus.AUTH_FAILED)
-
-        monkeypatch.setattr(space, "_publish_with_token", mock_publish)
-
         with mock_ctx:
-            result = space._execute_publish(cached_publish_token, "test-pypi")
+            space = MinimalTestLibSpace()
+
+            cached_publish_token = ChainedCache(
+                backends=[KeyringCache, NullCache],
+                namespace="test-namespace",
+                key="test-key",
+                fetch_fn=fetch_token,
+            )
+            cached_publish_token.set("dummy-token")
+
+            publisher = space.get_publisher("test-pypi")
+
+            def mock_publish(token: str | None) -> PublishResult:
+                _ = token
+                failed_result = subprocess.CompletedProcess(
+                    args=[],
+                    returncode=1,
+                    stderr="403 Invalid or non-existent authentication information",
+                )
+                return PublishResult(result=failed_result, status=PublishStatus.AUTH_FAILED)
+
+            monkeypatch.setattr(publisher, "_publish_with_token", mock_publish)
+
+            result = space._execute_publish(
+                publisher=publisher, cached_publish_token=cached_publish_token
+            )
 
         assert result.status == PublishStatus.AUTH_FAILED
         assert result.result is None
-
-
-class TestDeterminePublishResult:
-    """Tests for _determine_publish_result method."""
-
-    def test_returns_dry_run_when_token_is_none(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-
-        with mock_ctx:
-            publish_result = space._determine_publish_result(token=None, result=result)
-
-        assert publish_result.status == PublishStatus.DRY_RUN
-
-    def test_returns_success_on_zero_returncode(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-
-        with mock_ctx:
-            publish_result = space._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.SUCCESS
-
-    def test_returns_auth_failed_when_is_auth_failure_true(self, mock_ctx: Context) -> None:
-        class AuthFailureSpace(MinimalTestLibSpace):
-            def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
-                _ = result
-                return True
-
-        space = AuthFailureSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="auth error")
-
-        with mock_ctx:
-            publish_result = space._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.AUTH_FAILED
-
-    def test_returns_error_on_nonzero_returncode(self, mock_ctx: Context) -> None:
-        space = MinimalTestLibSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="some error")
-
-        with mock_ctx:
-            publish_result = space._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.ERROR
-
-    def test_returns_already_exists_when_is_already_exists_true(self, mock_ctx: Context) -> None:
-        class AlreadyExistsSpace(MinimalTestLibSpace):
-            def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
-                _ = result
-                return True
-
-        space = AlreadyExistsSpace()
-        result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="exists")
-
-        with mock_ctx:
-            publish_result = space._determine_publish_result(token="test-token", result=result)
-
-        assert publish_result.status == PublishStatus.ALREADY_EXISTS
 
 
 class TestBaseLibSpaceSetupTools:
