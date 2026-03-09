@@ -94,7 +94,7 @@ class TestBaseEnvHash:
         assert BaseEnv("prod") in envs
 
     def test_env_can_be_used_as_dict_key(self):
-        d = {BaseEnv("dev"): "development", BaseEnv("prod"): "production"}
+        d: dict[str | BaseEnv, str] = {BaseEnv("dev"): "development", BaseEnv("prod"): "production"}
         assert d[BaseEnv("dev")] == "development"
         with pytest.raises(KeyError):
             assert d["dev"] == "development"

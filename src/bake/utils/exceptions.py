@@ -19,3 +19,7 @@ class PythonNotFoundError(BaseBakefileError):
 
 class ContextNotAvailableError(BakebookError, RuntimeError):
     """Exception raised when accessing context outside of a bake command."""
+
+
+class CommandConflictError(BakebookError):
+    """Exception raised when a command or group name conflicts with an existing registration."""

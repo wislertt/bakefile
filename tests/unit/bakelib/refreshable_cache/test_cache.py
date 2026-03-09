@@ -1,8 +1,6 @@
-import contextlib
 import logging
 import sys
 import time
-from typing import ClassVar
 
 import keyring
 import pytest
@@ -22,7 +20,6 @@ from bakelib.refreshable_cache import (
     NullCache,
     RefreshableCache,
 )
-from bakelib.refreshable_cache.cache import DEFAULT_NAMESPACE
 from tests.utils.misc import flaky_on_windows_ci
 
 
@@ -40,51 +37,41 @@ skip_if_no_keyring = pytest.mark.skipif(
 )
 
 
-class TestKeyRegistry:
-    _prefix = "test-cache"
-    _all_keys: ClassVar[list[str]] = []
-
-    @classmethod
-    def create(cls, suffix: str) -> str:
-        key = f"{cls._prefix}-{suffix}"
-        cls._all_keys.append(key)
-        return key
-
-    @classmethod
-    def get_all_keys(cls) -> list[str]:
-        return cls._all_keys.copy()
-
-
 # Test key constants
-KEY_BASE = TestKeyRegistry.create("base")
-KEY_TTL = TestKeyRegistry.create("ttl")
-KEY_NO_TTL = TestKeyRegistry.create("no-ttl")
-KEY_NO_ERROR = TestKeyRegistry.create("no-error")
-KEY_DECORATOR = TestKeyRegistry.create("decorator")
-KEY_DELETE = TestKeyRegistry.create("delete")
-KEY_DECORATOR_ONCE = TestKeyRegistry.create("once")
-KEY_DECORATOR_CACHE_DELETE = TestKeyRegistry.create("cache-delete")
-KEY_PERSIST = TestKeyRegistry.create("persist")
-KEY_CACHED_TYPE_TEST = TestKeyRegistry.create("cached-type-test")
-KEY_NO_TYPE = TestKeyRegistry.create("no-type")
-KEY_A = TestKeyRegistry.create("a")
-KEY_B = TestKeyRegistry.create("b")
+KEY_BASE = "test-cache-base"
+KEY_TTL = "test-cache-ttl"
+KEY_NO_TTL = "test-cache-no-ttl"
+KEY_NO_ERROR = "test-cache-no-error"
+KEY_DECORATOR = "test-cache-decorator"
+KEY_DELETE = "test-cache-delete"
+KEY_DECORATOR_ONCE = "test-cache-once"
+KEY_DECORATOR_CACHE_DELETE = "test-cache-cache-delete"
+KEY_PERSIST = "test-cache-persist"
+KEY_CACHED_TYPE_TEST = "test-cache-cached-type-test"
+KEY_NO_TYPE = "test-cache-no-type"
+KEY_A = "test-cache-a"
+KEY_B = "test-cache-b"
 
 # Keyring namespace constants
 KEY_NAMESPACE_CUSTOM = "my-app"
-KEY_CUSTOM = TestKeyRegistry.create("custom-namespace-custom")
+KEY_CUSTOM = "test-custom"
 
 
-@pytest.fixture(autouse=True, scope="function")
-def cleanup_keyring():
-    yield
+# Keys for ChainedCache tests
+KEY_CHAINED_A = "test-chained-a"
+KEY_CHAINED_B = "test-chained-b"
+KEY_CHAINED_FALLBACK = "test-chained-fallback"
 
-    for key in TestKeyRegistry.get_all_keys():
-        with contextlib.suppress(Exception):
-            keyring.delete_password(DEFAULT_NAMESPACE, key)
 
-    with contextlib.suppress(Exception):
-        keyring.delete_password(KEY_NAMESPACE_CUSTOM, KEY_CUSTOM)
+# Keys for NullCache tests
+KEY_NULL_A = "test-null-a"
+KEY_NULL_B = "test-null-b"
+
+
+# Keys for faulty backend tests
+KEY_CHAINED_FAULTY_A = "test-chained-faulty-a"
+KEY_CHAINED_FAULTY_B = "test-chained-faulty-b"
+KEY_CHAINED_FAULTY_C = "test-chained-faulty-c"
 
 
 class TestCacheBasics:
@@ -141,7 +128,7 @@ class TestCacheBasics:
 
         # Verify log messages (order-independent for Windows compatibility)
         logs = capsys_to_logs(capsys)
-        assert has_all_messages_in_logs(logs, ["Cache miss", "Refreshing value", "Cache hit"])
+        assert has_all_messages_in_logs(logs, ["Cache miss", "Fetching value", "Cache hit"])
 
         # Use larger buffer on Windows due to timing precision issues
         buffer = 2 if sys.platform == "win32" else 0.1
@@ -319,6 +306,7 @@ class TestKeyringCacheSpecific:
 
     @skip_if_no_keyring
     def test_keyring_cache_persists_across_instances(self):
+        """KeyringCache persists across instances (singleton-like storage via system keyring)."""
         fetch_count = 0
 
         def fetch_value() -> str:
@@ -333,6 +321,31 @@ class TestKeyringCacheSpecific:
         cache2 = KeyringCache(KEY_PERSIST, fetch_value)
         assert cache2.get_value() == "persistent"
         assert fetch_count == 1
+
+
+class TestMemoryCacheSpecific:
+    """Tests specific to MemoryCache."""
+
+    def test_memory_cache_persists_across_instances(self):
+        """MemoryCache persists across instances (singleton-like storage via class variable)."""
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "persistent"
+
+        cache1 = MemoryCache(KEY_PERSIST, fetch_value)
+        cache1.get_value()
+        assert fetch_count == 1
+
+        cache2 = MemoryCache(KEY_PERSIST, fetch_value)
+        assert cache2.get_value() == "persistent"
+        assert fetch_count == 1  # No re-fetch, same storage
+
+
+class TestKeyringCacheSpecificMore:
+    """More tests specific to KeyringCache."""
 
     @skip_if_no_keyring
     def test_keyring_cache_custom_namespace(self):
@@ -387,9 +400,9 @@ class TestRefreshableCacheAbstract:
 
 
 # Keys for ChainedCache tests
-KEY_CHAINED_A = TestKeyRegistry.create("chained-a")
-KEY_CHAINED_B = TestKeyRegistry.create("chained-b")
-KEY_CHAINED_FALLBACK = TestKeyRegistry.create("chained-fallback")
+KEY_CHAINED_A = "test-chained-a"
+KEY_CHAINED_B = "test-chained-b"
+KEY_CHAINED_FALLBACK = "test-chained-fallback"
 
 
 class TestChainedCache:
@@ -430,8 +443,9 @@ class TestChainedCache:
             fetch_count += 1
             return "fallback-value"
 
+        backends: list[type[RefreshableCache[str]]] = [KeyringCache, MemoryCache]
         cache = ChainedCache(
-            backends=[KeyringCache, MemoryCache],
+            backends=backends,
             key=KEY_CHAINED_B,
             fetch_fn=fetch_value,
         )
@@ -454,8 +468,9 @@ class TestChainedCache:
             fetch_count += 1
             return "write-value"
 
+        backends: list[type[RefreshableCache[str]]] = [MemoryCache, KeyringCache]
         cache = ChainedCache(
-            backends=[MemoryCache, KeyringCache],
+            backends=backends,
             key=KEY_CHAINED_FALLBACK,
             fetch_fn=fetch_value,
         )
@@ -468,19 +483,19 @@ class TestChainedCache:
 
         # Should fetch again (memory empty, keyring has it)
         cache.get_value()
-        assert fetch_count == 2
+        assert fetch_count == 1
 
     def test_chained_cache_deletes_from_all_backends(self):
         def fetch_value() -> str:
             return "delete-test"
 
-        backends = [MemoryCache]
+        backends: list[type[RefreshableCache[str]]] = [MemoryCache]
         if keyring_backend_available():
             backends.append(KeyringCache)
 
         cache = ChainedCache(
             backends=backends,
-            key=TestKeyRegistry.create("chained-delete"),
+            key="test-chained-delete",
             fetch_fn=fetch_value,
         )
 
@@ -491,10 +506,27 @@ class TestChainedCache:
         for backend in cache._backends:
             assert backend._get_entry() is None
 
+    def test_chained_cache_sets_to_all_backends(self):
+        def fetch_value() -> str:
+            return "default"
 
-# Keys for NullCache tests
-KEY_NULL_A = TestKeyRegistry.create("null-a")
-KEY_NULL_B = TestKeyRegistry.create("null-b")
+        backends: list[type[RefreshableCache[str]]] = [MemoryCache]
+        if keyring_backend_available():
+            backends.append(KeyringCache)
+
+        cache = ChainedCache(
+            backends=backends,
+            key="test-chained-set-all",
+            fetch_fn=fetch_value,
+        )
+
+        cache.set("written-to-all")
+
+        # All backends should have the value
+        for backend in cache._backends:
+            entry = backend._get_entry()
+            assert entry is not None
+            assert entry.value == "written-to-all"
 
 
 class TestNullCache:
@@ -560,9 +592,10 @@ class TestNullCache:
             fetch_count += 1
             return "chained-value"
 
+        backends: list[type[RefreshableCache[str]]] = [NullCache]
         cache = ChainedCache(
-            backends=[NullCache],
-            key=TestKeyRegistry.create("null-chained"),
+            backends=backends,
+            key="test-null-chained",
             fetch_fn=fetch_value,
         )
 
@@ -588,11 +621,6 @@ class FaultyCache(RefreshableCache):
         raise RuntimeError("Faulty backend")
 
 
-KEY_CHAINED_FAULTY_A = TestKeyRegistry.create("chained-faulty-a")
-KEY_CHAINED_FAULTY_B = TestKeyRegistry.create("chained-faulty-b")
-KEY_CHAINED_FAULTY_C = TestKeyRegistry.create("chained-faulty-c")
-
-
 class TestChainedCacheFaultyBackends:
     """Tests for ChainedCache with faulty backends."""
 
@@ -604,8 +632,9 @@ class TestChainedCacheFaultyBackends:
             fetch_count += 1
             return "fallback-value"
 
+        backends: list[type[RefreshableCache[str]]] = [FaultyCache, MemoryCache]
         cache = ChainedCache(
-            backends=[FaultyCache, MemoryCache],
+            backends=backends,
             key=KEY_CHAINED_FAULTY_A,
             fetch_fn=fetch_value,
         )
@@ -624,8 +653,9 @@ class TestChainedCacheFaultyBackends:
         def fetch_value() -> str:
             return "set-value"
 
+        backends: list[type[RefreshableCache[str]]] = [FaultyCache, MemoryCache]
         cache = ChainedCache(
-            backends=[FaultyCache, MemoryCache],
+            backends=backends,
             key=KEY_CHAINED_FAULTY_B,
             fetch_fn=fetch_value,
         )
@@ -642,8 +672,9 @@ class TestChainedCacheFaultyBackends:
         def fetch_value() -> str:
             return "delete-value"
 
+        backends: list[type[RefreshableCache[str]]] = [FaultyCache, MemoryCache]
         cache = ChainedCache(
-            backends=[FaultyCache, MemoryCache],
+            backends=backends,
             key=KEY_CHAINED_FAULTY_C,
             fetch_fn=fetch_value,
         )
@@ -662,9 +693,10 @@ class TestChainedCacheFaultyBackends:
         def fetch_value() -> str:
             return "all-fail-value"
 
+        backends: list[type[RefreshableCache[str]]] = [FaultyCache, FaultyCache]
         cache = ChainedCache(
-            backends=[FaultyCache, FaultyCache],
-            key=TestKeyRegistry.create("chained-all-fail"),
+            backends=backends,
+            key="test-chained-all-fail",
             fetch_fn=fetch_value,
         )
 

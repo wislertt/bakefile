@@ -12,19 +12,25 @@ def assert_signature_matches_typer(
     func_name: str,
     *,
     skip_self: bool = False,
+    extra_params: list[str] | None = None,
 ) -> None:
     """Assert that a signature matches Typer's Typer.command()."""
+    extra_params = extra_params or []
     typer_command_sig = inspect.signature(typer.Typer.command)
     typer_params = [p for p in typer_command_sig.parameters if not (skip_self and p == "self")]
     func_params = list(func_sig.parameters.keys())
 
-    assert func_params == typer_params, (
+    # Remove extra_params from func_params for comparison
+    func_params_filtered = [p for p in func_params if p not in extra_params]
+
+    assert func_params_filtered == typer_params, (
         f"Signature mismatch for {func_name}:\n"
         f"  {func_name} params: {func_params}\n"
-        f"  typer params: {typer_params}"
+        f"  typer params: {typer_params}\n"
+        f"  extra params: {extra_params}"
     )
 
-    for param_name in func_params:
+    for param_name in func_params_filtered:
         func_param = func_sig.parameters[param_name]
         typer_param = typer_command_sig.parameters[param_name]
         func_default = getattr(func_param.default, "value", func_param.default)

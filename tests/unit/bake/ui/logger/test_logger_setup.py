@@ -2,12 +2,15 @@ import logging
 from collections.abc import Callable
 from contextvars import ContextVar
 from itertools import product
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import loguru._logger
 import pytest
 
 from bake.ui.logger import capsys_to_logs, capsys_to_logs_pretty, setup_logging
+
+if TYPE_CHECKING:
+    from loguru import FilterDict
 from tests.unit.bake.ui.logger import module_a, module_b
 from tests.unit.bake.ui.logger.utils import (
     get_number_of_logs,
@@ -29,7 +32,7 @@ def inner_test_setup_logging(
     is_pretty_log: bool,
 ):
     # setup handler/logger inputs
-    level_per_module = {"": handler_root_level, module_b.NAME: handler_module_b_level}
+    level_per_module: FilterDict = {"": handler_root_level, module_b.NAME: handler_module_b_level}
 
     if context_vars is not None:
         thread_local_context = {

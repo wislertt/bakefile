@@ -11,7 +11,7 @@ def test_reinvocation_actually_switches_python(
     uv_project_folder_with_deps: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _reinvoking_msg = "Re-invoking bake with detected Python:"
+    _reinvoking_msg = "Re-invoking with detected Python:"
     _marker_set_msg = "Re-invocation marker set, skipping Python check"
 
     monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)

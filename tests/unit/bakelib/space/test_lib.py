@@ -8,7 +8,7 @@ from pydantic import SecretStr
 from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.publisher import Publisher
-from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache
+from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache, RefreshableCache
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import BaseLibSpace, PublishResult, PublishStatus
 
@@ -49,6 +49,9 @@ class MinimalTestPublisher(Publisher):
 class MinimalTestLibSpace(BaseLibSpace):
     """Minimal concrete implementation of BaseLibSpace for testing default methods."""
 
+    def get_publish_registries(self) -> set[str]:
+        return {"test-pypi", "pypi", "crates"}
+
     def get_publisher(self, registry: str) -> MinimalTestPublisher:
         return MinimalTestPublisher(self.ctx, registry)
 
@@ -71,22 +74,6 @@ def test_baselib_space_is_base_space() -> None:
 
 class TestBaseLibSpace:
     """Tests for BaseLibSpace methods using minimal test subclass."""
-
-    def test_get_token_from_cli_returns_token_when_provided(self) -> None:
-        space = MinimalTestLibSpace()
-        token = space._get_token_from_local("my-token")
-        assert token == "my-token"
-
-    def test_get_token_from_cli_returns_none_when_not_provided(self) -> None:
-        space = MinimalTestLibSpace()
-        token = space._get_token_from_local(None)
-        assert token is None
-
-    def test_get_token_from_cli_gets_from_bake_publish_token(self) -> None:
-        space = MinimalTestLibSpace()
-        space.bake_publish_token = SecretStr("stored-token")
-        token = space._get_token_from_local(None)
-        assert token == "stored-token"
 
     def test_version_bump_context_is_context_manager(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
@@ -228,8 +215,9 @@ class TestBaseLibSpace:
         with mock_ctx:
             space = MinimalTestLibSpace()
 
+            backends: list[type[RefreshableCache[str | None]]] = [KeyringCache, NullCache]
             cached_publish_token = ChainedCache(
-                backends=[KeyringCache, NullCache],
+                backends=backends,
                 namespace="test-namespace",
                 key="test-key",
                 fetch_fn=fetch_token,
@@ -241,6 +229,7 @@ class TestBaseLibSpace:
             )
 
             publisher = space.get_publisher("test-pypi")
+            space._publisher = publisher
 
             def mock_publish(token: str | None) -> PublishResult:
                 _ = token
@@ -248,9 +237,7 @@ class TestBaseLibSpace:
 
             monkeypatch.setattr(publisher, "_publish_with_token", mock_publish)
 
-            result = space._execute_publish(
-                publisher=publisher, cached_publish_token=cached_publish_token
-            )
+            result = space._execute_publish(cached_publish_token=cached_publish_token)
 
         assert result.status == PublishStatus.SUCCESS
         assert result.result is not None
@@ -298,8 +285,8 @@ class TestBaseLibSpace:
 
                 return context()
 
-            def _execute_publish(self, publisher, cached_publish_token) -> PublishResult:
-                _ = publisher, cached_publish_token
+            def _execute_publish(self, cached_publish_token) -> PublishResult:
+                _ = cached_publish_token
                 call_order.append("_execute_publish")
                 success_result = subprocess.CompletedProcess(
                     args=["publish"], returncode=0, stdout="Success", stderr=""
@@ -347,9 +334,8 @@ class TestBaseLibSpace:
         with mock_ctx:
             space = MinimalTestLibSpace()
             publisher = space.get_publisher("test-pypi")
-            cached_token = space._get_cached_publish_token(
-                token=None, registry="test-pypi", publisher=publisher
-            )
+            space._publisher = publisher
+            cached_token = space._get_cached_publish_token(token=None, registry="test-pypi")
         cached_token.delete()
         result = cached_token.get_value()
         assert result is None
@@ -358,8 +344,9 @@ class TestBaseLibSpace:
         with mock_ctx:
             space = MinimalTestLibSpace()
             publisher = space.get_publisher("test-pypi")
+            space._publisher = publisher
             cached_token = space._get_cached_publish_token(
-                token="local-token", registry="test-pypi", publisher=publisher
+                token="local-token", registry="test-pypi"
             )
         result = cached_token.get_value()
         assert result == "local-token"
@@ -373,8 +360,9 @@ class TestBaseLibSpace:
         with mock_ctx:
             space = MinimalTestLibSpace()
 
+            backends: list[type[RefreshableCache[str | None]]] = [KeyringCache, NullCache]
             cached_publish_token = ChainedCache(
-                backends=[KeyringCache, NullCache],
+                backends=backends,
                 namespace="test-namespace",
                 key="test-key",
                 fetch_fn=fetch_token,
@@ -382,6 +370,7 @@ class TestBaseLibSpace:
             cached_publish_token.set("dummy-token")
 
             publisher = space.get_publisher("test-pypi")
+            space._publisher = publisher
 
             def mock_publish(token: str | None) -> PublishResult:
                 _ = token
@@ -394,9 +383,7 @@ class TestBaseLibSpace:
 
             monkeypatch.setattr(publisher, "_publish_with_token", mock_publish)
 
-            result = space._execute_publish(
-                publisher=publisher, cached_publish_token=cached_publish_token
-            )
+            result = space._execute_publish(cached_publish_token=cached_publish_token)
 
         assert result.status == PublishStatus.AUTH_FAILED
         assert result.result is None
@@ -435,3 +422,56 @@ class TestBaseLibSpaceGetRequiredCliTools:
         tools = space._get_required_cli_tools()
         assert "zerv" in tools
         assert tools["zerv"] is None  # global tool
+
+
+class TestBaseLibSpaceSecretIntegration:
+    """Tests for BaseLibSpace secret-related methods."""
+
+    def test_get_secret_keys_includes_publish_keys(self) -> None:
+        class LibSpaceWithRegistries(MinimalTestLibSpace):
+            def get_publish_registries(self) -> set[str]:
+                return {"pypi", "test-pypi"}
+
+        space = LibSpaceWithRegistries()
+        keys = space.get_secret_keys()
+        assert "publish-token-pypi" in keys
+        assert "publish-token-test-pypi" in keys
+
+    def test_get_fetch_fn_returns_super_for_non_publish_keys(self) -> None:
+        space = MinimalTestLibSpace()
+        fetch_fn = space._get_fetch_fn("other-key")
+        # Should return null_fetch_fn from parent
+        assert fetch_fn() is None
+
+    def test_get_publish_token_returns_token_when_set(self) -> None:
+        space = MinimalTestLibSpace()
+        space.bake_publish_token = SecretStr("my-token")
+        assert space._get_publish_token() == "my-token"
+
+    def test_get_publish_token_returns_none_when_nothing_set(self) -> None:
+        space = MinimalTestLibSpace()
+        # No token and no publisher
+        assert space._get_publish_token() is None
+
+    def test_pre_publish_setup_raises_when_publisher_not_set(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
+            space._pre_publish_setup()
+
+    def test_execute_publish_raises_when_publisher_not_set(self, mock_ctx: Context) -> None:
+        space = MinimalTestLibSpace()
+        from bakelib.refreshable_cache import ChainedCache, MemoryCache, RefreshableCache
+
+        backends: list[type[RefreshableCache[str | None]]] = [MemoryCache]
+
+        def fetch_fn() -> str | None:
+            return None
+
+        cache = ChainedCache(
+            backends=backends,
+            namespace="test",
+            key="test-key",
+            fetch_fn=fetch_fn,
+        )
+        with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
+            space._execute_publish(cached_publish_token=cache)

@@ -17,6 +17,7 @@ from tests.utils.fixtures import (
 )
 from tests.utils.misc import (
     SimpleTestCommand,
+    auto_cleanup_keyring,
     examples_python_package_dir,
     examples_simple_dir,
     mock_ctx,
@@ -27,6 +28,7 @@ __all__ = [
     "CaptureOutput",
     "RunCli",
     "SimpleTestCommand",
+    "auto_cleanup_keyring",
     "complex_vars_project",
     "ctx_test_project",
     "disable_colors",

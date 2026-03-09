@@ -10,6 +10,9 @@ from .python import PythonSpace
 
 
 class PythonLibSpace(PythonSpace, BaseLibSpace):
+    def get_publish_registries(self) -> set[str]:
+        return set(PyPIPublisher.valid_registries)
+
     def get_publisher(self, registry: str) -> PyPIPublisher:
         """Return the PyPI publisher instance for the given registry."""
         return PyPIPublisher(self.ctx, registry)

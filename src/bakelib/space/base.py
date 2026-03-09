@@ -8,19 +8,19 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console, run
+from bakelib.utils import CleanUtils
 
 from .utils import (
     PlatformType,
     get_platform,
     install_mise_tools,
     orjson_default,
-    remove_git_clean_candidates,
     setup_brew,
     setup_mise,
 )
 
 
-class BaseSpace(Bakebook):
+class BaseSpace(CleanUtils, Bakebook):
     @property
     def _package_name(self) -> str:
         self._method_not_available("_package_name")
@@ -108,53 +108,6 @@ class BaseSpace(Bakebook):
     @command(help="Run all tests")
     def test_all(self) -> None:
         self._command_not_available("test_all")
-
-    def _clean(
-        self,
-        exclude_patterns: list[str] | None,
-        default_excludes: bool,
-        default_exclude_patterns: set[str],
-    ):
-        results = run("git clean -fdX -n", stream=False, dry_run=False, echo=True)
-
-        exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
-
-        if default_excludes:
-            exclude_patterns |= default_exclude_patterns
-
-        console.err.print(f"Exclude pattens: {exclude_patterns}")
-
-        remove_git_clean_candidates(
-            git_clean_dry_run_output=results.stdout,
-            exclude_patterns=exclude_patterns,
-            dry_run=self.ctx.dry_run,
-        )
-
-    @command(help="Clean gitignored files with optional exclusions")
-    def clean(
-        self,
-        exclude_patterns: Annotated[
-            list[str] | None,
-            typer.Option(
-                "--exclude-patterns",
-                "-e",
-                help="Patterns to exclude",
-            ),
-        ] = None,
-        default_excludes: Annotated[
-            bool,
-            typer.Option(help="Apply default exclude patterns (.env, .cache)"),
-        ] = True,
-    ) -> None:
-        self._clean(
-            exclude_patterns=exclude_patterns,
-            default_excludes=default_excludes,
-            default_exclude_patterns={".env", ".cache"},
-        )
-
-    @command(help="Clean all gitignored files")
-    def clean_all(self) -> None:
-        self.ctx.run("git clean -fdX")
 
     def setup_tool_managers(self, platform: PlatformType) -> None:
         _ = platform

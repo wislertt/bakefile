@@ -10,7 +10,7 @@ BaseEnvFieldType = Annotated[BaseEnv, Field(exclude=True, repr=False)]
 
 class EnvBakebook(Bakebook):
     # Field name uses underscore suffix to avoid Pydantic reading from ENV env var
-    env_: BaseEnvFieldType = Field(exclude=True, repr=False)
+    env_: BaseEnvFieldType
 
     @computed_field
     @property

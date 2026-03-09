@@ -1,4 +1,4 @@
-from bake.bakebook.bakebook import Bakebook
+from bake.bakebook.bakebook import Bakebook, GroupKwargs
 from bake.bakebook.decorator import command
 from bake.cli.common.context import BakeCommand, Context
 from bake.cli.utils.version import _get_version
@@ -11,6 +11,7 @@ __all__ = [
     "BakeCommand",
     "Bakebook",
     "Context",
+    "GroupKwargs",
     "__version__",
     "command",
     "console",

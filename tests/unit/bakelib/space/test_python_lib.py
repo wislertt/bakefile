@@ -9,6 +9,14 @@ from bakelib.publisher import PublishResult, PublishStatus
 from bakelib.space.python_lib import PythonLibSpace
 
 
+class TestPythonLibSpaceGetPublishRegistries:
+    def test_get_publish_registries_returns_pypi_registries(self) -> None:
+        space = PythonLibSpace()
+        registries = space.get_publish_registries()
+        assert "pypi" in registries
+        assert "test-pypi" in registries
+
+
 class TestPyPIPublisher:
     def test_validate_registry_returns_valid_indices(self, mock_ctx: Context):
         with mock_ctx:

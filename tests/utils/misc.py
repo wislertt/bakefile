@@ -1,17 +1,43 @@
 """Miscellaneous test utilities - context, logger, flaky, paths, string helpers."""
 
+import contextlib
 import sys
 from functools import wraps
 from pathlib import Path
 
 import click
+import keyring
 import loguru
 import pytest
+from keyring.errors import PasswordDeleteError
 
 from bake import Context
 from bake.cli.common.obj import BakefileObject
 from bake.ui.logger.utils import reset_all_logging_states
 from bake.utils.settings import bake_settings
+
+
+@pytest.fixture(scope="function", autouse=True)
+def auto_cleanup_keyring(monkeypatch: pytest.MonkeyPatch):
+    """Automatically track and cleanup all keyring entries created during test.
+
+    Monkey patches keyring.set_password to track all (service, username) pairs,
+    then deletes them after the test completes.
+    """
+    registered_keys: list[tuple[str, str]] = []
+    keyring_set_password = keyring.set_password
+
+    def tracked_set_password(service: str, username: str, password: str) -> None:
+        registered_keys.append((service, username))
+        return keyring_set_password(service, username, password)
+
+    monkeypatch.setattr(keyring, "set_password", tracked_set_password)
+
+    yield
+
+    for service, username in registered_keys:
+        with contextlib.suppress(PasswordDeleteError):
+            keyring.delete_password(service, username)
 
 
 class SimpleTestCommand(click.Command):
