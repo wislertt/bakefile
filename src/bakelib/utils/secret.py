@@ -124,7 +124,7 @@ class SecretUtils(Bakebook):
         """
         if key is None:
             # Delete all tracked secrets
-            for k in list(self.get_secret_keys()):
+            for k in self.get_secret_keys():
                 self.del_secret(k)
                 console.echo(f"Deleted: {k}")
             console.success("All tracked secrets deleted.")
@@ -145,7 +145,7 @@ class SecretUtils(Bakebook):
         """
         if key is None:
             # Refresh all tracked secrets
-            for k in list(self.get_secret_keys()):
+            for k in self.get_secret_keys():
                 self.refresh_secret(k)
                 console.echo(f"Refreshed: {k}")
             console.success("All tracked secrets refreshed.")
