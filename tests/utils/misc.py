@@ -9,7 +9,7 @@ import click
 import keyring
 import loguru
 import pytest
-from keyring.errors import PasswordDeleteError
+from keyring.errors import KeyringError
 
 from bake import Context
 from bake.cli.common.obj import BakefileObject
@@ -36,7 +36,7 @@ def auto_cleanup_keyring(monkeypatch: pytest.MonkeyPatch):
     yield
 
     for service, username in registered_keys:
-        with contextlib.suppress(PasswordDeleteError):
+        with contextlib.suppress(KeyringError):
             keyring.delete_password(service, username)
 
 
@@ -119,3 +119,24 @@ def examples_python_package_dir() -> Path:
 
 def remove_whitespace(s: str) -> str:
     return "".join(s.split())
+
+
+def _has_keyring_backend() -> bool:
+    """Check if a working keyring backend is available."""
+    try:
+        # Try to access the keyring - will raise NoKeyringError if no backend
+        return keyring.get_keyring() is not None
+    except Exception:
+        return False
+
+
+def skip_if_no_keyring(func):
+    """Decorator to skip test if no keyring backend is available."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not _has_keyring_backend():
+            pytest.skip("No keyring backend available")
+        return func(*args, **kwargs)
+
+    return wrapper
