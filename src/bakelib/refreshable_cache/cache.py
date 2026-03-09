@@ -88,18 +88,24 @@ class RefreshableCache(ABC, Generic[CachedT]):
         cached = self._get_entry()
         if cached is None:
             logger.debug(f"Cache miss for key '{self._key}', fetching value")
-            return self._refresh()
+            return self._fetch()
         if self._is_expired(cached.timestamp):
             logger.debug(f"Cache expired for key '{self._key}', fetching fresh value")
-            return self._refresh()
+            return self._fetch()
         logger.debug(f"Cache hit for key '{self._key}'")
         return cached.value
 
-    def _refresh(self) -> CachedT:
-        logger.debug(f"Refreshing value for key '{self._key}'")
+    def _fetch(self) -> CachedT:
+        """Fetch value from source and cache it."""
+        logger.debug(f"Fetching value for key '{self._key}'")
         value = self._fetch_fn()
         self.set(value)
         return value
+
+    def refresh(self) -> CachedT:
+        """Force refresh: clear cache and fetch fresh value."""
+        self.delete()
+        return self._fetch()
 
     def catch_refresh(self, func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
@@ -319,13 +325,11 @@ class ChainedCache(RefreshableCache[CachedT]):
                     f"ChainedCache: successfully set entry on backend {i} for "
                     f"namespace='{self._namespace}', key='{self._key}'"
                 )
-                return
             except Exception as e:
                 logger.debug(
                     f"ChainedCache: backend {i} failed to set for "
                     f"namespace='{self._namespace}', key='{self._key}': {e}"
                 )
-                continue
         logger.debug(
             f"ChainedCache: all backends failed to set for "
             f"namespace='{self._namespace}', key='{self._key}'"
@@ -347,4 +351,3 @@ class ChainedCache(RefreshableCache[CachedT]):
                     f"ChainedCache: backend {i} failed to delete for "
                     f"namespace='{self._namespace}', key='{self._key}': {e}"
                 )
-                continue

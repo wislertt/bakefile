@@ -66,6 +66,22 @@ uv run pytest tests/unit/bakelib/ -v
 - **No automatic commits**: Do NOT make git commits automatically. The developer will commit when ready.
 - **Task-by-task execution**: When working from dev docs task lists, proceed exactly as requested. If user says "1.1" or "Task 1.1", ONLY complete that specific task—do not proceed to other tasks unless explicitly asked. This allows for review and feedback between tasks.
 
+## Pydantic Patterns
+
+Always use the `Annotated` pattern for Pydantic `Field()` configuration:
+
+```python
+# ✅ Correct - Annotated pattern
+MyFieldType = Annotated[str, Field(min_length=1, max_length=100)]
+
+class MyModel(BaseModel):
+    name: MyFieldType
+
+# ❌ Wrong - Field on assignment
+class MyModel(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+```
+
 ## Project Structure
 
 ```
@@ -104,6 +120,25 @@ bakefile.py      # Example bakefile
 
 - **Unit tests:** Default for new tests. Test logic in isolation with mocks.
 - **Integration tests:** Only when testing real subprocess behavior, end-to-end flows, or actual example projects.
+
+**Testing Bakebook subclasses with `mock_ctx`:**
+
+```python
+def test_clean_all_runs_git_clean(
+    self, mock_ctx: Context, capsys: pytest.CaptureFixture
+) -> None:
+    clean_utils = CleanUtils()
+    with mock_ctx:
+        clean_utils.clean_all()
+    captured = capsys.readouterr()
+    err = strip_ansi(captured.err)
+    assert "git clean -fdX" in err
+```
+
+- `mock_ctx` is in dry-run mode - commands print to stderr but don't execute
+- **Do NOT use `patch` or `mock_result`** - just use `mock_ctx` directly
+- Use `strip_ansi()` for colored output
+- Check `captured.err` (stderr), not `captured.out`
 
 See `tests/README.md` for detailed testing guidelines.
 

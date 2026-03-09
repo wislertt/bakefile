@@ -1,6 +1,7 @@
 import logging
 from contextvars import ContextVar
 from datetime import datetime
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import loguru
@@ -15,6 +16,9 @@ from bake.ui.logger.utils import (
     reset_all_logging_states,
     to_json_serializable,
 )
+
+if TYPE_CHECKING:
+    from loguru import FilterDict
 
 # ==============================================================================
 # Tests for individual components
@@ -47,19 +51,19 @@ class TestGetGlobalMinLogLevel:
 
     def test_returns_min_level(self) -> None:
         """Test that function returns minimum log level."""
-        level_per_module = {"": logging.WARNING, "test_module": logging.DEBUG}
-        result = get_global_min_log_level(level_per_module)
+        level_per_module: FilterDict = {"": logging.WARNING, "test_module": logging.DEBUG}
+        result: int = get_global_min_log_level(level_per_module)
         assert result == logging.DEBUG
 
     def test_raises_on_missing_default_key(self) -> None:
         """Test that function raises ValueError when '' key is missing."""
-        level_per_module = {"test_module": logging.WARNING}
+        level_per_module: FilterDict = {"test_module": logging.WARNING}
         with pytest.raises(ValueError, match="Missing empty string key"):
             get_global_min_log_level(level_per_module)
 
     def test_raises_on_non_int_values(self) -> None:
         """Test that function raises ValueError on non-int values."""
-        level_per_module = {"": logging.WARNING, "test": "INFO"}
+        level_per_module: FilterDict = {"": logging.WARNING, "test": "INFO"}
         with pytest.raises(ValueError, match=r"All values.*must be of type 'int'"):
             get_global_min_log_level(level_per_module)
 

@@ -10,6 +10,9 @@ from .rust import RustSpace
 
 
 class RustLibSpace(RustSpace, BaseLibSpace):
+    def get_publish_registries(self) -> set[str]:
+        return set(CratesPublisher.valid_registries)
+
     def get_publisher(self, registry: str) -> CratesPublisher:
         """Return the Crates publisher instance for the given registry."""
         return CratesPublisher(self.ctx, registry)

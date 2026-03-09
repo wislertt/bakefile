@@ -7,7 +7,7 @@ import pytest
 from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.space.base import BaseSpace
-from bakelib.space.rust import RustSpace, run_rustup_update
+from bakelib.space.rust import RustSpace, _cleanup_rustup_temp, run_rustup_update
 
 _CARGO_TOML_CONTENT = """\
 [package]
@@ -97,3 +97,49 @@ class TestRunRustupUpdate:
 
         captured = capsys.readouterr()
         assert "`rustup update` timed out after 1 attempts" in strip_ansi(captured.err)
+
+    def test_cleanup_removes_temp_directories(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        """Test that _cleanup_rustup_temp removes temp directories."""
+        mock_rmtree = mock.MagicMock()
+        mock_tmp_path = Path.home() / ".rustup" / "tmp"
+        mock_downloads_path = Path.home() / ".rustup" / "downloads"
+
+        # Mock Path.exists to return True for both directories
+        def mock_exists(self):
+            return self in (mock_tmp_path, mock_downloads_path)
+
+        monkeypatch.setattr(Path, "exists", mock_exists)
+        # Mock shutil.rmtree to prevent actual deletion
+        monkeypatch.setattr("shutil.rmtree", mock_rmtree)
+
+        _cleanup_rustup_temp(retry_state=mock.MagicMock())
+
+        # Verify both directories were removed
+        assert mock_rmtree.call_count == 2
+        mock_rmtree.assert_any_call(mock_tmp_path)
+        mock_rmtree.assert_any_call(mock_downloads_path)
+
+        # Verify console logged removals
+        captured = capsys.readouterr()
+        assert f"Removed {mock_tmp_path}" in captured.out
+        assert f"Removed {mock_downloads_path}" in captured.out
+
+    def test_cleanup_skips_nonexistent_directories(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that _cleanup_rustup_temp skips non-existent directories."""
+        mock_rmtree = mock.MagicMock()
+
+        # Mock Path.exists to return False for all directories
+        def mock_exists(self):
+            _ = self
+            return False
+
+        monkeypatch.setattr(Path, "exists", mock_exists)
+        # Mock shutil.rmtree to prevent actual deletion
+        monkeypatch.setattr("shutil.rmtree", mock_rmtree)
+
+        _cleanup_rustup_temp(retry_state=mock.MagicMock())
+
+        # Verify rmtree was never called
+        mock_rmtree.assert_not_called()

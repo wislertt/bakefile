@@ -18,6 +18,13 @@ version = "1.0.0"
 """
 
 
+class TestRustLibSpaceGetPublishRegistries:
+    def test_get_publish_registries_returns_crates_registry(self) -> None:
+        space = RustLibSpace()
+        registries = space.get_publish_registries()
+        assert "crates" in registries
+
+
 class TestCratesPublisher:
     def test_validate_registry_returns_valid_indices(self, mock_ctx: Context):
         with mock_ctx:

@@ -10,6 +10,7 @@ import typer
 from pydantic_settings import SettingsConfigDict
 
 from bake import Bakebook, Context, command
+from bake.bakebook.bakebook import CommandKwargs, GroupKwargs
 from bake.utils.constants import BAKE_COMMAND_KWARGS
 from bake.utils.exceptions import ContextNotAvailableError
 from tests.unit.bake.bakebook.utils import (
@@ -23,6 +24,52 @@ from tests.utils.cli import CMD_BAKE, RunCli
 def test_bakebook_command_signature_matches_typer() -> None:
     """Ensure Bakebook.command() signature matches Typer's Typer.command()."""
     assert_signature_matches_typer(inspect.signature(Bakebook.command), "Bakebook.command")
+
+
+def test_command_kwargs_fields_match_command_decorator() -> None:
+    """CommandKwargs fields should match @command decorator parameters."""
+    decorator_sig = inspect.signature(command)
+    decorator_params = list(decorator_sig.parameters.keys())
+
+    # Get CommandKwargs fields (excluding methods)
+    kwargs_fields = [f.name for f in CommandKwargs.__dataclass_fields__.values()]
+
+    assert kwargs_fields == decorator_params, (
+        f"CommandKwargs fields mismatch:\n"
+        f"  CommandKwargs: {kwargs_fields}\n"
+        f"  @command params: {decorator_params}"
+    )
+
+    # Verify defaults match
+    for field_name in kwargs_fields:
+        field = CommandKwargs.__dataclass_fields__[field_name]
+        decorator_param = decorator_sig.parameters[field_name]
+
+        # Handle Default wrapper for rich_help_panel
+        kwargs_default = field.default
+        decorator_default = decorator_param.default
+
+        assert kwargs_default == decorator_default, (
+            f"Default mismatch for '{field_name}': "
+            f"CommandKwargs={kwargs_default!r}, @command={decorator_default!r}"
+        )
+
+
+def test_group_kwargs_fields_match_add_typer() -> None:
+    """GroupKwargs fields should match Typer.add_typer() parameters (excluding name)."""
+    add_typer_sig = inspect.signature(typer.Typer.add_typer)
+    add_typer_params = list(add_typer_sig.parameters.keys())
+    # Remove 'self', 'typer_instance', and 'name' (name is passed separately)
+    add_typer_params = [p for p in add_typer_params if p not in ("self", "typer_instance", "name")]
+
+    # Get GroupKwargs fields (excluding methods)
+    kwargs_fields = [f.name for f in GroupKwargs.__dataclass_fields__.values()]
+
+    assert kwargs_fields == add_typer_params, (
+        f"GroupKwargs fields mismatch:\n"
+        f"  GroupKwargs: {kwargs_fields}\n"
+        f"  add_typer params (excl. name): {add_typer_params}"
+    )
 
 
 def test_create_empty_subclass() -> None:
@@ -156,8 +203,9 @@ def test_method_command_registration() -> None:
         """Test command."""
 
     kwargs = object.__getattribute__(bakebook.test_method.__func__, BAKE_COMMAND_KWARGS)
-    assert kwargs["name"] is None
-    assert kwargs["help"] is None
+    assert isinstance(kwargs, CommandKwargs)
+    assert kwargs.name is None
+    assert kwargs.help is None
 
     assert_commands(
         bakebook,

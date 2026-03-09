@@ -146,18 +146,6 @@ class TestCommandsNotAvailable:
             assert exc_info.value.exit_code == 1
 
 
-class TestCleanAll:
-    def test_clean_all_runs_git_clean(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
-    ) -> None:
-        base_space = MinimalTestSpace()
-        with mock_ctx:
-            base_space.clean_all()
-        captured = capsys.readouterr()
-        err = strip_ansi(captured.err)
-        assert "git clean -fdX" in err
-
-
 class TestToolsCommand:
     def test_tools_command_outputs_names_by_default(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture

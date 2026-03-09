@@ -1,4 +1,5 @@
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -6,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import zerv
-from tenacity import retry, retry_if_exception_type, stop_after_attempt
+from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt
 
 from bake import console, style
 
@@ -19,16 +20,31 @@ else:
     import tomli as tomllib  # type: ignore[import-not-found]
 
 
+def _cleanup_rustup_temp(retry_state: RetryCallState) -> None:
+    _ = retry_state
+    rustup_dir = Path.home() / ".rustup"
+    dirs_to_remove: list[Path] = [
+        rustup_dir / "tmp",
+        rustup_dir / "downloads",
+    ]
+
+    for dir_path in dirs_to_remove:
+        if dir_path.exists():
+            shutil.rmtree(dir_path)
+            console.echo(f"Removed {dir_path}", highlight=False)
+
+
 def run_rustup_update(
     run_fn: Callable[..., subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]],
     timeout: float = 30,
-    max_attempts: int = 3,
+    max_attempts: int = 5,
 ) -> None:
 
     @retry(
         stop=stop_after_attempt(max_attempts),
         retry=retry_if_exception_type(subprocess.TimeoutExpired),
         reraise=True,
+        before_sleep=_cleanup_rustup_temp,
     )
     def _run():
         run_fn("rustup update", timeout=timeout)
