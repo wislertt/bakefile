@@ -102,6 +102,16 @@ class TestDeterminePublishResult:
 
         assert publish_result.status == PublishStatus.DRY_RUN
 
+    def test_returns_dry_run_when_token_is_empty_string(self, mock_ctx: Context) -> None:
+        """Test that empty string token is treated the same as None (dry-run)."""
+        with mock_ctx:
+            publisher = MinimalTestPublisher(mock_ctx, "test-pypi")
+            result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+            publish_result = publisher._determine_publish_result(token="", result=result)
+
+        assert publish_result.status == PublishStatus.DRY_RUN
+
     def test_returns_success_on_zero_returncode(self, mock_ctx: Context) -> None:
         with mock_ctx:
             publisher = MinimalTestPublisher(mock_ctx, "test-pypi")
@@ -151,3 +161,31 @@ class TestDeterminePublishResult:
             publish_result = publisher._determine_publish_result(token="test-token", result=result)
 
         assert publish_result.status == PublishStatus.ALREADY_EXISTS
+
+
+class TestPublishWithToken:
+    """Tests for Publisher._publish_with_token method."""
+
+    def test_uses_dummy_token_when_token_is_none(self, mock_ctx: Context) -> None:
+        """Test that None token results in dry-run status."""
+        with mock_ctx:
+            publisher = MinimalTestPublisher(mock_ctx, "test-pypi")
+            publish_result = publisher._publish_with_token(token=None)
+
+        assert publish_result.status == PublishStatus.DRY_RUN
+
+    def test_uses_dummy_token_when_token_is_empty_string(self, mock_ctx: Context) -> None:
+        """Test that empty string token is treated as None and results in dry-run status."""
+        with mock_ctx:
+            publisher = MinimalTestPublisher(mock_ctx, "test-pypi")
+            publish_result = publisher._publish_with_token(token="")
+
+        assert publish_result.status == PublishStatus.DRY_RUN
+
+    def test_uses_real_token_when_token_is_non_empty(self, mock_ctx: Context) -> None:
+        """Test that non-empty token is used directly."""
+        with mock_ctx:
+            publisher = MinimalTestPublisher(mock_ctx, "test-pypi")
+            publish_result = publisher._publish_with_token(token="real-token")
+
+        assert publish_result.status == PublishStatus.SUCCESS

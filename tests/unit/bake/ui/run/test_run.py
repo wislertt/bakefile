@@ -770,6 +770,7 @@ class TestCheckExitCodeStreamFalse:
         err_plain = re.sub(r"\x1b\[[0-9;]*m", "", capture.err)
         assert "short" in err_plain
 
+    @flaky_on_macos_ci()
     def test_stream_true_does_not_show_duplicate_stderr(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:

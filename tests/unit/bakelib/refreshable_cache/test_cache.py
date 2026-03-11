@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import sys
 import time
@@ -35,6 +36,12 @@ def keyring_backend_available() -> bool:
 skip_if_no_keyring = pytest.mark.skipif(
     not keyring_backend_available(), reason="No keyring backend available"
 )
+
+
+def cleanup_keyring_keys(keys: list[tuple[str, str]]) -> None:
+    for service, username in keys:
+        with contextlib.suppress(Exception):
+            keyring.delete_password(service, username)
 
 
 # Test key constants
@@ -81,6 +88,10 @@ class TestCacheBasics:
         "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
     )
     def test_cache_stores_and_retrieves_value(self, cache_class: type[RefreshableCache]):
+        # Ensure clean state for KeyringCache
+        if cache_class == KeyringCache:
+            cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_BASE)])
+
         fetch_count = 0
 
         def fetch_value() -> str:
@@ -106,6 +117,10 @@ class TestCacheBasics:
         setup_logging(
             level_per_module={"": logging.WARNING, "bakelib": logging.DEBUG}, is_pretty_log=False
         )
+
+        # Ensure clean state - delete any existing entry from previous test runs
+        if cache_class == KeyringCache:
+            cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_TTL)])
 
         fetch_count = {"count": 0}
 
@@ -207,6 +222,10 @@ class TestDecorator:
         "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
     )
     def test_catch_refresh_retries_on_error(self, cache_class: type[RefreshableCache]):
+        # Ensure clean state for KeyringCache
+        if cache_class == KeyringCache:
+            cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_DECORATOR)])
+
         call_count = 0
         fetch_count = 0
 
@@ -235,6 +254,10 @@ class TestDecorator:
         "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
     )
     def test_catch_refresh_no_error(self, cache_class: type[RefreshableCache]):
+        # Ensure clean state for KeyringCache
+        if cache_class == KeyringCache:
+            cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_NO_ERROR)])
+
         fetch_count = 0
 
         def fetch_value() -> str:
@@ -307,6 +330,9 @@ class TestKeyringCacheSpecific:
     @skip_if_no_keyring
     def test_keyring_cache_persists_across_instances(self):
         """KeyringCache persists across instances (singleton-like storage via system keyring)."""
+        # Ensure clean state before test
+        cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_PERSIST)])
+
         fetch_count = 0
 
         def fetch_value() -> str:
@@ -349,6 +375,9 @@ class TestKeyringCacheSpecificMore:
 
     @skip_if_no_keyring
     def test_keyring_cache_custom_namespace(self):
+        # Ensure clean state before test
+        cleanup_keyring_keys([(KEY_NAMESPACE_CUSTOM, KEY_CUSTOM)])
+
         fetch_count = 0
 
         def fetch_value() -> str:

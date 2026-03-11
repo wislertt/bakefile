@@ -9,7 +9,7 @@
         "test": "tsx skill-activation-prompt.ts < test-input.json"
     },
     "dependencies": {
-        "@types/node": "^25.3.5",
+        "@types/node": "^25.4.0",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3"
     }
