@@ -26,6 +26,10 @@ def lint(
         bool,
         typer.Option("--ty/--no-ty", show_default=False),
     ] = True,
+    line_length: Annotated[
+        int,
+        typer.Option("--line-length", help="Line length for ruff check", show_default=True),
+    ] = 100,
 ) -> None:
     """
     Quick and strict lint your bakefile.py.
@@ -38,9 +42,10 @@ def lint(
     By default, runs: ruff format, ruff check, ty check
 
     Examples:
-        bakefile lint              # Lint bakefile.py and all Python files
-        bakefile lint -b           # Lint only bakefile.py
-        bakefile lint --no-ty      # Skip type checking
+        bakefile lint                  # Lint bakefile.py and all Python files
+        bakefile lint -b               # Lint only bakefile.py
+        bakefile lint --no-ty          # Skip type checking
+        bakefile lint --line-length 88 # Set line length to 88
     """
     bakefile_path = ctx.obj.bakefile_path
     if bakefile_path is None or not bakefile_path.exists():
@@ -59,7 +64,11 @@ def lint(
 
         if ruff_check:
             run_ruff_check(
-                bakefile_path, only_bakefile=only_bakefile, check=True, dry_run=ctx.obj.dry_run
+                bakefile_path,
+                only_bakefile=only_bakefile,
+                line_length=line_length,
+                check=True,
+                dry_run=ctx.obj.dry_run,
             )
 
         if ty_check:
