@@ -29,6 +29,7 @@ from .export import export
 from .find_python import find_python
 from .init import init
 from .lint import lint
+from .run import run
 
 
 def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
@@ -57,7 +58,7 @@ def main():
         rich_markup_mode=rich_markup_mode,
     )
 
-    uv_commands_context_settings = {
+    pass_through_context_settings = {
         "allow_extra_args": True,
         "ignore_unknown_options": True,
     }
@@ -69,9 +70,10 @@ def main():
     bakefile_app.command()(find_python)
     bakefile_app.command()(lint)
     bakefile_app.command()(export)
-    bakefile_app.command(context_settings=uv_commands_context_settings)(uv.sync)
-    bakefile_app.command(context_settings=uv_commands_context_settings)(uv.lock)
-    bakefile_app.command(context_settings=uv_commands_context_settings)(uv.add)
-    bakefile_app.command(context_settings=uv_commands_context_settings)(uv.pip)
+    bakefile_app.command(context_settings=pass_through_context_settings)(uv.sync)
+    bakefile_app.command(context_settings=pass_through_context_settings)(uv.lock)
+    bakefile_app.command(context_settings=pass_through_context_settings)(uv.add)
+    bakefile_app.command(context_settings=pass_through_context_settings)(uv.pip)
+    bakefile_app.command(context_settings=pass_through_context_settings, add_help_option=False)(run)
     bakefile_app.bakefile_object = bakefile_obj
     call_app_with_chdir(app=bakefile_app, bakefile_path=bakefile_obj.bakefile_path)
