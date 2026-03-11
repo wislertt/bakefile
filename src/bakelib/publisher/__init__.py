@@ -56,7 +56,11 @@ class Publisher(ABC):
     def _publish_with_token(self, token: str | None) -> PublishResult:
         """Publish with the given token."""
         env: dict[str, str] = {}
-        effective_token = token if token is not None else self._dummy_publish_token
+        # Convert empty string to None, then use dummy token for both None and empty string cases
+        normalized_token = token if token else None
+        effective_token = (
+            normalized_token if normalized_token is not None else self._dummy_publish_token
+        )
         self._setup_token_env(env, effective_token)
 
         result = self._execute_publish_command(env, effective_token)
@@ -97,7 +101,7 @@ class Publisher(ABC):
         self, token: str | None, result: subprocess.CompletedProcess[str]
     ) -> PublishResult:
         """Determine the publish result status from the token and result."""
-        if token is None:
+        if not token:
             status = PublishStatus.DRY_RUN
         elif self._is_already_exists_error(result):
             status = PublishStatus.ALREADY_EXISTS

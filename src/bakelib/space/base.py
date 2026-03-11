@@ -83,6 +83,9 @@ class BaseSpace(CleanUtils, Bakebook):
     def _method_not_available(self, method_name: str) -> NoReturn:
         raise NotImplementedError(f"{self.__class__.__name__} must implement {method_name}()")
 
+    def _lint_standalone_bakefile(self) -> None:
+        self.ctx.run("bakefile lint")
+
     @command(help="Run linters and formatters")
     def lint(self) -> None:
         self.ctx.run(
@@ -95,7 +98,7 @@ class BaseSpace(CleanUtils, Bakebook):
                 f"uv run toml-sort --sort-inline-arrays --in-place --sort-table-keys {mise_toml}"
             )
         if self.ctx.obj.is_standalone_bakefile:
-            self.ctx.run("bakefile lint")
+            self._lint_standalone_bakefile()
 
     @command(help="Run unit tests")
     def test(self) -> None:
