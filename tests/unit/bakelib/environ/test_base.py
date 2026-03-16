@@ -1,3 +1,4 @@
+import sys
 from typing import ClassVar
 
 import pytest
@@ -310,7 +311,14 @@ class TestBaseEnvEdgeCases:
             ENV_PRIORITY_ORDER: ClassVar[EnvPriorityOrderType] = ("a", "b")
 
         # flattened_envs is read-only (property without setter)
-        with pytest.raises(AttributeError, match=r"property .*flattened_envs.* has no setter"):
+        # Python 3.10: "can't set attribute 'flattened_envs'"
+        # Python 3.11+: "property ... has no setter"
+        match_msg = (
+            r"can't set attribute 'flattened_envs'"
+            if sys.version_info < (3, 11)
+            else r"property .*flattened_envs.* has no setter"
+        )
+        with pytest.raises(AttributeError, match=match_msg):
             ChildEnv1("a").flattened_envs = ("a", "b", "c")  # type: ignore[misc]
 
     def test_cache_returns_same_object(self):
