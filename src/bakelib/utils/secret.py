@@ -28,7 +28,9 @@ class SecretUtils(Bakebook):
         return set()
 
     def get_group_kwargs(self) -> dict[str, GroupKwargs]:
-        return {SECRET_GROUP: GroupKwargs(help="Manage cached secrets")}
+        group_kwargs = super().get_group_kwargs()
+        group_kwargs[SECRET_GROUP] = GroupKwargs(help="Manage cached secrets")
+        return group_kwargs
 
     def get_secret_namespace(self) -> str:
         return "bakebook"

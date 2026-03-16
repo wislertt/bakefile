@@ -151,6 +151,64 @@ bakebook = Bakebook()
 
 ## Testing Practices
 
+### Use mock_ctx Instead of Patches
+
+**When testing with `mock_ctx` fixture, avoid using `patch` or `mock` unless absolutely necessary.**
+
+The `mock_ctx` fixture provides a dry-run context where commands are printed to stderr instead of being executed. This means you can verify behavior by checking the captured output, without needing to patch internal functions.
+
+**❌ Bad - Over-using patches:**
+
+```python
+def test_setup_tools_calls_sync_submodules_frozen(self, mock_ctx: Context) -> None:
+    utils = SubmodulesUtils()
+    run_calls: list[str] = []
+
+    def capture_run(cmd: str, **_: object) -> MagicMock:
+        run_calls.append(cmd)
+        mock_result = MagicMock()
+        mock_result.stdout = "{}"
+        return mock_result
+
+    with (
+        mock_ctx,
+        patch.object(mock_ctx, "run", side_effect=capture_run),
+        patch("bakelib.space.base.install_mise_tools"),
+    ):
+        utils.setup_tools()
+
+    submodule_calls = [c for c in run_calls if "submodule" in c]
+    assert len(submodule_calls) == 1
+```
+
+**✅ Good - Just check captured stderr:**
+
+```python
+def test_setup_tools_calls_sync_submodules_frozen(
+    self, mock_ctx: Context, capsys: pytest.CaptureFixture
+) -> None:
+    utils = SubmodulesUtils()
+    with mock_ctx:
+        utils.setup_tools()
+    captured = capsys.readouterr()
+    err = strip_ansi(captured.err)
+    assert "git submodule update --init --recursive" in err
+    assert "--remote" not in err
+```
+
+**When patches ARE appropriate:**
+
+- Testing error handling that would otherwise terminate the test
+- Mocking external services or APIs
+- Isolating specific functionality with complex dependencies
+- When you need to verify internal state changes without side effects
+
+**When patches are NOT needed:**
+
+- Verifying what commands would be run (dry-run mode shows this)
+- Testing command execution order (captured output shows this)
+- Simple behavior verification that outputs to stderr/stdout
+
 ### Test Folder Structure
 
 Tests mirror the source folder structure for easy navigation and maintainability.

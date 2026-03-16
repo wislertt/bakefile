@@ -9,14 +9,14 @@ from .base import BaseSpace
 from .utils import VENV_BIN
 
 
-def _get_python_version() -> str | None:
-    path = Path(".python-version")
-    if not path.exists():
-        return None
-    return path.read_text().strip()
-
-
 class PythonSpace(BaseSpace):
+    @staticmethod
+    def _get_python_version() -> str | None:
+        path = Path(".python-version")
+        if not path.exists():
+            return None
+        return path.read_text().strip()
+
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         tools = super()._get_required_cli_tools()
         tools["python"] = {VENV_BIN}  # local - should be from venv

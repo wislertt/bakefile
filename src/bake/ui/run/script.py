@@ -8,6 +8,10 @@ from bake.ui.run import run
 logger = logging.getLogger(__name__)
 
 
+def argv_to_multiline_cmd(args: list[str]) -> str:
+    return " \\\n  ".join(args)
+
+
 def run_script(
     title: str,
     script: str,

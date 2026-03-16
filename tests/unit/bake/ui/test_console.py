@@ -8,27 +8,59 @@ from tests.utils.cli import get_error_label, get_warning_label
 
 
 class TestSuccess:
-    def test_success_prints_to_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_success_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.success("Operation completed")
         captured = capsys.readouterr()
-        assert "SUCCESS" in captured.out
-        assert "Operation completed" in captured.out
-        assert captured.err == ""
+        assert "SUCCESS" in captured.err
+        assert "Operation completed" in captured.err
+        assert captured.out == ""
 
 
 class TestStart:
-    def test_start_prints_to_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_start_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.start("Updating dependencies")
         captured = capsys.readouterr()
-        assert "START" in captured.out
-        assert "Updating dependencies" in strip_ansi(captured.out)
-        assert captured.err == ""
+        assert "START" in captured.err
+        assert "Updating dependencies" in strip_ansi(captured.err)
+        assert captured.out == ""
 
     def test_start_adds_ellipsis_suffix(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.start("Running task")
         captured = capsys.readouterr()
-        assert "Running task..." in strip_ansi(captured.out)
-        assert captured.err == ""
+        assert "Running task..." in strip_ansi(captured.err)
+        assert captured.out == ""
+
+
+class TestInfo:
+    def test_info_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.info("Processing data")
+        captured = capsys.readouterr()
+        assert "INFO" in captured.err
+        assert "Processing data" in captured.err
+        assert captured.out == ""
+
+    def test_info_with_custom_label(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.info("Custom message", label="CUSTOM")
+        captured = capsys.readouterr()
+        assert "CUSTOM" in captured.err
+        assert "Custom message" in captured.err
+        assert captured.out == ""
+
+
+class TestEnd:
+    def test_end_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.end("Process complete")
+        captured = capsys.readouterr()
+        assert "END" in captured.err
+        assert "Process complete" in captured.err
+        assert captured.out == ""
+
+    def test_end_does_not_add_ellipsis(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.end("Done")
+        captured = capsys.readouterr()
+        assert "Done" in strip_ansi(captured.err)
+        assert "Done..." not in strip_ansi(captured.err)
+        assert captured.out == ""
 
 
 class TestEcho:
@@ -78,9 +110,11 @@ class TestOutputToCorrectStream:
     @pytest.mark.parametrize(
         "func_name,stream_name",
         [
-            ("success", "out"),
-            ("start", "out"),
             ("echo", "out"),
+            ("info", "err"),
+            ("start", "err"),
+            ("end", "err"),
+            ("success", "err"),
             ("warning", "err"),
             ("error", "err"),
             ("script_block", "err"),
