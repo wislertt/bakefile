@@ -23,7 +23,7 @@ def test_add_inline_cli(
     )
 
     assert result.exit_code == 0
-    assert "Successfully added PEP 723 inline metadata" in result.out
+    assert "Successfully added PEP 723 inline metadata" in result.err
 
     metadata = read_inline(bakefile_path)
     assert metadata is not None

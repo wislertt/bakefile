@@ -65,21 +65,21 @@ class TestPythonSpace:
     def test_get_python_version_returns_none_when_file_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from bakelib.space.python import _get_python_version
+        from bakelib.space.python import PythonSpace
 
         monkeypatch.chdir(tmp_path)
-        result = _get_python_version()
+        result = PythonSpace._get_python_version()
         assert result is None
 
     def test_get_python_version_returns_version_when_file_exists(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from bakelib.space.python import _get_python_version
+        from bakelib.space.python import PythonSpace
 
         python_version_file = tmp_path / ".python-version"
         python_version_file.write_text("3.14\n")
         monkeypatch.chdir(tmp_path)
-        result = _get_python_version()
+        result = PythonSpace._get_python_version()
         assert result == "3.14"
 
     def test_get_required_cli_tools_includes_python_tool(

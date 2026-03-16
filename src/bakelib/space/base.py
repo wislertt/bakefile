@@ -272,6 +272,7 @@ class BaseSpace(CleanUtils, Bakebook):
         self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
         self.ctx.run("uv tool upgrade --all")
+        self.ctx.run("pre-commit autoupdate")
         if self.ctx.obj.is_standalone_bakefile:
             self.ctx.run("bakefile lock --upgrade")
             self.ctx.run("bakefile sync")

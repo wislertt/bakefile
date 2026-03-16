@@ -7,6 +7,7 @@ from bakelib.environ import (
     StagingEnvBakebook,
     get_bakebook,
 )
+from bakelib.space import SubmodulesUtils
 from bakelib.space.base import BaseSpace
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
@@ -25,5 +26,6 @@ __all__ = [
     "RustLibSpace",
     "RustSpace",
     "StagingEnvBakebook",
+    "SubmodulesUtils",
     "get_bakebook",
 ]

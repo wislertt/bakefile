@@ -57,7 +57,7 @@ def prefix_err(
 
 
 def success(message: str, **kwargs) -> None:
-    prefix_out(
+    prefix_err(
         emoji=":white_check_mark:",
         label="SUCCESS",
         style=BOLD_GREEN,
@@ -66,8 +66,16 @@ def success(message: str, **kwargs) -> None:
     )
 
 
+def info(message: str, *, label: str = "INFO", **kwargs) -> None:
+    prefix_err(emoji=None, label=label, style="blue", message=message, **kwargs)
+
+
 def start(message: str, **kwargs) -> None:
-    prefix_out(emoji=None, label="START", style="cyan", message=f"{message}...", **kwargs)
+    info(f"{message}...", label="START", **kwargs)
+
+
+def end(message: str, **kwargs) -> None:
+    info(message, label="END", **kwargs)
 
 
 def echo(message: Any, **kwargs) -> None:

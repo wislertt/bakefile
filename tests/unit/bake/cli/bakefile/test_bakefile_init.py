@@ -57,7 +57,7 @@ def test_init_creates_bakefile(
     )
 
     assert captured.exit_code == 0
-    assert expected_success_message in captured.out
+    assert expected_success_message in captured.err
 
     bakefile = tmp_path / expected_file
     assert bakefile.exists()

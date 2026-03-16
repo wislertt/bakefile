@@ -131,6 +131,33 @@ def ctx_test_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
     return tmp_path
 
 
+@pytest.fixture(scope="session", autouse=True)
+def hide_dotenv_file():
+    """Hide .env file during tests to prevent interference."""
+    env_file = Path(".env").resolve()
+    cache_dir = Path(".cache").resolve()
+    cached_env = (cache_dir / ".env").resolve()
+
+    was_moved = False
+    if env_file.exists():
+        cache_dir.mkdir(exist_ok=True)
+        shutil.move(str(env_file), str(cached_env))
+        was_moved = True
+
+    try:
+        yield
+    finally:
+        if was_moved and cached_env.exists():
+            shutil.move(str(cached_env), str(env_file))
+
+
+@pytest.fixture(autouse=True, scope="function")
+def reset_cwd():
+    original = Path.cwd()
+    yield
+    os.chdir(original)
+
+
 @pytest.fixture(autouse=True, scope="function")
 def disable_colors():
     from bake.utils import ENV_NO_COLOR

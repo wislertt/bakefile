@@ -2,8 +2,63 @@ from textwrap import dedent
 
 import pytest
 
-from bake.ui.run import run_script
+from bake.ui import argv_to_multiline_cmd, run_script
 from tests.utils.misc import flaky_on_macos_ci
+
+
+@pytest.mark.parametrize(
+    "argv,expected",
+    [
+        # Single arg
+        (["echo"], "echo"),
+        # Two args
+        (["echo", "hello"], "echo \\\n  hello"),
+        # Multiple simple args
+        (
+            ["go", "build", "-o", "binary", "./main.go"],
+            "go \\\n  build \\\n  -o \\\n  binary \\\n  ./main.go",
+        ),
+        # Empty list
+        ([], ""),
+        # Args with spaces preserved
+        (
+            ["gcc", "-o", "my output", "source.c"],
+            "gcc \\\n  -o \\\n  my output \\\n  source.c",
+        ),
+        # Complex kubectl apply command
+        (
+            [
+                "kubectl",
+                "apply",
+                "-f deployments/frontend.yaml",
+                "-f deployments/backend.yaml",
+                "-f services/load-balancer.yaml",
+                "--namespace=production",
+                "--context=aws-cluster",
+                "--server-side",
+                "--force-conflicts",
+                "--field-manager=bakefile-controller",
+                "--validate=strict",
+            ],
+            dedent("""\
+                kubectl \\
+                  apply \\
+                  -f deployments/frontend.yaml \\
+                  -f deployments/backend.yaml \\
+                  -f services/load-balancer.yaml \\
+                  --namespace=production \\
+                  --context=aws-cluster \\
+                  --server-side \\
+                  --force-conflicts \\
+                  --field-manager=bakefile-controller \\
+                  --validate=strict"""),
+        ),
+    ],
+)
+def test_argv_to_multiline_cmd(argv: list[str], expected: str) -> None:
+    """Test argv_to_multiline_cmd with various inputs."""
+    result = argv_to_multiline_cmd(argv)
+    assert result == expected
 
 
 @pytest.mark.parametrize(

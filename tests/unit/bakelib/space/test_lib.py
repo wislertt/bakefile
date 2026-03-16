@@ -135,7 +135,7 @@ class TestBaseLibSpace:
         with mock_ctx:
             space._handle_publish_result(result)
         captured = capsys.readouterr()
-        output = strip_ansi(captured.out)
+        output = strip_ansi(captured.err)
         assert "succeeded" in output.lower()
 
     def test_handle_publish_result_exits_on_nonzero_returncode(self, mock_ctx: Context) -> None:
