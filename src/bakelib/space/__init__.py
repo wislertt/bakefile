@@ -1,4 +1,5 @@
 from .base import BaseSpace
+from .github import GitHubActionsTools
 from .python import PythonSpace
 from .python_lib import PythonLibSpace
 from .rust import RustSpace
@@ -7,6 +8,7 @@ from .submodules import SubmodulesUtils
 
 __all__ = [
     "BaseSpace",
+    "GitHubActionsTools",
     "PythonLibSpace",
     "PythonSpace",
     "RustLibSpace",

@@ -24,28 +24,28 @@ from tests.utils.misc import flaky_on_macos_ci
 
 
 @flaky_on_macos_ci()
-def test_run_simple_command(capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_simple_command(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
-    result = run(["echo", "hello"])
+    result = run(["echo", "hello"], capture_output=True)
 
     assert result.returncode == 0
     assert result.stdout == "hello\n"
     assert result.stderr == ""
 
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert any("[run] echo hello" in log["message"] for log in logs)
     assert any("[done] echo hello" in log["message"] for log in logs)
 
 
-def test_run_with_elapsed_time_in_logs(capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_with_elapsed_time_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     run(["echo", "test"])
 
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     done_log = next(log for log in logs if "[done]" in log["message"])
     assert "elapsed_seconds" in done_log
     assert done_log["elapsed_seconds"] >= 0
@@ -60,22 +60,22 @@ def test_run_capture_false_returns_none_stdout_stderr() -> None:
 
 
 @flaky_on_macos_ci()
-def test_run_with_cwd(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_with_cwd(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     (tmp_path / "test.txt").write_text("content")
 
-    result = run(["cat", "test.txt"], cwd=tmp_path)
+    result = run(["cat", "test.txt"], cwd=tmp_path, capture_output=True)
 
     assert result.stdout == "content"
 
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert any("cwd" in log for log in logs)
 
 
 def test_run_check_false_no_exception_on_error() -> None:
-    result = run(["false"], check=False)
+    result = run(["false"], check=False, capture_output=True)
 
     assert result.returncode == 1
 
@@ -98,10 +98,10 @@ def test_run_check_true_raises_on_error() -> None:
 def test_run_with_stream_and_capture_combinations(
     stream: bool,
     capture_output: bool,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     result = run(["echo", "streamed"], stream=stream, capture_output=capture_output)
 
@@ -113,8 +113,10 @@ def test_run_with_stream_and_capture_combinations(
     else:
         assert result.stdout is None
 
-    capture = capsys.readouterr()
+    capture = capfd.readouterr()
 
+    # capfd captures OS-level fd 1/2, so it captures subprocess output
+    # regardless of whether it goes through Python's stdout
     if stream:
         assert "streamed" in capture.out.strip()
     else:
@@ -131,36 +133,36 @@ def test_run_stream_and_capture_both_false_raises_error() -> None:
         run(["echo", "test"], stream=False, capture_output=False)
 
 
-def test_run_returncode_in_logs(capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_returncode_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     run(["true"])
 
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     done_log = next(log for log in logs if "[done]" in log["message"])
     assert "returncode" in done_log
     assert done_log["returncode"] == 0
 
 
 @flaky_on_macos_ci()
-def test_run_stdout_stderr_in_logs(capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_stdout_stderr_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
-    run(["echo", "output"])
+    run(["echo", "output"], capture_output=True)
 
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     done_log = next(log for log in logs if "[done]" in log["message"])
     assert "stdout" in done_log
     assert "output" in done_log["stdout"]
 
 
 def test_run_stream_with_capture_false_returns_none_stdout_stderr(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     result = run(["echo", "test"], stream=True, capture_output=False)
 
@@ -170,12 +172,12 @@ def test_run_stream_with_capture_false_returns_none_stdout_stderr(
 
 
 def test_capture_to_logs_pretty_with_no_output_returns_empty_list(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=True)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
-    logs = capsys_to_logs_pretty(capsys)
+    logs = capsys_to_logs_pretty(capfd)
 
     assert logs == []
 
@@ -191,15 +193,15 @@ def test_capture_to_logs_pretty_direct_with_capture_result() -> None:
 
 
 def test_capture_to_logs_pretty_with_logs_parses_correctly(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=True)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     logger.info("test message")
     logger.debug("debug message")
 
-    logs = capsys_to_logs_pretty(capsys)
+    logs = capsys_to_logs_pretty(capfd)
 
     assert len(logs) >= 2
     assert any(log["level"] == "INFO" and "test message" in log["message"] for log in logs)
@@ -207,15 +209,15 @@ def test_capture_to_logs_pretty_with_logs_parses_correctly(
 
 
 def test_capture_to_logs_pretty_with_extra_parses_correctly(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=True)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     test_path = Path("/tmp/test/bakefile.py")
     logger.info("test with extra", extra={"bakefile_path": test_path, "count": 42})
 
-    logs = capsys_to_logs_pretty(capsys)
+    logs = capsys_to_logs_pretty(capfd)
 
     assert len(logs) == 1
     log = logs[0]
@@ -226,7 +228,7 @@ def test_capture_to_logs_pretty_with_extra_parses_correctly(
 
 
 def test_run_stream_preserves_colors_with_pty(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """Cross-platform version of ANSI color preservation test using Python."""
     # Use Python to generate colored output (works on all platforms)
@@ -246,7 +248,7 @@ print('\\033[33mYellow text\\033[0m')"""
     assert "Blue bold text" in result.stdout
     assert "Yellow text" in result.stdout
 
-    capture = capsys.readouterr()
+    capture = capfd.readouterr()
     assert "[32m" in capture.out
     assert "[1;34m" in capture.out
     assert "[33m" in capture.out
@@ -265,12 +267,12 @@ print('\\033[33mYellow text\\033[0m')"""
     ],
 )
 def test_run_stderr_is_captured_and_streamed(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     stream: bool,
     capture_output: bool,
 ) -> None:
-    # Clear any previous output from capsys
-    capsys.readouterr()
+    # Clear any previous output from capfd
+    capfd.readouterr()
 
     result = run(
         'echo "error message" >&2',
@@ -287,7 +289,9 @@ def test_run_stderr_is_captured_and_streamed(
     else:
         assert result.stderr is None
 
-    capture = capsys.readouterr()
+    capture = capfd.readouterr()
+    # capfd captures OS-level fd 1/2, so it captures subprocess output
+    # regardless of whether it goes through Python's stderr
     if stream:
         assert "error message" in capture.err
     else:
@@ -312,7 +316,7 @@ def test_run_string_command_shell_features(
     cmd: str,
     expected_in_output: str | list[str],
 ) -> None:
-    result = run(cmd)
+    result = run(cmd, capture_output=True)
 
     assert result.returncode == 0
     if isinstance(expected_in_output, str):
@@ -340,7 +344,7 @@ def test_run_command_auto_detection(
     cmd: str | list[str],
     shell_override: bool | None,
 ) -> None:
-    result = run(cmd, shell=shell_override)
+    result = run(cmd, shell=shell_override, capture_output=True)
 
     assert result.returncode == 0
     if cmd_type == "str" and "&&" in str(cmd):
@@ -356,7 +360,7 @@ def test_run_string_command_wildcards(tmp_path: Path) -> None:
     (tmp_path / "test2.py").write_text("# test2")
     (tmp_path / "README.md").write_text("# readme")
 
-    result = run("ls *.py", cwd=tmp_path)
+    result = run("ls *.py", cwd=tmp_path, capture_output=True)
 
     assert result.returncode == 0
     assert "test1.py" in result.stdout
@@ -365,7 +369,7 @@ def test_run_string_command_wildcards(tmp_path: Path) -> None:
 
 
 def test_run_string_command_redirects(tmp_path: Path) -> None:
-    result = run("echo test content > test.txt", cwd=tmp_path)
+    result = run("echo test content > test.txt", cwd=tmp_path, capture_output=True)
 
     assert result.returncode == 0
     content = (tmp_path / "test.txt").read_text()
@@ -373,7 +377,7 @@ def test_run_string_command_redirects(tmp_path: Path) -> None:
 
 
 def test_run_string_command_preserves_colors_with_pty() -> None:
-    result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True)
+    result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
 
     assert result.returncode == 0
     assert "[32m" in result.stdout
@@ -388,12 +392,12 @@ def test_run_string_command_preserves_colors_with_pty() -> None:
     ],
 )
 def test_run_command_capture_output_false(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     cmd: str | list[str],
     capture_output: bool,
 ) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
     result = run(cmd, capture_output=capture_output)
 
@@ -409,12 +413,12 @@ def test_run_string_command_with_explicit_shell_false() -> None:
     if sys.platform == "win32":
         # On Windows, CreateProcess tokenizes the command, so "echo hello" finds echo.exe/bat
         # and "hello" is passed as an argument. Output is captured in stdout.
-        result = run("echo hello", shell=False)
+        result = run("echo hello", shell=False, capture_output=True)
         assert result.returncode == 0
         assert "hello" in result.stdout
     else:
         # On Unix, this should raise FileNotFoundError
-        result = run("echo hello", shell=True)
+        result = run("echo hello", shell=True, capture_output=True)
         with pytest.raises(FileNotFoundError):
             run("echo hello", shell=False)
 
@@ -502,17 +506,17 @@ class TestResolveInterpreter:
 
 
 @flaky_on_macos_ci()
-def test_echo_cmd_overrides_all_display_and_logs(capsys: pytest.CaptureFixture[str]) -> None:
+def test_echo_cmd_overrides_all_display_and_logs(capfd: pytest.CaptureFixture[str]) -> None:
     """Test that echo_cmd overrides console echo, [run], [done], and [error] logs."""
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
-    result = run(["echo", "hello"], echo_cmd="custom command")
+    result = run(["echo", "hello"], echo_cmd="custom command", capture_output=True)
 
     assert result.returncode == 0
     assert result.stdout == "hello\n"
 
-    capture = capsys.readouterr()
+    capture = capfd.readouterr()
     logs = capture_to_logs(capture)
 
     # Console echo and debug logs use echo_cmd
@@ -524,25 +528,25 @@ def test_echo_cmd_overrides_all_display_and_logs(capsys: pytest.CaptureFixture[s
     with pytest.raises(typer.Exit):
         run(["false"], echo_cmd="failing command", check=True)
 
-    capture = capsys.readouterr()
+    capture = capfd.readouterr()
     logs = capture_to_logs(capture)
     assert any("[error] failing command" in log["message"] for log in logs)
 
 
 @flaky_on_macos_ci()
 def test_echo_cmd_executes_actual_command_not_display_string(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """Test that the actual command is executed, not the echo_cmd string."""
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
-    result = run(["echo", "test123"], echo_cmd="not a real command")
+    result = run(["echo", "test123"], echo_cmd="not a real command", capture_output=True)
 
     assert result.returncode == 0
     assert result.stdout == "test123\n"
 
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert any("[run] not a real command" in log["message"] for log in logs)
 
 
@@ -559,7 +563,7 @@ def test_echo_cmd_executes_actual_command_not_display_string(
     ],
 )
 def test_echo_cmd_edge_cases(
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     kwargs: dict,
     expected_log_prefix: str,
     expected_stdout: str,
@@ -567,14 +571,14 @@ def test_echo_cmd_edge_cases(
 ) -> None:
     """Test echo_cmd with echo=False, dry_run=True, and echo_cmd=None."""
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
 
-    result = run(["echo", "hello"], **kwargs)
+    result = run(["echo", "hello"], **kwargs, capture_output=True)
 
     assert result.returncode == 0
     assert result.stdout == expected_stdout
 
-    capture = capsys.readouterr()
+    capture = capfd.readouterr()
     logs = capture_to_logs(capture)
 
     assert any(expected_log_prefix in log["message"] for log in logs)
@@ -610,7 +614,7 @@ class TestCrossPlatformSubprocess:
             "TEST_VAR=hello_world python -c "
             "\"import os; print(os.environ.get('TEST_VAR', 'NOT_SET'))\""
         )
-        result = run(cmd, shell=True, check=False, echo=False)
+        result = run(cmd, shell=True, check=False, echo=False, capture_output=True)
 
         # Should succeed and print the variable value
         assert result.returncode == 0, (
@@ -629,7 +633,7 @@ class TestCrossPlatformSubprocess:
         """
         # Test that quoted args are passed correctly using Python's sys.argv
         cmd = "python -c \"import sys; print(sys.argv[1])\" '**/tests/**'"
-        result = run(cmd, shell=True, check=False, echo=False)
+        result = run(cmd, shell=True, check=False, echo=False, capture_output=True)
 
         # Should succeed and print the pattern without extra quotes
         assert result.returncode == 0, (
@@ -679,49 +683,55 @@ class TestCheckExitCodeStreamFalse:
     exiting if the command fails, since the user didn't see it in real-time.
     """
 
-    def test_stream_false_shows_stderr_on_failure(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_stream_false_shows_stderr_on_failure(self, capfd: pytest.CaptureFixture[str]) -> None:
         """When stream=False and command fails with stderr, show stderr before exit."""
-        _ = capsys.readouterr()
+        _ = capfd.readouterr()
 
         with pytest.raises(typer.Exit) as exc_info:
-            run(["ls", "/nonexistent_path_xyz"], check=True, stream=False, echo=False)
+            run(
+                ["ls", "/nonexistent_path_xyz"],
+                check=True,
+                stream=False,
+                echo=False,
+                capture_output=True,
+            )
 
         assert exc_info.value.exit_code != 0
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # stderr should be shown since stream=False
         assert "nonexistent_path_xyz" in capture.err
 
     def test_stream_false_shows_stdout_when_no_stderr(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """When stream=False, no stderr, but has stdout, show stdout before exit."""
-        _ = capsys.readouterr()
+        _ = capfd.readouterr()
 
         # Create a command that fails with stdout but no stderr
         cmd = [sys.executable, "-c", "import sys; print('output on stdout'); sys.exit(1)"]
 
         with pytest.raises(typer.Exit) as exc_info:
-            run(cmd, check=True, stream=False, echo=False)
+            run(cmd, check=True, stream=False, echo=False, capture_output=True)
 
         assert exc_info.value.exit_code == 1
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # stdout should be shown since stream=False and no stderr
         assert "output on stdout" in capture.err
 
     def test_stream_false_shows_generic_error_when_no_output(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """When stream=False, no stderr/stdout, show generic error message before exit."""
-        _ = capsys.readouterr()
+        _ = capfd.readouterr()
 
         # Create a command that fails silently (no output)
         cmd = [sys.executable, "-c", "import sys; sys.exit(42)"]
 
         with pytest.raises(typer.Exit) as exc_info:
-            run(cmd, check=True, stream=False, echo=False)
+            run(cmd, check=True, stream=False, echo=False, capture_output=True)
 
         assert exc_info.value.exit_code == 42
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # Generic error message should be shown
         assert "Command" in capture.err
         # Check with whitespace flexibility (console may wrap)
@@ -733,10 +743,10 @@ class TestCheckExitCodeStreamFalse:
         assert "exit code 42" in err_plain
 
     def test_stream_false_truncates_long_command_in_error(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """When stream=False and no output, long commands are truncated in error message."""
-        _ = capsys.readouterr()
+        _ = capfd.readouterr()
 
         # Create a very long command that fails silently (no stdout/stderr)
         long_arg = "x" * 100
@@ -744,24 +754,31 @@ class TestCheckExitCodeStreamFalse:
         cmd = [sys.executable, "-c", f"# {long_arg}\nimport sys\nsys.exit(1)"]
 
         with pytest.raises(typer.Exit):
-            run(cmd, check=True, stream=False, echo=False)
+            run(cmd, check=True, stream=False, echo=False, capture_output=True)
 
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # The error message should contain truncated command with "..."
         assert "..." in capture.err
 
     def test_stream_false_short_command_not_truncated(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """When stream=False and no output, short commands are NOT truncated."""
-        _ = capsys.readouterr()
+        _ = capfd.readouterr()
 
         # Create a short command that fails silently
         # Use echo_cmd to ensure command is short enough (< 50 chars)
         with pytest.raises(typer.Exit):
-            run(["false"], check=True, stream=False, echo=False, echo_cmd="short")
+            run(
+                ["false"],
+                check=True,
+                stream=False,
+                echo=False,
+                echo_cmd="short",
+                capture_output=True,
+            )
 
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # The error message should NOT contain "..." for short commands
         assert "..." not in capture.err
         # The short command should be shown in full
@@ -772,15 +789,20 @@ class TestCheckExitCodeStreamFalse:
 
     @flaky_on_macos_ci()
     def test_stream_true_does_not_show_duplicate_stderr(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
-        """When stream=True, stderr is shown during streaming, not again before exit."""
-        _ = capsys.readouterr()
+        _ = capfd.readouterr()
 
         with pytest.raises(typer.Exit):
-            run(["ls", "/nonexistent_path_xyz"], check=True, stream=True, echo=False)
+            run(
+                ["ls", "/nonexistent_path_xyz"],
+                check=True,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
 
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # stderr appears once (from streaming), not duplicated
         assert "nonexistent_path_xyz" in capture.err
         # Should not have the generic error message
@@ -800,13 +822,13 @@ class TestTimeout:
         """TimeoutExpired is raised when command exceeds timeout."""
         # sleep 10 should exceed 0.1 second timeout
         with pytest.raises(subprocess.TimeoutExpired):
-            run("sleep 10", timeout=0.1, stream=stream, echo=False)
+            run("sleep 10", timeout=0.1, stream=stream, echo=False, capture_output=True)
 
     @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_completes_within_limit(self, stream: bool) -> None:
         """Command completes successfully when within timeout."""
-        result = run(["echo", "fast"], timeout=5.0, stream=stream, echo=False)
+        result = run(["echo", "fast"], timeout=5.0, stream=stream, echo=False, capture_output=True)
 
         assert result.returncode == 0
         assert "fast" in result.stdout
@@ -816,24 +838,30 @@ class TestTimeout:
     def test_timeout_none_waits_indefinitely(self, stream: bool) -> None:
         """timeout=None (default) waits for command to complete."""
         # This should complete, not raise timeout
-        result = run(["echo", "no timeout"], timeout=None, stream=stream, echo=False)
+        result = run(
+            ["echo", "no timeout"],
+            timeout=None,
+            stream=stream,
+            echo=False,
+            capture_output=True,
+        )
 
         assert result.returncode == 0
         assert "no timeout" in result.stdout
 
     def test_timeout_stream_shows_output_before_timeout(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
-        """When streaming with timeout, output is shown before timeout occurs."""
-        _ = capsys.readouterr()
+        """When streaming with timeout and capture_output=True, output is shown before timeout."""
+        _ = capfd.readouterr()
 
         # Command that outputs before sleeping
         cmd = 'echo "before timeout" && sleep 10'
 
         with pytest.raises(subprocess.TimeoutExpired):
-            run(cmd, timeout=0.5, stream=True, echo=False)
+            run(cmd, timeout=0.5, stream=True, capture_output=True, echo=False)
 
-        capture = capsys.readouterr()
+        capture = capfd.readouterr()
         # Output should have been streamed before timeout
         assert "before timeout" in capture.out
 
@@ -891,3 +919,304 @@ class TestSignatureCompatibility:
 
         missing = expected - uv_params
         assert not missing, f"run_uv missing params: {missing}"
+
+
+# ============================================================================
+# _prepare_subprocess_env Tests (Terminal Size OSError)
+# ============================================================================
+
+
+class TestPrepareSubprocessEnv:
+    """Tests for _prepare_subprocess_env internal function."""
+
+    def test_terminal_size_oserror_fallback(self) -> None:
+        """When os.get_terminal_size raises OSError, env is still prepared."""
+        from bake.ui.run.run import _prepare_subprocess_env
+
+        with mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")):
+            env = _prepare_subprocess_env()
+
+            # Should still have color and progress bar settings
+            assert "FORCE_COLOR" in env
+            assert "CLICOLOR_FORCE" in env
+            assert "UV_NO_PROGRESS" in env
+            # COLUMNS and LINES should NOT be set (OSError case)
+            assert "COLUMNS" not in env or env.get("COLUMNS") != "80"
+
+    def test_custom_env_vars_are_merged(self) -> None:
+        """Custom environment variables are merged with system env."""
+        from bake.ui.run.run import _prepare_subprocess_env
+
+        custom_env = {"MY_VAR": "my_value", "FORCE_COLOR": "0"}
+        env = _prepare_subprocess_env(env=custom_env)
+
+        # Custom vars should be present
+        assert env["MY_VAR"] == "my_value"
+        # Custom var should override default
+        assert env["FORCE_COLOR"] == "0"
+        # System defaults should still be present
+        assert "UV_NO_PROGRESS" in env
+
+
+# ============================================================================
+# _encoding Parameter Tests (stream=False path)
+# ============================================================================
+
+
+class TestEncodingParameter:
+    """Tests for the _encoding parameter with stream=False."""
+
+    def test_encoding_with_stream_false(self) -> None:
+        """When _encoding is set with stream=False, uses encoding parameter."""
+        # Test with Latin-1 encoding
+        result = run(
+            ["echo", "test"],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            _encoding="latin-1",
+        )
+
+        assert result.returncode == 0
+        assert "test" in result.stdout
+
+    def test_encoding_errors_replace_with_invalid_bytes(self) -> None:
+        """When _encoding is set, invalid bytes are replaced (errors='replace')."""
+        # Create a script that outputs invalid UTF-8 bytes
+        cmd = [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'\\xff\\xfe')"]
+
+        result = run(
+            cmd,
+            stream=False,
+            capture_output=True,
+            echo=False,
+            _encoding="utf-8",
+        )
+
+        assert result.returncode == 0
+        # Invalid bytes should be replaced with replacement character
+        assert "\ufffd" in result.stdout
+
+
+# ============================================================================
+# OutputSplitter OSError Tests
+# ============================================================================
+
+
+class TestOutputSplitterErrorPaths:
+    """Tests for OSError handling in OutputSplitter."""
+
+    def test_try_select_read_oserror_returns_false(self) -> None:
+        """When select.select raises OSError, _try_select_read returns (False, False)."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        with mock.patch("select.select", side_effect=OSError("Not a socket")):
+            success, has_data = splitter._try_select_read(1, 0.1)
+
+            assert success is False
+            assert has_data is False
+
+    def test_read_pty_eio_safe_returns_none_on_eio(self) -> None:
+        """When os.read raises EIO error, _read_pty_eio_safe returns None."""
+        import errno
+
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        eio_error = OSError("I/O error")
+        eio_error.errno = errno.EIO
+
+        with mock.patch("os.read", side_effect=eio_error):
+            result = splitter._read_pty_eio_safe(1)
+
+            assert result is None
+
+    def test_read_pty_eio_safe_raises_on_other_oserror(self) -> None:
+        """When os.read raises non-EIO OSError, _read_pty_eio_safe reraises."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        other_error = OSError("Some other error")
+        other_error.errno = 2  # ENOENT or something else
+
+        with (
+            mock.patch("os.read", side_effect=other_error),
+            pytest.raises(OSError, match="Some other error"),
+        ):
+            splitter._read_pty_eio_safe(1)
+
+    def test_read_and_handle_returns_false_on_oserror(self) -> None:
+        """When os.read raises OSError, _read_and_handle returns False."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        with mock.patch("os.read", side_effect=OSError("Read error")):
+            result = splitter._read_and_handle(1, sys.stdout, [])
+
+            assert result is False
+
+    def test_drain_pty_oserror_is_caught(self) -> None:
+        """When drain_pty encounters OSError, it exits gracefully."""
+        import subprocess
+
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # Create a mock process
+        proc = mock.Mock(spec=subprocess.Popen)
+        proc.poll.return_value = 1  # Process has exited
+
+        # Create a fake PTY fd that will raise OSError on read
+        fake_pty_fd = 999
+
+        with mock.patch("os.read", side_effect=OSError("PTY error")):
+            # Should not raise, just exit gracefully
+            splitter._drain_pty(fake_pty_fd, sys.stdout, [])
+
+    def test_handle_timeout_returns_true_on_successful_direct_read(self) -> None:
+        """When direct read succeeds, _handle_timeout returns (True, 0)."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # Mock os.read to return some data (success)
+        with mock.patch("os.read", return_value=b"some data"):
+            should_continue, timeout_count = splitter._handle_timeout(
+                pty_fd=1,
+                target=sys.stdout,
+                output_list=[],
+                select_works=False,
+                consecutive_timeouts=0,
+            )
+
+            assert should_continue is True
+            assert timeout_count == 0  # Reset after successful read
+
+    def test_handle_timeout_returns_false_on_failed_direct_read(self) -> None:
+        """When direct read fails (EOF), _handle_timeout returns (False, 0)."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # Mock os.read to return empty bytes (EOF)
+        with mock.patch("os.read", return_value=b""):
+            should_continue, timeout_count = splitter._handle_timeout(
+                pty_fd=1,
+                target=sys.stdout,
+                output_list=[],
+                select_works=False,
+                consecutive_timeouts=0,
+            )
+
+            assert should_continue is False
+            assert timeout_count == 0
+
+    def test_handle_timeout_increments_when_select_works(self) -> None:
+        """When select works and timeout < 2, _handle_timeout increments counter."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # When select_works=True and consecutive_timeouts < 2, increment
+        should_continue, timeout_count = splitter._handle_timeout(
+            pty_fd=1,
+            target=sys.stdout,
+            output_list=[],
+            select_works=True,
+            consecutive_timeouts=1,
+        )
+
+        assert should_continue is True
+        assert timeout_count == 2
+
+    def test_drain_pty_when_select_fails_uses_direct_read(self) -> None:
+        """When select fails, _drain_pty falls back to direct reads."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # Mock select to fail, then os.read to return data, then EOF
+        call_count = [0]
+
+        def mock_select(*_, **__):
+            return ([], [], [])  # No data ready
+
+        def mock_read(*_, **__):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return b"data"  # First call returns data
+            return b""  # Second call returns EOF
+
+        with (
+            mock.patch("select.select", side_effect=mock_select),
+            mock.patch("os.read", side_effect=mock_read),
+        ):
+            splitter._drain_pty(1, sys.stdout, [])
+
+    def test_drain_pty_exits_after_max_timeouts(self) -> None:
+        """When max timeouts reached, _drain_pty exits without error."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # Mock select to return no data (timeout)
+        # Mock os.read to return EOF
+        with (
+            mock.patch("select.select", return_value=([], [], [])),
+            mock.patch("os.read", return_value=b""),
+        ):
+            # Should exit after max_timeouts iterations
+            splitter._drain_pty(1, sys.stdout, [])
+
+    def test_drain_pty_when_select_works_becomes_false(self) -> None:
+        """When select fails once, select_works becomes False and ready is set to False."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        call_count = [0]
+
+        def mock_select_raises_oserror(*_, **__):
+            # First call raises OSError (select_works becomes False)
+            if call_count[0] == 0:
+                call_count[0] += 1
+                raise OSError("Not a socket")
+            return ([], [], [])
+
+        def mock_read_eof(*_, **__):
+            return b""  # EOF
+
+        with (
+            mock.patch("select.select", side_effect=mock_select_raises_oserror),
+            mock.patch("os.read", side_effect=mock_read_eof),
+        ):
+            # Should handle OSError and continue with select_works=False
+            splitter._drain_pty(1, sys.stdout, [])
+
+    def test_drain_pty_select_works_false_branch(self) -> None:
+        """When _try_select_read returns (False, False), select_works becomes False."""
+        from bake.ui.run.splitter import OutputSplitter
+
+        splitter = OutputSplitter(stream=True, capture=True)
+
+        # Make _try_select_read return (False, False) first (OSError on select)
+        # Then make os.read return EOF on direct read attempt
+
+        def mock_select_oserror(*_, **__):
+            # select.select raises OSError, causing _try_select_read to return (False, False)
+            raise OSError("Not a socket")
+
+        def mock_read_eof(*_, **__):
+            return b""  # EOF
+
+        with (
+            mock.patch("select.select", side_effect=mock_select_oserror),
+            mock.patch("os.read", side_effect=mock_read_eof),
+        ):
+            splitter._drain_pty(1, sys.stdout, [])

@@ -2,11 +2,56 @@ import sys
 import textwrap
 from typing import Any
 
+import rich
+import rich.style
 from beautysh import BashFormatter
-from rich.console import Console
+from rich.console import Console as RichConsole
+from rich.console import JustifyMethod, OverflowMethod
 from rich.text import Text
 
 from bake.utils.settings import bake_settings
+
+OVERFLOW_DEFAULT = "ignore"
+CROP_DEFAULT = False
+
+
+class Console(RichConsole):
+    def print(
+        self,
+        *objects: Any,
+        sep: str = " ",
+        end: str = "\n",
+        style: str | rich.style.Style | None = None,
+        justify: JustifyMethod | None = None,
+        overflow: OverflowMethod | None = OVERFLOW_DEFAULT,
+        no_wrap: bool | None = None,
+        emoji: bool | None = None,
+        markup: bool | None = None,
+        highlight: bool | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        crop: bool = CROP_DEFAULT,
+        soft_wrap: bool | None = None,
+        new_line_start: bool = False,
+    ) -> None:
+        return super().print(
+            *objects,
+            sep=sep,
+            end=end,
+            style=style,
+            justify=justify,
+            overflow=overflow,
+            no_wrap=no_wrap,
+            emoji=emoji,
+            markup=markup,
+            highlight=highlight,
+            width=width,
+            height=height,
+            crop=crop,
+            soft_wrap=soft_wrap,
+            new_line_start=new_line_start,
+        )
+
 
 out = Console(stderr=False)
 err = Console(stderr=True)

@@ -203,7 +203,7 @@ def run(
 def run(
     cmd: CmdType,
     *,
-    capture_output: bool = True,
+    capture_output: bool = False,
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
@@ -344,7 +344,7 @@ def run(
     logger.debug(f"[run] {cmd_str_for_display}", extra={"cwd": cwd})
     start = time.perf_counter()
 
-    _run = _run_with_stream if stream else _run_without_stream
+    _run = _run_with_split if (stream and capture_output) else _run_without_split
 
     result = _run(
         cmd=cmd,
@@ -450,21 +450,13 @@ def _process_stream_output(
     splitter: OutputSplitter,
     proc: subprocess.Popen,
     cmd: str | list[str] | tuple[str, ...],
-    capture_output: bool,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
-    stdout: str | None
-    stderr: str | None
-
-    if capture_output:
-        encoding = splitter._encoding or "utf-8"
-        stdout = splitter.stdout.decode(encoding, errors="replace")
-        stderr = splitter.stderr.decode(encoding, errors="replace")
-        # Normalize PTY line endings (\r\n -> \n)
-        stdout = stdout.replace("\r\n", "\n")
-        stderr = stderr.replace("\r\n", "\n")
-    else:
-        stdout = None
-        stderr = None
+) -> subprocess.CompletedProcess[str]:
+    encoding = splitter._encoding or "utf-8"
+    stdout = splitter.stdout.decode(encoding, errors="replace")
+    stderr = splitter.stderr.decode(encoding, errors="replace")
+    # Normalize PTY line endings (\r\n -> \n)
+    stdout = stdout.replace("\r\n", "\n")
+    stderr = stderr.replace("\r\n", "\n")
 
     return subprocess.CompletedProcess(
         args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
@@ -488,8 +480,8 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
 
     try:
         terminal_size = os.get_terminal_size()
-        merged_env.setdefault("COLUMNS", str(terminal_size.columns))
-        merged_env.setdefault("LINES", str(terminal_size.lines))
+        merged_env.setdefault("COLUMNS", str(terminal_size.columns))  # pragma: no cover
+        merged_env.setdefault("LINES", str(terminal_size.lines))  # pragma: no cover
     except OSError:
         pass
     return merged_env
@@ -570,7 +562,7 @@ def _setup_pipe_stream(
     return StreamSetup(proc=proc, splitter=splitter, threads=threads)
 
 
-def _run_with_stream(
+def _run_with_split(
     cmd: str | list[str] | tuple[str, ...],
     shell: bool,
     cwd: Path | str | None,
@@ -580,7 +572,7 @@ def _run_with_stream(
     _encoding: str | None = None,
     **kwargs,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
-    use_pty = sys.platform != "win32"
+    use_pty = sys.platform != "win32" and capture_output
 
     _setup = _setup_pty_stream if use_pty else _setup_pipe_stream
 
@@ -604,7 +596,7 @@ def _run_with_stream(
 
     setup.splitter.finalize(setup.threads)
 
-    return _process_stream_output(setup.splitter, setup.proc, cmd, capture_output)
+    return _process_stream_output(splitter=setup.splitter, proc=setup.proc, cmd=cmd)
 
 
 def _kill_process_tree(proc: subprocess.Popen) -> None:
@@ -618,8 +610,8 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
                 capture_output=True,
                 timeout=5,
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            proc.kill()
+        except (subprocess.TimeoutExpired, FileNotFoundError):  # pragma: no cover
+            proc.kill()  # pragma: no cover
     else:
         # On Unix, proc.kill() sends SIGKILL to the process.
         # For shell commands, this kills the shell but children may survive.
@@ -627,7 +619,7 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
-def _run_without_stream(
+def _run_without_split(
     cmd: str | list[str] | tuple[str, ...],
     shell: bool,
     cwd: Path | str | None,

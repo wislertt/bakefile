@@ -353,7 +353,7 @@ class TestBakebookCtxProperty:
 
 class TestExcludeCommandMethods:
     def test_exclude_uses_method_name_not_command_name(self) -> None:
-        """exclude_command_methods uses method name, not command name."""
+        """__exclude_command_methods__ uses method name, not command name."""
 
         class ParentBakebook(Bakebook):
             @command(name="deploy-prod")
@@ -365,7 +365,7 @@ class TestExcludeCommandMethods:
                 return "building"
 
         class ChildBakebook(ParentBakebook):
-            exclude_command_methods: ClassVar[list[str]] = ["deploy_to_production"]
+            __exclude_command_methods__: ClassVar[list[str]] = ["deploy_to_production"]
 
         child = ChildBakebook()
         assert_commands(
@@ -379,7 +379,7 @@ class TestExcludeCommandMethods:
         )
 
     def test_grandchild_overrides_parent_exclude(self) -> None:
-        """Grandchild's exclude_command_methods overrides parent's."""
+        """Grandchild's __exclude_command_methods__ overrides parent's."""
 
         class GrandParentBakebook(Bakebook):
             @command()
@@ -391,10 +391,10 @@ class TestExcludeCommandMethods:
                 return "deploying"
 
         class ParentBakebook(GrandParentBakebook):
-            exclude_command_methods: ClassVar[list[str]] = ["legacy"]
+            __exclude_command_methods__: ClassVar[list[str]] = ["legacy"]
 
         class ChildBakebook(ParentBakebook):
-            exclude_command_methods: ClassVar[list[str]] = ["deploy"]
+            __exclude_command_methods__: ClassVar[list[str]] = ["deploy"]
 
         child = ChildBakebook()
         assert_commands(
@@ -416,9 +416,48 @@ class TestExcludeCommandMethods:
                 return "deploying"
 
         class ChildBakebook(ParentBakebook):
-            exclude_command_methods: ClassVar[list[str]] = ["deploy"]
+            __exclude_command_methods__: ClassVar[list[str]] = ["deploy"]
 
         child = ChildBakebook()
         with pytest.raises(AttributeError, match=r"is a ClassVar.*cannot be set on an instance"):
-            exclude_command_methods: list[str] = ["build"]
-            child.exclude_command_methods = exclude_command_methods  # ty: ignore[invalid-attribute-access]
+            __exclude_command_methods__: list[str] = ["build"]
+            child.__exclude_command_methods__ = __exclude_command_methods__  # ty: ignore[invalid-attribute-access]
+
+    def test_child_can_manually_extend_parent_exclusions(self) -> None:
+        """Child can extend parent's __exclude_command_methods__ using manual list concatenation."""
+
+        class ParentBakebook(Bakebook):
+            __exclude_command_methods__: ClassVar[list[str]] = ["test", "debug"]
+
+            @command()
+            def test(self):
+                return "testing"
+
+            @command()
+            def debug(self):
+                return "debugging"
+
+            @command()
+            def deploy(self):
+                return "deploying"
+
+            @command()
+            def build(self):
+                return "building"
+
+        class ChildBakebook(ParentBakebook):
+            __exclude_command_methods__: ClassVar[list[str]] = [
+                *ParentBakebook.__exclude_command_methods__,
+                "deploy",
+            ]
+
+        child = ChildBakebook()
+        assert_commands(
+            child,
+            {
+                "build": ExpectedCommand(
+                    name="build", command_type=types.MethodType, output="building"
+                ),
+            },
+            msg="Child manually extends parent's exclusions (test, debug, deploy)",
+        )

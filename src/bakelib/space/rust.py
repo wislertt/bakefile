@@ -17,7 +17,7 @@ from .utils import check_rust_version_matches_stable
 if sys.version_info >= (3, 11):
     import tomllib
 else:
-    import tomli as tomllib  # type: ignore[import-not-found]
+    import tomli as tomllib
 
 
 def _cleanup_rustup_temp(retry_state: RetryCallState) -> None:

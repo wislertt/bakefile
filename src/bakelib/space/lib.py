@@ -12,7 +12,7 @@ from bakelib.refreshable_cache import ChainedCache
 from bakelib.utils.secret import SecretUtils
 
 from .base import BaseSpace
-from .params import publish_token_option, publish_version_option
+from .params import PublishTokenOption, PublishVersionOption
 from .utils import print_subprocess_output
 
 if TYPE_CHECKING:
@@ -75,8 +75,8 @@ class BaseLibSpace(SecretUtils, BaseSpace):
         self,
         *,
         registry: Annotated[str, typer.Option(help="Publish registry")] = "default",
-        token: publish_token_option = None,
-        version: publish_version_option = None,
+        token: PublishTokenOption = None,
+        version: PublishVersionOption = None,
     ):
         self._publisher = self.get_publisher(registry)
         cached_publish_token = self._get_cached_publish_token(token=token, registry=registry)

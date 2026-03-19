@@ -1,3 +1,4 @@
+from bakelib import _params as params
 from bakelib.environ import (
     BaseEnv,
     DevEnvBakebook,
@@ -9,10 +10,12 @@ from bakelib.environ import (
 )
 from bakelib.space import SubmodulesUtils
 from bakelib.space.base import BaseSpace
+from bakelib.space.github import GitHubActionsTools
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
 from bakelib.space.rust import RustSpace
 from bakelib.space.rust_lib import RustLibSpace
+from bakelib.utils import unwrap
 
 __all__ = [
     "BaseEnv",
@@ -20,6 +23,7 @@ __all__ = [
     "DevEnvBakebook",
     "EnvBakebook",
     "GcpLandingZoneEnv",
+    "GitHubActionsTools",
     "ProdEnvBakebook",
     "PythonLibSpace",
     "PythonSpace",
@@ -28,4 +32,6 @@ __all__ = [
     "StagingEnvBakebook",
     "SubmodulesUtils",
     "get_bakebook",
+    "params",
+    "unwrap",
 ]

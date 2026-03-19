@@ -108,7 +108,12 @@ class Bakebook(BaseSettings):
     )
     _app: typer.Typer = PrivateAttr(default_factory=typer.Typer)
     _command_groups: dict[str, CommandGroup] = PrivateAttr(default_factory=dict)
-    exclude_command_methods: ClassVar[list[str]] = []
+    __exclude_command_methods__: ClassVar[list[str]] = (
+        # Method names to exclude from command registration.
+        # Subclasses override this to prevent inherited methods from being
+        # registered as commands. Uses method names, not command names.
+        []
+    )
 
     @property
     def _registered_commands(self) -> set[str]:
@@ -163,7 +168,7 @@ class Bakebook(BaseSettings):
         return None
 
     def _register_marked_methods(self) -> None:
-        excluded = set(self.__class__.exclude_command_methods)
+        excluded = set(self.__class__.__exclude_command_methods__)
         logger.debug("Excluding %d methods: %s", len(excluded), excluded)
 
         for name in dir(self):

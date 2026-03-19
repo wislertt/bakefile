@@ -5,7 +5,7 @@ import typer
 from bakelib.publisher.pypi import PyPIPublisher
 
 from .lib import BaseLibSpace
-from .params import publish_token_option, publish_version_option
+from .params import PublishTokenOption, PublishVersionOption
 from .python import PythonSpace
 
 
@@ -23,7 +23,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
         registry: Annotated[
             str, typer.Option(help="Publish registry (test-pypi or pypi)")
         ] = "test-pypi",
-        token: publish_token_option = None,
-        version: publish_version_option = None,
+        token: PublishTokenOption = None,
+        version: PublishVersionOption = None,
     ):
         return super().publish(registry=registry, token=token, version=version)

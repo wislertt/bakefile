@@ -60,7 +60,7 @@ class PythonSpace(BaseSpace):
 
     def test_integration(
         self,
-        verbose: params.verbose_bool = False,
+        verbose: params.VerboseBool = False,
     ) -> None:
         integration_tests_path = "tests/integration/"
         if Path(integration_tests_path).exists():
@@ -96,7 +96,9 @@ class PythonSpace(BaseSpace):
         self.ctx.run("uv sync --all-extras --all-groups")
 
     def _uv_version(self) -> tuple[str, str]:
-        result = self.ctx.run("uv version", stream=False, dry_run=False, echo=False)
+        result = self.ctx.run(
+            "uv version", stream=False, dry_run=False, echo=False, capture_output=True
+        )
         package_name, version = strip_ansi(result.stdout.strip()).split()
         return package_name, version
 

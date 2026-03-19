@@ -15,7 +15,7 @@ def test_reinvocation_actually_switches_python(
     _marker_set_msg = "Re-invocation marker set, skipping Python check"
 
     monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
-    result = run(["bake", "-vv", "test-dep"], cwd=uv_project_folder_with_deps)
+    result = run(["bake", "-vv", "test-dep"], cwd=uv_project_folder_with_deps, capture_output=True)
     assert result.returncode == 0
     assert "0 -> 1 -> 2" in strip_ansi(result.stdout).strip()
 
@@ -31,7 +31,9 @@ def test_reinvocation_actually_switches_python(
     # Verify that the reinvoked process is using the target Python we switched to
     assert reinvoked_msg["sys.executable"] == reinvoking_msg["target_python"]
 
-    result = run(["bakefile", "-vv"], check=False, cwd=uv_project_folder_with_deps)
+    result = run(
+        ["bakefile", "-vv"], check=False, cwd=uv_project_folder_with_deps, capture_output=True
+    )
     # Exit code 1 because no subcommand provided (shows help)
     assert result.returncode == 1
     logs = parse_pretty_log(result.stderr)
