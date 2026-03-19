@@ -31,7 +31,7 @@ class PyPIPublisher(Publisher):
         dry_run_flag = "" if token is not None else "--dry-run "
         command = f"uv publish {dry_run_flag}{index_flag}"
 
-        return self.ctx.run(command, stream=True, env=env, check=False)
+        return self.ctx.run(command, stream=True, env=env, check=False, capture_output=True)
 
     def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
         # Success case (returncode == 0)

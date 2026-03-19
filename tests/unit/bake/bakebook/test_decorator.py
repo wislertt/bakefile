@@ -118,7 +118,7 @@ class TestCommandConflicts:
             MyBakebook()
 
     def test_child_override_parent_command_with_exclude(self) -> None:
-        """Child can override parent command using exclude_command_methods."""
+        """Child can override parent command using __exclude_command_methods__."""
 
         class ParentBakebook(Bakebook):
             @command()
@@ -126,7 +126,7 @@ class TestCommandConflicts:
                 return "items list"
 
         class ChildBakebook(ParentBakebook):
-            exclude_command_methods: ClassVar[list[str]] = ["list"]  # Exclude parent's list
+            __exclude_command_methods__: ClassVar[list[str]] = ["list"]  # Exclude parent's list
 
             @command(name="list")  # Define our own list
             def list2(self) -> str:

@@ -64,7 +64,7 @@ class CleanUtils(Bakebook):
         default_excludes: bool,
         default_exclude_patterns: set[str],
     ):
-        results = self.ctx.run("git clean -fdX -n", stream=False, echo=True)
+        results = self.ctx.run("git clean -fdX -n", stream=False, echo=True, capture_output=True)
 
         exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
 

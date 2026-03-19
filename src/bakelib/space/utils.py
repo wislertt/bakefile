@@ -60,8 +60,10 @@ def install_mise_tools(ctx: Context) -> None:
 
 
 def check_rust_version_matches_stable(ctx: Context):
-    current_rust = ctx.run("rustc --version", echo=False, stream=False)
-    stable_rust = ctx.run("rustup run stable rustc --version", echo=False, stream=False)
+    current_rust = ctx.run("rustc --version", echo=False, stream=False, capture_output=True)
+    stable_rust = ctx.run(
+        "rustup run stable rustc --version", echo=False, stream=False, capture_output=True
+    )
     if current_rust.stdout == stable_rust.stdout:
         return
 

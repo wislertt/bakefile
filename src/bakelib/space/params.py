@@ -5,5 +5,10 @@ import typer
 # ==========================================================
 # Publish Command Parameters
 # ==========================================================
-publish_token_option = Annotated[str | None, typer.Option(help="Publish token")]
-publish_version_option = Annotated[str | None, typer.Option(help="Version to publish")]
+PublishTokenOption = Annotated[str | None, typer.Option(help="Publish token")]
+PublishVersionOption = Annotated[str | None, typer.Option(help="Version to publish")]
+
+# ==========================================================
+# Misc. Command Parameters
+# ==========================================================
+DeployVersionOption = Annotated[str | None, typer.Option(help="Version to deploy")]

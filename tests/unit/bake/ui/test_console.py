@@ -1,10 +1,62 @@
+import inspect
 from unittest import mock
 
 import pytest
+from rich.console import Console as RichConsole
 
 from bake.ui import console
 from bake.ui.logger.capsys import strip_ansi
 from tests.utils.cli import get_error_label, get_warning_label
+
+
+class TestConsoleSignature:
+    """Test that our custom Console matches Rich's Console signature."""
+
+    def test_print_signature_matches_rich(self) -> None:
+        """Our Console.print should have the same signature as Rich's Console.print."""
+        rich_sig = inspect.signature(RichConsole.print)
+        our_sig = inspect.signature(console.Console.print)
+
+        rich_params = rich_sig.parameters
+        our_params = our_sig.parameters
+
+        # All parameter names should match
+        assert set(rich_params.keys()) == set(our_params.keys()), (
+            f"Parameter names don't match.\n"
+            f"Rich: {set(rich_params.keys())}\n"
+            f"Our:  {set(our_params.keys())}"
+        )
+
+    def test_print_has_custom_overflow_default(self) -> None:
+        """Our Console.print should default overflow='ignore'."""
+        our_sig = inspect.signature(console.Console.print)
+        overflow_param = our_sig.parameters["overflow"]
+        assert overflow_param.default == "ignore", (
+            f"Expected overflow default='ignore', got '{overflow_param.default}'"
+        )
+
+    def test_print_has_custom_crop_default(self) -> None:
+        """Our Console.print should default crop=False."""
+        our_sig = inspect.signature(console.Console.print)
+        crop_param = our_sig.parameters["crop"]
+        assert crop_param.default is False, (
+            f"Expected crop default=False, got '{crop_param.default}'"
+        )
+
+    def test_other_params_match_rich_defaults(self) -> None:
+        """Other parameters should match Rich's defaults (except overflow, crop)."""
+        rich_sig = inspect.signature(RichConsole.print)
+        our_sig = inspect.signature(console.Console.print)
+
+        for name, rich_param in rich_sig.parameters.items():
+            if name in ("overflow", "crop", "self"):
+                continue
+            our_param = our_sig.parameters[name]
+            assert rich_param.default == our_param.default, (
+                f"Parameter '{name}' default mismatch.\n"
+                f"Rich: {rich_param.default}\n"
+                f"Our:  {our_param.default}"
+            )
 
 
 class TestSuccess:

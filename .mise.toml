@@ -2,7 +2,9 @@
 pipx.uvx = true
 
 [tools]
+actionlint = "latest"
 bun = "latest"
+"npm:actions-up" = "latest"
 "pipx:bakefile" = "latest"
 "pipx:pre-commit" = "latest"
 "pipx:toml-sort" = "latest"

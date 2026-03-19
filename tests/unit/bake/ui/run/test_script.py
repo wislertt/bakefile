@@ -148,7 +148,7 @@ def test_run_script_concurrent_execution() -> None:
     ]
 
     def run_script_pair(title: str, script: str):
-        return run_script(title, script)
+        return run_script(title, script, capture_output=True)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [executor.submit(run_script_pair, title, script) for title, script in scripts]

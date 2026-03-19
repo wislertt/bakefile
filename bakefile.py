@@ -6,10 +6,10 @@ import typer
 import zerv
 
 from bake import command, console
-from bakelib import PythonLibSpace
+from bakelib import GitHubActionsTools, PythonLibSpace
 
 
-class MyBakebook(PythonLibSpace):
+class MyBakebook(GitHubActionsTools, PythonLibSpace):
     def update(self) -> None:
         super().update()
         self._update_examples()

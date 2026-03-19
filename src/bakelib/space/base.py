@@ -140,7 +140,9 @@ class BaseSpace(CleanUtils, Bakebook):
         }
 
     def add_mise_tools(self) -> None:
-        result = run("mise list --local --current --json", stream=False, echo=False)
+        result = run(
+            "mise list --local --current --json", stream=False, echo=False, capture_output=True
+        )
         current_tools: set[str] = set()
         if result and result.stdout:
             data = orjson.loads(result.stdout)
