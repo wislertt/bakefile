@@ -203,8 +203,8 @@ class OutputSplitter:
                 )
                 if not should_continue:
                     return
-        except OSError:
-            pass
+        except OSError:  # pragma: no cover
+            pass  # pragma: no cover
 
     def attach(self, proc: subprocess.Popen):
         threads = []

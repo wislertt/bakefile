@@ -350,7 +350,7 @@ class TestExportFormatter:
         """Test that _export raises ValueError for unknown format."""
         bakebook = ComplexVarsBakebook()
         with pytest.raises(ValueError, match="Unknown format: invalid"):
-            _export(bakebook=bakebook, format="invalid", output=None)  # type: ignore[arg-type]
+            _export(bakebook=bakebook, format="invalid", output=None)  # ty: ignore[invalid-argument-type]
 
     def test_export_cli_raises_runtime_error_when_bakebook_not_found(self) -> None:
         """Test that export raises RuntimeError when bakebook is not found."""

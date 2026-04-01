@@ -51,7 +51,7 @@ class _BaseEnv(str, metaclass=_FrozenEnvMeta):
             original_init(self, *args, **kwargs)
             object.__setattr__(self, "_initialized", True)
 
-        cls.__init__ = wrapped_init  # type: ignore[misc]
+        cls.__init__ = wrapped_init  # ty: ignore[invalid-assignment]
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Protect "_" attributes that have already been set.
