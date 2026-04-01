@@ -166,7 +166,7 @@ class TestBaseEnvPydanticIntegration:
         class Model(BaseModel):
             env: BaseEnv
 
-        m = Model(env="dev")  # type: ignore[arg-type]
+        m = Model(env="dev")  # ty: ignore[invalid-argument-type]
         assert isinstance(m.env, BaseEnv)
         assert str(m.env) == "dev"
 
@@ -182,7 +182,7 @@ class TestBaseEnvPydanticIntegration:
             env: BaseEnv
 
         with pytest.raises(ValidationError):
-            Model(env="invalid")  # type: ignore[arg-type]
+            Model(env="invalid")  # ty: ignore[invalid-argument-type]
 
     def test_pydantic_optional_env_field(self):
         class Model(BaseModel):
@@ -191,14 +191,14 @@ class TestBaseEnvPydanticIntegration:
         m1 = Model()
         assert m1.env is None
 
-        m2 = Model(env="dev")  # type: ignore[arg-type]
+        m2 = Model(env="dev")  # ty: ignore[invalid-argument-type]
         assert str(m2.env) == "dev"
 
     def test_pydantic_model_dump(self):
         class Model(BaseModel):
             env: BaseEnv
 
-        m = Model(env="dev")  # type: ignore[arg-type]
+        m = Model(env="dev")  # ty: ignore[invalid-argument-type]
 
         assert m.model_dump() == {"env": BaseEnv("dev")}
         assert m.model_dump() != {"env": "dev"}
@@ -241,7 +241,7 @@ class TestBaseEnvInheritance:
         class Model(BaseModel):
             env: TestBaseEnvInheritance.CustomBaseEnv
 
-        m = Model(env="dev")  # type: ignore[arg-type]
+        m = Model(env="dev")  # ty: ignore[invalid-argument-type]
         assert isinstance(m.env, TestBaseEnvInheritance.CustomBaseEnv)
 
 
@@ -319,7 +319,7 @@ class TestBaseEnvEdgeCases:
             else r"property .*flattened_envs.* has no setter"
         )
         with pytest.raises(AttributeError, match=match_msg):
-            ChildEnv1("a").flattened_envs = ("a", "b", "c")  # type: ignore[misc]
+            ChildEnv1("a").flattened_envs = ("a", "b", "c")  # ty: ignore[invalid-assignment]
 
     def test_cache_returns_same_object(self):
         """Multiple calls to flattened_envs return cached result (same object)."""
@@ -378,7 +378,7 @@ class TestBaseEnvEdgeCases:
         # Tuple doesn't have copy() method - it's already immutable
         # Attempting to mutate raises TypeError
         with pytest.raises(TypeError, match=r"does not support item assignment"):
-            order[0] = "new"  # type: ignore[index]
+            order[0] = "new"  # ty: ignore[invalid-assignment]
 
     def test_private_attributes_are_frozen(self):
         """Private attributes starting with "_" cannot be mutated after being set."""
@@ -386,7 +386,7 @@ class TestBaseEnvEdgeCases:
 
         # Setting NEW "_" attributes is allowed (only existing ones are protected)
         env._custom = "value"
-        assert env._custom == "value"  # type: ignore[attr-defined]
+        assert env._custom == "value"  # ty: ignore[unresolved-attribute]
 
     def test_mutation_reflected_in_flattened_envs(self):
         """ENV_PRIORITY_ORDER is frozen and cannot be mutated."""
@@ -568,7 +568,7 @@ class TestBaseSubEnvValidation:
 
         # Item assignment raises TypeError (tuple is immutable)
         with pytest.raises(TypeError, match=r"does not support item assignment"):
-            ValidEnv.ENV_PRIORITY_ORDER[0] = "gamma"  # type: ignore[index]
+            ValidEnv.ENV_PRIORITY_ORDER[0] = "gamma"  # ty: ignore[invalid-assignment]
 
         # Attempting to mutate to add digit-suffix codes raises AttributeError
         with pytest.raises(AttributeError, match=r"Cannot mutate.*ENV_PRIORITY_ORDER"):
@@ -594,4 +594,4 @@ class TestBaseSubEnvValidation:
 
         # Setting NEW "_" attributes is allowed (only existing ones are protected)
         env._custom = "value"  # This works because _custom doesn't exist yet
-        assert env._custom == "value"  # type: ignore[attr-defined]
+        assert env._custom == "value"  # ty: ignore[unresolved-attribute]

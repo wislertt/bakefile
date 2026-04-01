@@ -78,7 +78,7 @@ class TestGetGlobalMinLogLevel:
     )
     def test_various_level_combinations(self, levels: dict[str, int], expected_min: int) -> None:
         """Test various combinations of log levels."""
-        assert get_global_min_log_level(levels) == expected_min  # type: ignore[arg-type]
+        assert get_global_min_log_level(levels) == expected_min  # ty: ignore[invalid-argument-type]
 
 
 class TestResetAllLoggingStates:
@@ -224,7 +224,7 @@ class TestPrettyLogFormatter:
             "exception": None,
         }
 
-        result = formatter(record)  # type: ignore[arg-type]
+        result = formatter(record)  # ty: ignore[invalid-argument-type]
         assert isinstance(result, str)
         assert len(result) > 0
 

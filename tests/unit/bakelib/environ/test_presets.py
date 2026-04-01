@@ -417,7 +417,7 @@ class TestGcpLandingZoneSubEnvPydanticIntegration:
         class Model(BaseModel):
             env: GcpLandingZoneSubEnv
 
-        m = Model(env="d1")  # type: ignore[arg-type]
+        m = Model(env="d1")  # ty: ignore[invalid-argument-type]
         assert isinstance(m.env, GcpLandingZoneSubEnv)
         assert str(m.env) == "d1"
 
@@ -428,7 +428,7 @@ class TestGcpLandingZoneSubEnvPydanticIntegration:
             env: GcpLandingZoneSubEnv
 
         with pytest.raises(ValidationError):
-            Model(env="x1")  # type: ignore[arg-type]
+            Model(env="x1")  # ty: ignore[invalid-argument-type]
 
 
 class TestGcpLandingZoneSubEnvEdgeCases:
@@ -469,12 +469,12 @@ class TestGcpLandingZoneEnvFrozenClassVariables:
     def test_names_is_frozen(self):
         """NAMES cannot be reassigned at class level."""
         with pytest.raises(AttributeError, match=r"Cannot mutate.*NAMES.*frozen"):
-            GcpLandingZoneEnv.NAMES = {"x": "y"}  # type: ignore[assignment]
+            GcpLandingZoneEnv.NAMES = {"x": "y"}  # ty: ignore[invalid-assignment]
 
     def test_names_dict_cannot_be_mutated(self):
         """NAMES dictionary content cannot be modified (MappingProxyType)."""
         with pytest.raises(TypeError, match=r"does not support item assignment"):
-            GcpLandingZoneEnv.NAMES["d"] = "Hacked"  # type: ignore[assignment]
+            GcpLandingZoneEnv.NAMES["d"] = "Hacked"  # ty: ignore[invalid-assignment]
 
     def test_shared_codes_is_frozen(self):
         """SHARED_CODES cannot be reassigned at class level."""

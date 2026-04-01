@@ -88,7 +88,7 @@ class TestGetBakebook:
         bb_dev = DevEnvBakebook()
 
         with pytest.raises(ValueError, match="All bakebooks must have an 'env' attribute"):
-            get_bakebook([fake_bb, bb_dev])  # type: ignore[arg-type]
+            get_bakebook([fake_bb, bb_dev])  # ty: ignore[invalid-argument-type]
 
 
 class TestGetBakebookLazyInit:
