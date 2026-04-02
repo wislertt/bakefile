@@ -21,7 +21,25 @@ class MinimalTestSpace(BaseSpace):
 
     @_version.setter
     def _version(self, value: str) -> None:
+        self._version_setter(value)
+
+    def _version_setter(self, value: str) -> None:
         self._version_value = value
+
+
+class ChildMinimalTestSpace(MinimalTestSpace):
+    """Simulates downstream class (e.g. ARDockerUtils) extending _version setter.
+
+    Only overrides _version_setter — no property getter/setter override needed.
+    super()._version_setter(value) works naturally via MRO.
+    """
+
+    _extra_tag: str | None = None
+
+    def _version_setter(self, value: str) -> None:
+        super()._version_setter(value)
+        if self._extra_tag is None:
+            self._extra_tag = f"tag-{value}"
 
 
 class TestBareBaseSpace:
@@ -406,3 +424,47 @@ class TestSetupProject:
 
         assert "pre-commit install" in run_calls
         assert "bakefile sync --frozen" not in run_calls
+
+
+class TestChildVersionSetterExtensibility:
+    """Demonstrates the MRO hack currently required to extend _version setter.
+
+    When a child class overrides @_version.setter, it cannot call the parent
+    setter via super() because super()._version invokes the getter (returns a
+    string), not the property descriptor. The only workaround is walking the
+    MRO manually — this test documents that ugly but necessary hack.
+    """
+
+    def test_child_setter_runs_parent_logic(self) -> None:
+        child = ChildMinimalTestSpace()
+        child._version = "1.2.3"
+
+        assert child._version == "1.2.3"
+
+    def test_child_setter_runs_own_logic(self) -> None:
+        child = ChildMinimalTestSpace()
+        child._version = "1.2.3"
+
+        assert child._extra_tag == "tag-1.2.3"
+
+    def test_child_setter_does_not_overwrite_existing_tag(self) -> None:
+        child = ChildMinimalTestSpace()
+        child._extra_tag = "existing-tag"
+        child._version = "2.0.0"
+
+        assert child._extra_tag == "existing-tag"
+
+    def test_version_bump_context_works_with_child_setter(self) -> None:
+        child = ChildMinimalTestSpace()
+        child._version = "1.0.0"
+        child._extra_tag = "tag-1.0.0"
+
+        with patch("bakelib.space.base.zerv") as mock_zerv:
+            mock_zerv.render.return_value = "2.0.0"
+
+            with child._version_bump_context(version="2.0.0"):
+                assert child._version == "2.0.0"
+                # _extra_tag should NOT change — it was already set
+                assert child._extra_tag == "tag-1.0.0"
+
+        assert child._version == "1.0.0"

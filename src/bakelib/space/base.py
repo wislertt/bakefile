@@ -31,6 +31,9 @@ class BaseSpace(CleanUtils, Bakebook):
 
     @_version.setter
     def _version(self, value: str) -> None:
+        self._version_setter(value)
+
+    def _version_setter(self, value: str) -> None:
         _ = value
         self._method_not_available("_version")
 

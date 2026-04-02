@@ -15,10 +15,12 @@ from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
 from bakelib.space.rust import RustSpace
 from bakelib.space.rust_lib import RustLibSpace
+from bakelib.space.service import BaseServiceSpace
 from bakelib.utils import unwrap
 
 __all__ = [
     "BaseEnv",
+    "BaseServiceSpace",
     "BaseSpace",
     "DevEnvBakebook",
     "EnvBakebook",

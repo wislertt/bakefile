@@ -117,6 +117,13 @@ class RustSpace(BaseSpace):
 
     @_version.setter
     def _version(self, value: str) -> None:
+        self._version_setter(value)
+
+    def _version_setter(self, value: str) -> None:
+        from contextlib import suppress
+
+        with suppress(NotImplementedError):
+            super()._version_setter(value)
         self._set_version_in_cargo_toml(value)
 
     def _set_version_in_cargo_toml(self, version: str) -> None:

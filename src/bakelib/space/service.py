@@ -1,6 +1,7 @@
 from bake import command
-from bakelib import BaseSpace, EnvBakebook
+from bakelib.environ import EnvBakebook
 from bakelib.environ.bakebook import E
+from bakelib.space.base import BaseSpace
 
 
 class BaseServiceSpace(EnvBakebook[E], BaseSpace):

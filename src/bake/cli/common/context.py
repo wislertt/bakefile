@@ -151,3 +151,17 @@ class Context(typer.Context):
 
 class BakeCommand(TyperCommand):
     context_class: type[click.Context] = Context
+
+
+def context(
+    *, name: str = "mock", chdir: Path | None = None, dry_run: bool = False, verbosity: int = 0
+) -> Context:
+    obj = BakefileObject(
+        chdir=chdir or Path.cwd(),
+        file_name="bakefile.py",
+        bakebook_name="bakebook",
+        dry_run=dry_run,
+        verbosity=verbosity,
+    )
+
+    return Context(command=click.Command(name=name), obj=obj, info_name=name)

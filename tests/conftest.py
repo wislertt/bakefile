@@ -18,7 +18,6 @@ from tests.utils.fixtures import (
     uv_project_folder_without_dep,
 )
 from tests.utils.misc import (
-    SimpleTestCommand,
     auto_cleanup_keyring,
     examples_python_package_dir,
     examples_simple_dir,
@@ -29,7 +28,6 @@ from tests.utils.misc import (
 __all__ = [
     "CaptureOutput",
     "RunCli",
-    "SimpleTestCommand",
     "auto_cleanup_keyring",
     "complex_vars_project",
     "ctx_test_project",

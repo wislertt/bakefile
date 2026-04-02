@@ -118,6 +118,13 @@ class PythonSpace(BaseSpace):
 
     @_version.setter
     def _version(self, value: str) -> None:
+        self._version_setter(value)
+
+    def _version_setter(self, value: str) -> None:
+        from contextlib import suppress
+
+        with suppress(NotImplementedError):
+            super()._version_setter(value)
         self.ctx.run(f"uv version {zerv.render(version=value, output_format='pep440')}")
 
     def _determine_new_version(
