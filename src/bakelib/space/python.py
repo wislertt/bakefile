@@ -1,3 +1,4 @@
+from contextlib import suppress
 from pathlib import Path
 
 import zerv
@@ -121,8 +122,6 @@ class PythonSpace(BaseSpace):
         self._version_setter(value)
 
     def _version_setter(self, value: str) -> None:
-        from contextlib import suppress
-
         with suppress(NotImplementedError):
             super()._version_setter(value)
         self.ctx.run(f"uv version {zerv.render(version=value, output_format='pep440')}")
