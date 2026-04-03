@@ -4,11 +4,10 @@ from typing import TypeVar
 from dotenv import load_dotenv as _load_dotenv
 
 from .bakebook import EnvBakebook
-from .base import BaseEnv
 
 # TODO: When min Python >= 3.12, use PEP 695 type parameter syntax:
 # def get_bakebook[E: EnvBakebook](bakebooks: list[E], ...) -> E:
-E = TypeVar("E", bound=EnvBakebook[BaseEnv])
+E = TypeVar("E", bound=EnvBakebook)
 
 
 def _build_bakebook_dict(bakebooks: list[E]) -> dict[str, E]:

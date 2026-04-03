@@ -5,14 +5,12 @@ import sys
 from functools import wraps
 from pathlib import Path
 
-import click
 import keyring
 import loguru
 import pytest
 from keyring.errors import KeyringError
 
-from bake import Context
-from bake.cli.common.obj import BakefileObject
+from bake import context
 from bake.ui.logger.utils import reset_all_logging_states
 from bake.utils.settings import bake_settings
 
@@ -40,30 +38,9 @@ def auto_cleanup_keyring(monkeypatch: pytest.MonkeyPatch):
             keyring.delete_password(service, username)
 
 
-class SimpleTestCommand(click.Command):
-    """Minimal click.Command for testing Context."""
-
-    def __init__(self):
-        super().__init__(
-            name="test",
-            callback=lambda: None,
-        )
-
-
 @pytest.fixture
 def mock_ctx(tmp_path: Path):
-    obj = BakefileObject(
-        chdir=tmp_path,
-        file_name="bakefile.py",
-        bakebook_name="bakebook",
-        dry_run=True,
-        verbosity=0,
-    )
-
-    command = SimpleTestCommand()
-    ctx = Context(command=command, obj=obj, info_name="test")
-
-    return ctx
+    return context(chdir=tmp_path, dry_run=True)
 
 
 @pytest.fixture(scope="function", autouse=True)
