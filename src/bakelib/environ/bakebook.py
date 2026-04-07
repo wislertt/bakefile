@@ -21,8 +21,32 @@ class _ExcludeEnvFieldSource(PydanticBaseSettingsSource):
         return {k: v for k, v in self._source().items() if k != "env"}
 
 
+def _get_expected_env_type(cls: type) -> type | None:
+    for base in cls.__bases__:
+        metadata = getattr(base, "__pydantic_generic_metadata__", None)
+        if metadata is not None and metadata.get("origin") is EnvBakebook:
+            args = metadata.get("args", ())
+            if args:
+                return args[0]
+    return None
+
+
 class EnvBakebook(Bakebook, Generic[E]):
     env: E
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        expected_env_type = _get_expected_env_type(cls)
+        if expected_env_type is None:
+            return
+
+        env_annotation = cls.__annotations__.get("env")
+        if env_annotation is not None and not issubclass(env_annotation, expected_env_type):
+            raise TypeError(
+                f"'{cls.__name__}.env' annotation is "
+                f"{env_annotation.__name__}, "
+                f"expected {expected_env_type.__name__}"
+            )
 
     def lazy_init(self) -> None:
         """Override for expensive initialization. Called by get_bakebook()."""

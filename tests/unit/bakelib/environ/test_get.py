@@ -2,9 +2,9 @@ from typing import ClassVar
 
 import pytest
 
-from bakelib import EnvBakebook
-from bakelib.environ import DevEnvBakebook, ProdEnvBakebook, StagingEnvBakebook
-from bakelib.environ.get_bakebook import get_bakebook
+from bakelib.environ import DevEnvBakebook, EnvBakebook, ProdEnvBakebook, StagingEnvBakebook
+from bakelib.environ.base import BaseEnv
+from bakelib.environ.get import get_bakebook
 
 
 class TestGetBakebook:
@@ -21,7 +21,7 @@ class TestGetBakebook:
         assert str(bb_prod.env) == "prod"
         bakebook_map = {"dev": bb_dev, "prod": bb_prod}
 
-        bbs: list[EnvBakebook] = [bb_dev, bb_prod]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
         result = get_bakebook(bbs)
         assert result is bakebook_map[env_value]
         assert str(result.env) == env_value
@@ -31,7 +31,7 @@ class TestGetBakebook:
         bb_prod = ProdEnvBakebook()
 
         assert bb_dev.env < bb_prod.env
-        bbs: list[EnvBakebook] = [bb_dev, bb_prod]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
         result = get_bakebook(bbs)
         assert result is bb_dev
 
@@ -39,7 +39,7 @@ class TestGetBakebook:
         monkeypatch.setenv("ENV", "staging")
         bb_dev = DevEnvBakebook()
         bb_prod = ProdEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_prod]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
 
         with pytest.raises(
             ValueError,
@@ -51,7 +51,7 @@ class TestGetBakebook:
         monkeypatch.setenv("MY_ENV", "prod")
         bb_dev = DevEnvBakebook()
         bb_prod = ProdEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_prod]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
 
         result = get_bakebook(bbs, env_var_name="MY_ENV")
         assert result is bb_prod
@@ -60,7 +60,7 @@ class TestGetBakebook:
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
         bb_prod = ProdEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging, bb_prod]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging, bb_prod]
 
         # staging has higher priority (index 1) than prod (index 2)
         monkeypatch.setenv("ENV", "prod")
@@ -188,7 +188,7 @@ class TestGetBakebookFallbackEnv:
         """fallback_env_value is used when ENV is not set."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, fallback_env_value="staging")
         assert result is bb_staging
@@ -198,7 +198,7 @@ class TestGetBakebookFallbackEnv:
         """fallback_env_value is used when ENV is empty string."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value="", fallback_env_value="staging")
         assert result is bb_staging
@@ -208,7 +208,7 @@ class TestGetBakebookFallbackEnv:
         """env_value takes precedence over fallback_env_value."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value="dev", fallback_env_value="staging")
         assert result is bb_dev
@@ -218,7 +218,7 @@ class TestGetBakebookFallbackEnv:
         """ENV var takes precedence over fallback_env_value."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
         monkeypatch.setenv("ENV", "dev")
 
         result = get_bakebook(bbs, fallback_env_value="staging")
@@ -229,7 +229,7 @@ class TestGetBakebookFallbackEnv:
         """When both env_value and fallback_env_value are None, uses min."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs)
         assert result is bb_dev
@@ -239,7 +239,7 @@ class TestGetBakebookFallbackEnv:
         """Invalid fallback_env_value raises ValueError."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         with pytest.raises(ValueError, match="No bakebook found with env='prod'"):
             get_bakebook(bbs, fallback_env_value="prod")
@@ -248,7 +248,7 @@ class TestGetBakebookFallbackEnv:
         """env_value=None, valid fallback_env_value → uses fallback."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value=None, fallback_env_value="staging")
         assert result is bb_staging
@@ -257,7 +257,7 @@ class TestGetBakebookFallbackEnv:
         """env_value='', valid fallback_env_value → uses fallback."""
         bb_dev = DevEnvBakebook()
         bb_staging = StagingEnvBakebook()
-        bbs: list[EnvBakebook] = [bb_dev, bb_staging]
+        bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value="", fallback_env_value="staging")
         assert result is bb_staging

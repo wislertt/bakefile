@@ -1,14 +1,12 @@
-from bake import command
-from bakelib.environ import EnvBakebook
-from bakelib.environ.bakebook import E
+from bake import command, console
 from bakelib.space.base import BaseSpace
 
 
-class BaseServiceSpace(EnvBakebook[E], BaseSpace):
+class BaseServiceSpace(BaseSpace):
     service_name: str
 
     @command(help="Build the service")
-    def build(self):
+    def build(self) -> None:
         self._command_not_available("build")
 
     @command(help="Deploy the service")
@@ -17,4 +15,11 @@ class BaseServiceSpace(EnvBakebook[E], BaseSpace):
 
     @command(help="Destroy the service")
     def destroy(self):
-        self._command_not_available("deploy")
+        self._command_not_available("destroy")
+
+    @command(help="Build and deploy the service")
+    def bd(self):
+        console.cmd("bake build")
+        self.build()
+        console.cmd("bake deploy")
+        self.deploy()

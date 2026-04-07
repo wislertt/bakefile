@@ -4,7 +4,7 @@ import json
 import sys
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -439,7 +439,7 @@ class TestFormatShellValueUnit:
                 datetime.timedelta(hours=2, seconds=90),
                 datetime.timedelta,
                 "PT2H1M30S",
-                lambda x: Timedelta(x).to_pytimedelta(),
+                lambda x: cast(Timedelta, Timedelta(x)).to_pytimedelta(),
             ),
             # Decimal - becomes float/int in JSON
             (
@@ -642,7 +642,7 @@ class TestFormatDotEnvValueUnit:
                 datetime.timedelta(hours=2, seconds=90),
                 datetime.timedelta,
                 "PT2H1M30S",
-                lambda x: Timedelta(x).to_pytimedelta(),
+                lambda x: Timedelta(x).to_pytimedelta(),  # ty: ignore[unresolved-attribute]
             ),
             # Decimal - becomes float/int in JSON (quoted in dotenv for decimals with dots)
             (

@@ -3,13 +3,19 @@ import typer
 from pydantic import ValidationError
 
 from bake import Context
-from bakelib.environ.base import BaseEnv
+from bakelib.space import params
 from bakelib.space.service import BaseServiceSpace
 
 
-class ConcreteServiceSpace(BaseServiceSpace[BaseEnv]):
-    env: BaseEnv = BaseEnv("dev")
+class ConcreteServiceSpace(BaseServiceSpace):
     service_name: str = "test-service"
+
+
+class FastBuildServiceSpace(BaseServiceSpace):
+    service_name: str = "fast-service"
+
+    def build(self, fast: params.FastOption = 0) -> None:
+        _ = fast
 
 
 class TestBareServiceSpace:
@@ -17,16 +23,11 @@ class TestBareServiceSpace:
         with pytest.raises(ValidationError):
             BaseServiceSpace()  # ty: ignore[missing-argument]
 
-    def test_init_raises_without_env(self) -> None:
-        with pytest.raises(ValidationError):
-            BaseServiceSpace(service_name="my-service")  # ty: ignore[missing-argument]
-
 
 class TestServiceSpaceInit:
-    def test_init_with_service_name_and_env(self) -> None:
+    def test_init_with_service_name(self) -> None:
         space = ConcreteServiceSpace()
         assert space.service_name == "test-service"
-        assert str(space.env) == "dev"
 
 
 class TestBuildCommand:
@@ -36,6 +37,18 @@ class TestBuildCommand:
             with pytest.raises(typer.Exit) as exc_info:
                 space.build()
             assert exc_info.value.exit_code == 1
+
+
+class TestBuildWithFastOverride:
+    def test_child_can_add_fast_option(self, mock_ctx: Context) -> None:
+        space = FastBuildServiceSpace()
+        with mock_ctx:
+            space.build(fast=1)  # no error, fast accepted
+
+    def test_child_build_defaults_fast_to_zero(self, mock_ctx: Context) -> None:
+        space = FastBuildServiceSpace()
+        with mock_ctx:
+            space.build()  # fast defaults to 0
 
 
 class TestDeployCommand:
@@ -54,3 +67,22 @@ class TestDestroyCommand:
             with pytest.raises(typer.Exit) as exc_info:
                 space.destroy()
             assert exc_info.value.exit_code == 1
+
+
+class TrackingServiceSpace(BaseServiceSpace):
+    service_name: str = "tracking-service"
+    called: list[str]
+
+    def build(self) -> None:
+        self.called.append("build")
+
+    def deploy(self) -> None:
+        self.called.append("deploy")
+
+
+class TestBdCommand:
+    def test_bd_calls_build_then_deploy(self, mock_ctx: Context) -> None:
+        space = TrackingServiceSpace(called=[])
+        with mock_ctx:
+            space.bd()
+        assert space.called == ["build", "deploy"]

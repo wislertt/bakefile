@@ -15,6 +15,7 @@ from bakelib.environ.bakebook import (
     StagingEnvBakebook,
     _ExcludeEnvFieldSource,
 )
+from bakelib.environ.presets import GcpLandingZoneEnv
 
 
 class TestExcludeEnvFieldSource:
@@ -191,3 +192,32 @@ class TestEnvBakebookDotEnvFile:
         assert str(bb.env) == "dev"
         # api_key should come from .env file
         assert bb.api_key == "from_dotenv"
+
+
+class TestEnvTypeValidation:
+    def test_raises_error_when_env_type_mismatches_generic_param(self):
+        """Defining a subclass with wrong env type raises TypeError at class creation."""
+        with pytest.raises(
+            TypeError,
+            match="'_BadEnvBakebook\\.env' annotation is BaseEnv, expected GcpLandingZoneEnv",
+        ):
+
+            class _BadEnvBakebook(EnvBakebook[GcpLandingZoneEnv]):
+                env: BaseEnv = BaseEnv("dev")
+
+    def test_valid_when_env_matches_generic_param(self):
+        """Subclass with correct env type passes validation."""
+
+        class _GoodEnvBakebook(EnvBakebook[GcpLandingZoneEnv]):
+            env: GcpLandingZoneEnv = GcpLandingZoneEnv("d")
+
+        bb = _GoodEnvBakebook()
+        assert isinstance(bb.env, GcpLandingZoneEnv)
+
+    def test_no_validation_when_not_parameterized(self):
+        """Without [E], type validation is skipped."""
+
+        class _Unparameterized(EnvBakebook):
+            env: BaseEnv = BaseEnv("dev")
+
+        assert str(_Unparameterized().env) == "dev"

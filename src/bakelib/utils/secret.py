@@ -61,7 +61,11 @@ class SecretUtils(Bakebook):
             cached_type=cached_type,
         )
 
-    @command(name="list", group_name=SECRET_GROUP)
+    @command(
+        name="list",
+        group_name=SECRET_GROUP,
+        help="List all tracked secret keys with cache status",
+    )
     def secret_list(self) -> None:
         """List all tracked keys with their cache status."""
         if not self.get_secret_keys():
@@ -91,7 +95,7 @@ class SecretUtils(Bakebook):
         cache = self.get_secret_cache(key)
         cache.refresh()
 
-    @command(name="get", group_name=SECRET_GROUP)
+    @command(name="get", group_name=SECRET_GROUP, help="Get a cached secret value")
     def secret_get(
         self,
         key: Annotated[str, typer.Argument(help="Secret key")],
@@ -103,7 +107,7 @@ class SecretUtils(Bakebook):
             raise typer.Exit(1)
         console.echo(value)
 
-    @command(name="set", group_name=SECRET_GROUP)
+    @command(name="set", group_name=SECRET_GROUP, help="Set a secret value in cache")
     def secret_set(
         self,
         key: Annotated[str, typer.Argument(help="Secret key")],
@@ -115,7 +119,7 @@ class SecretUtils(Bakebook):
         self.set_secret(key, value)
         console.success(f"Secret '{key}' set.")
 
-    @command(name="del", group_name=SECRET_GROUP)
+    @command(name="del", group_name=SECRET_GROUP, help="Delete secret(s) from cache")
     def secret_del(
         self,
         key: Annotated[str | None, typer.Argument(help="Secret key")] = None,
@@ -136,7 +140,9 @@ class SecretUtils(Bakebook):
         self.del_secret(key)
         console.success(f"Secret '{key}' deleted.")
 
-    @command(name="refresh", group_name=SECRET_GROUP)
+    @command(
+        name="refresh", group_name=SECRET_GROUP, help="Refresh secret(s) by fetching fresh value(s)"
+    )
     def secret_refresh(
         self,
         key: Annotated[str | None, typer.Argument(help="Secret key")] = None,
