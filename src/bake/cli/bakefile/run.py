@@ -6,7 +6,7 @@ import typer
 from bake.cli.common.context import Context
 from bake.manage.find_python import find_python_path
 from bake.ui import console
-from bake.ui.run.run import run as _run
+from bake.ui.run.main import run as _run
 from bake.utils.exceptions import BakebookError, PythonNotFoundError
 
 logger = logging.getLogger(__name__)

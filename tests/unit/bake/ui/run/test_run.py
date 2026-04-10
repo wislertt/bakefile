@@ -1,4 +1,3 @@
-import importlib
 import inspect
 import logging
 import os
@@ -19,11 +18,8 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
-from bake.ui.run import run_script, run_uv
+from bake.ui.run import main, run_script, run_uv
 from tests.utils.misc import flaky_on_macos_ci
-
-# Import the module using importlib to avoid naming conflicts with the function
-run_module = importlib.import_module("bake.ui.run.run")
 
 
 @flaky_on_macos_ci()
@@ -446,7 +442,7 @@ class TestParseShebang:
     )
     def test_parse_shebang(self, script: str, expected: str | None, is_partial_match: bool) -> None:
         """Test parsing various shebang formats."""
-        from bake.ui.run.run import _parse_shebang
+        from bake.ui.run.main import _parse_shebang
 
         result = _parse_shebang(script)
 
@@ -497,7 +493,7 @@ class TestResolveInterpreter:
     )
     def test_resolve_interpreter(self, interpreter: str, check_func) -> None:
         """Test resolving interpreter paths."""
-        from bake.ui.run.run import _resolve_interpreter
+        from bake.ui.run.main import _resolve_interpreter
 
         result = _resolve_interpreter(interpreter)
         assert check_func(result)
@@ -934,7 +930,7 @@ class TestPrepareSubprocessEnv:
 
     def test_terminal_size_oserror_fallback(self) -> None:
         """When os.get_terminal_size raises OSError, env is still prepared."""
-        from bake.ui.run.run import _prepare_subprocess_env
+        from bake.ui.run.main import _prepare_subprocess_env
 
         with mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")):
             env = _prepare_subprocess_env()
@@ -948,7 +944,7 @@ class TestPrepareSubprocessEnv:
 
     def test_custom_env_vars_are_merged(self) -> None:
         """Custom environment variables are merged with system env."""
-        from bake.ui.run.run import _prepare_subprocess_env
+        from bake.ui.run.main import _prepare_subprocess_env
 
         custom_env = {"MY_VAR": "my_value", "FORCE_COLOR": "0"}
         env = _prepare_subprocess_env(env=custom_env)
@@ -1243,8 +1239,8 @@ class TestKeyboardInterrupt:
         mock_proc.returncode = None
 
         with (
-            mock.patch.object(run_module.subprocess, "Popen", return_value=mock_proc),
-            mock.patch.object(run_module, "_kill_process_tree") as mock_kill,
+            mock.patch.object(main.subprocess, "Popen", return_value=mock_proc),
+            mock.patch.object(main, "_kill_process_tree") as mock_kill,
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=True, capture_output=True, echo=False)
@@ -1260,8 +1256,8 @@ class TestKeyboardInterrupt:
         mock_proc.returncode = None
 
         with (
-            mock.patch.object(run_module.subprocess, "Popen", return_value=mock_proc),
-            mock.patch.object(run_module, "_kill_process_tree") as mock_kill,
+            mock.patch.object(main.subprocess, "Popen", return_value=mock_proc),
+            mock.patch.object(main, "_kill_process_tree") as mock_kill,
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=False, capture_output=True, echo=False)
