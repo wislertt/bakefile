@@ -62,8 +62,12 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
 
     sys.stdout.flush()
     sys.stderr.flush()
-    result = subprocess.run(
-        [str(target_python), "-m", cli_module, *sys.argv[1:]],
-        env=env,
-    )
-    raise SystemExit(result.returncode)
+    try:
+        result = subprocess.run(
+            [str(target_python), "-m", cli_module, *sys.argv[1:]],
+            env=env,
+        )
+        raise SystemExit(result.returncode)
+    except KeyboardInterrupt as e:
+        # User pressed Ctrl+C - exit cleanly with standard SIGINT exit code (128 + 2)
+        raise SystemExit(130) from e

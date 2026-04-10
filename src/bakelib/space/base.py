@@ -63,6 +63,22 @@ class BaseSpace(CleanUtils, Bakebook):
         )
 
     @contextmanager
+    def _optional_version_context(
+        self,
+        version: str | None,
+    ):
+        original_version = self._version
+        did_change = False
+        if version is not None:
+            self._version = version
+            did_change = True
+        try:
+            yield
+        finally:
+            if did_change:
+                self._version = original_version
+
+    @contextmanager
     def _version_bump_context(
         self,
         version: str | None,

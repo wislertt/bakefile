@@ -141,6 +141,52 @@ class TestVersionBumpContext:
             assert base_space._version == "1.0.0"
 
 
+class TestOptionalVersionContext:
+    def test_optional_version_context_sets_version_when_provided(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+
+        with base_space._optional_version_context(version="2.0.0"):
+            assert base_space._version == "2.0.0"
+
+        assert base_space._version == "1.0.0"
+
+    def test_optional_version_context_keeps_version_when_none(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+
+        with base_space._optional_version_context(version=None):
+            assert base_space._version == "1.0.0"
+
+        assert base_space._version == "1.0.0"
+
+    def test_optional_version_context_restores_on_exception(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+
+        try:
+            with base_space._optional_version_context(version="2.0.0"):
+                assert base_space._version == "2.0.0"
+                raise ValueError("test error")
+        except ValueError:
+            pass
+
+        assert base_space._version == "1.0.0"
+
+    def test_optional_version_context_no_restore_when_no_change(self) -> None:
+        base_space = MinimalTestSpace()
+        base_space._version = "1.0.0"
+
+        with base_space._optional_version_context(version=None):
+            assert base_space._version == "1.0.0"
+            # Simulate that the version might have been changed inside the context
+            base_space._version = "3.0.0"
+
+        # Since version was None, the context didn't track a change
+        # So "3.0.0" should persist (no restore happened)
+        assert base_space._version == "3.0.0"
+
+
 class TestCommandsNotAvailable:
     def test_command_not_available(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()

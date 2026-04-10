@@ -18,8 +18,7 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
-from bake.ui.run import run as run_fn
-from bake.ui.run import run_script, run_uv
+from bake.ui.run import main, run_script, run_uv
 from tests.utils.misc import flaky_on_macos_ci
 
 
@@ -443,7 +442,7 @@ class TestParseShebang:
     )
     def test_parse_shebang(self, script: str, expected: str | None, is_partial_match: bool) -> None:
         """Test parsing various shebang formats."""
-        from bake.ui.run.run import _parse_shebang
+        from bake.ui.run.main import _parse_shebang
 
         result = _parse_shebang(script)
 
@@ -494,7 +493,7 @@ class TestResolveInterpreter:
     )
     def test_resolve_interpreter(self, interpreter: str, check_func) -> None:
         """Test resolving interpreter paths."""
-        from bake.ui.run.run import _resolve_interpreter
+        from bake.ui.run.main import _resolve_interpreter
 
         result = _resolve_interpreter(interpreter)
         assert check_func(result)
@@ -898,7 +897,7 @@ class TestSignatureCompatibility:
             "echo_cmd",  # handles its own display
             "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run_fn).parameters.keys())
+        run_params = set(inspect.signature(run).parameters.keys())
         script_params = set(inspect.signature(run_script).parameters.keys())
         expected = run_params - excluded
 
@@ -913,7 +912,7 @@ class TestSignatureCompatibility:
             "echo_cmd",  # handles its own display
             "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run_fn).parameters.keys())
+        run_params = set(inspect.signature(run).parameters.keys())
         uv_params = set(inspect.signature(run_uv).parameters.keys())
         expected = run_params - excluded
 
@@ -931,7 +930,7 @@ class TestPrepareSubprocessEnv:
 
     def test_terminal_size_oserror_fallback(self) -> None:
         """When os.get_terminal_size raises OSError, env is still prepared."""
-        from bake.ui.run.run import _prepare_subprocess_env
+        from bake.ui.run.main import _prepare_subprocess_env
 
         with mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")):
             env = _prepare_subprocess_env()
@@ -945,7 +944,7 @@ class TestPrepareSubprocessEnv:
 
     def test_custom_env_vars_are_merged(self) -> None:
         """Custom environment variables are merged with system env."""
-        from bake.ui.run.run import _prepare_subprocess_env
+        from bake.ui.run.main import _prepare_subprocess_env
 
         custom_env = {"MY_VAR": "my_value", "FORCE_COLOR": "0"}
         env = _prepare_subprocess_env(env=custom_env)
@@ -1220,3 +1219,48 @@ class TestOutputSplitterErrorPaths:
             mock.patch("os.read", side_effect=mock_read_eof),
         ):
             splitter._drain_pty(1, sys.stdout, [])
+
+
+# ============================================================================
+# KeyboardInterrupt Tests
+# ============================================================================
+
+
+class TestKeyboardInterrupt:
+    """Tests for KeyboardInterrupt handling during command execution."""
+
+    def test_ctrl_c_with_stream_true_kills_process_tree(self) -> None:
+        """Test that KeyboardInterrupt during run() with stream=True calls _kill_process_tree."""
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.wait.side_effect = KeyboardInterrupt()
+        mock_proc.pid = 12345
+        mock_proc.stdout = 1
+        mock_proc.stderr = 2
+        mock_proc.returncode = None
+
+        with (
+            mock.patch.object(main.subprocess, "Popen", return_value=mock_proc),
+            mock.patch.object(main, "_kill_process_tree") as mock_kill,
+        ):
+            with pytest.raises(KeyboardInterrupt):
+                run(["echo", "test"], stream=True, capture_output=True, echo=False)
+
+            mock_kill.assert_called_once_with(mock_proc)
+
+    def test_ctrl_c_with_stream_false_kills_process_tree(self) -> None:
+        """Test that KeyboardInterrupt during run() with stream=False calls _kill_process_tree."""
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.communicate.side_effect = KeyboardInterrupt()
+        mock_proc.pid = 12345
+        mock_proc.wait.return_value = None
+        mock_proc.returncode = None
+
+        with (
+            mock.patch.object(main.subprocess, "Popen", return_value=mock_proc),
+            mock.patch.object(main, "_kill_process_tree") as mock_kill,
+        ):
+            with pytest.raises(KeyboardInterrupt):
+                run(["echo", "test"], stream=False, capture_output=True, echo=False)
+
+            mock_kill.assert_called_once_with(mock_proc)
+            mock_proc.wait.assert_called_once()

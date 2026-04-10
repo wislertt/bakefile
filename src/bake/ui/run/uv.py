@@ -4,7 +4,7 @@ from typing import Literal, overload
 
 from uv import find_uv_bin
 
-from bake.ui.run.run import run
+from bake.ui.run.main import run
 
 
 @overload

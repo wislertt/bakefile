@@ -220,7 +220,7 @@ class OutputSplitter:
             threads.append((t, stdout_list, "stdout"))
 
         # Handle regular stdout
-        elif proc.stdout:
+        elif proc.stdout and hasattr(proc.stdout, "readline"):
             stdout_list = []
             t = threading.Thread(
                 target=self._read_stream, args=(proc.stdout, sys.stdout, stdout_list)
@@ -240,7 +240,7 @@ class OutputSplitter:
             threads.append((t, stderr_list, "stderr"))
 
         # Handle stderr (regular pipe) - use separate if, not elif
-        if proc.stderr:
+        if proc.stderr and hasattr(proc.stderr, "readline"):
             stderr_list = []
             t = threading.Thread(
                 target=self._read_stream, args=(proc.stderr, sys.stderr, stderr_list)

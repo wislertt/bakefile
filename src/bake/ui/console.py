@@ -53,8 +53,31 @@ class Console(RichConsole):
         )
 
 
-out = Console(stderr=False)
-err = Console(stderr=True)
+_FORCE_TERMINAL_DEFAULT = (
+    # Force terminal mode in GitHub Actions to enable ANSI color output.
+    # Without this, rich auto-detects no TTY and disables colors.
+    # By default, use None for auto-detection (preserves normal behavior).
+    True if bake_settings.github_actions else None
+)
+
+
+_LEGACY_WINDOWS_DEFAULT = (
+    # Force disable legacy Windows mode in GitHub Actions to use ANSI codes.
+    # GitHub Actions Windows runners support ANSI, but rich may auto-detect legacy mode.
+    False if bake_settings.github_actions else None
+)
+
+out = Console(
+    stderr=False,
+    force_terminal=_FORCE_TERMINAL_DEFAULT,
+    legacy_windows=_LEGACY_WINDOWS_DEFAULT,
+)
+err = Console(
+    stderr=True,
+    force_terminal=_FORCE_TERMINAL_DEFAULT,
+    legacy_windows=_LEGACY_WINDOWS_DEFAULT,
+)
+
 
 BOLD_GREEN = "bold green"
 UNICODE_ENCODINGS = {"utf-8", "utf-16", "utf-32", "utf-16-le", "utf-16-be"}

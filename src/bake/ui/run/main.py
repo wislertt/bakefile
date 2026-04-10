@@ -1,6 +1,8 @@
+import contextlib
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -513,6 +515,7 @@ def _setup_pty_stream(
             stderr=slave_stderr,
             shell=shell,
             env=env,
+            start_new_session=True,
             **kwargs,
         )
         os.close(slave_stdout)
@@ -552,6 +555,7 @@ def _setup_pipe_stream(
             stderr=subprocess.PIPE,
             shell=shell,
             env=env,
+            start_new_session=True,
             **kwargs,
         )
         # Attach threads BEFORE releasing lock to ensure reader is ready
@@ -588,7 +592,7 @@ def _run_with_split(
 
     try:
         setup.proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
         _kill_process_tree(setup.proc)
         setup.proc.wait()
         setup.splitter.finalize(setup.threads)
@@ -613,10 +617,20 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
         except (subprocess.TimeoutExpired, FileNotFoundError):  # pragma: no cover
             proc.kill()  # pragma: no cover
     else:
-        # On Unix, proc.kill() sends SIGKILL to the process.
-        # For shell commands, this kills the shell but children may survive.
-        # To fully kill the tree, the process would need start_new_session=True.
-        proc.kill()
+        # On Unix, kill the entire process group to handle grandchildren.
+        # The process group ID (PGID) is the same as the process ID for the leader.
+        try:
+            pgid = os.getpgid(proc.pid)
+            os.killpg(pgid, signal.SIGTERM)
+            # Give processes a moment to terminate gracefully
+            time.sleep(0.01)
+            # If still running, force kill
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            # Process already terminated or permission denied for process group.
+            # Fall back to killing the process directly.
+            proc.kill()
 
 
 def _run_without_split(
@@ -632,34 +646,47 @@ def _run_without_split(
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
     env = _prepare_subprocess_env(env)
 
-    # Use specified encoding with errors="replace", or fall back to text=True (platform default)
-    if _encoding:
-        result = subprocess.run(
+    # Use Popen instead of run() for better cleanup control on KeyboardInterrupt
+    with _subprocess_create_lock:
+        proc = subprocess.Popen(
             cmd,
             cwd=cwd,
-            capture_output=capture_output,
-            check=False,
+            stdout=subprocess.PIPE if capture_output else None,
+            stderr=subprocess.PIPE if capture_output else None,
             shell=shell,
             env=env,
-            encoding=_encoding,
-            errors="replace",
-            timeout=timeout,
-            **kwargs,
-        )
-    else:
-        result = subprocess.run(
-            cmd,
-            cwd=cwd,
-            capture_output=capture_output,
-            text=True,
-            check=False,
-            shell=shell,
-            env=env,
-            timeout=timeout,
+            start_new_session=True,
             **kwargs,
         )
 
-    return result
+    try:
+        stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        _kill_process_tree(proc)
+        proc.wait()
+        raise
+
+    # Handle output based on capture_output and encoding
+    if capture_output:
+        encoding = _encoding or "utf-8"
+        # When capture_output=True, we set stdout=PIPE and stderr=PIPE,
+        # so communicate() returns bytes
+        assert isinstance(stdout_bytes, (bytes, type(None)))
+        assert isinstance(stderr_bytes, (bytes, type(None)))
+        stdout_bytes_final = stdout_bytes if stdout_bytes is not None else b""
+        stderr_bytes_final = stderr_bytes if stderr_bytes is not None else b""
+        stdout = stdout_bytes_final.decode(encoding, errors="replace")
+        stderr = stderr_bytes_final.decode(encoding, errors="replace")
+    else:
+        stdout = None
+        stderr = None
+
+    return subprocess.CompletedProcess(
+        args=cmd,
+        returncode=proc.returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 def _log_completion(
