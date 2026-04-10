@@ -88,3 +88,25 @@ def test_reinvoke_graceful_degradation_on_error(
         _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
 
     assert len(subprocess_mock) == 0
+
+
+def test_reinvoke_keyboard_interrupt_exits_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that KeyboardInterrupt during subprocess.run exits with code 130 (SIGINT)."""
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    importlib.reload(settings)
+    importlib.reload(reinvocation)
+
+    def fake_run_raises_keyboard_interrupt(args, env=None):
+        _ = args, env
+        raise KeyboardInterrupt()
+
+    with (
+        patch("bake.manage.find_python.find_python_path", return_value=Path("/venv/bin/python")),
+        patch("sys.executable", "/usr/bin/python3"),
+        patch("bake.cli.common.reinvocation.subprocess.run", fake_run_raises_keyboard_interrupt),
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
+        assert exc_info.value.code == 130  # Standard SIGINT exit code (128 + 2)

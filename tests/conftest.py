@@ -1,3 +1,4 @@
+from bakelib import suppress
 from tests.utils.cli import CaptureOutput, RunCli, run_cli
 from tests.utils.fixtures import (
     complex_vars_project,
@@ -24,6 +25,11 @@ from tests.utils.misc import (
     mock_ctx,
     reset_all_logger_state,
 )
+
+
+def pytest_configure() -> None:
+    suppress.all()
+
 
 __all__ = [
     "CaptureOutput",

@@ -1220,3 +1220,48 @@ class TestOutputSplitterErrorPaths:
             mock.patch("os.read", side_effect=mock_read_eof),
         ):
             splitter._drain_pty(1, sys.stdout, [])
+
+
+# ============================================================================
+# KeyboardInterrupt Tests
+# ============================================================================
+
+
+class TestKeyboardInterrupt:
+    """Tests for KeyboardInterrupt handling during command execution."""
+
+    def test_ctrl_c_with_stream_true_kills_process_tree(self) -> None:
+        """Test that KeyboardInterrupt during run() with stream=True calls _kill_process_tree."""
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.wait.side_effect = KeyboardInterrupt()
+        mock_proc.pid = 12345
+        mock_proc.stdout = 1
+        mock_proc.stderr = 2
+        mock_proc.returncode = None
+
+        with (
+            mock.patch("bake.ui.run.run.subprocess.Popen", return_value=mock_proc),
+            mock.patch("bake.ui.run.run._kill_process_tree") as mock_kill,
+        ):
+            with pytest.raises(KeyboardInterrupt):
+                run(["echo", "test"], stream=True, capture_output=True, echo=False)
+
+            mock_kill.assert_called_once_with(mock_proc)
+
+    def test_ctrl_c_with_stream_false_kills_process_tree(self) -> None:
+        """Test that KeyboardInterrupt during run() with stream=False calls _kill_process_tree."""
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.communicate.side_effect = KeyboardInterrupt()
+        mock_proc.pid = 12345
+        mock_proc.wait.return_value = None
+        mock_proc.returncode = None
+
+        with (
+            mock.patch("bake.ui.run.run.subprocess.Popen", return_value=mock_proc),
+            mock.patch("bake.ui.run.run._kill_process_tree") as mock_kill,
+        ):
+            with pytest.raises(KeyboardInterrupt):
+                run(["echo", "test"], stream=False, capture_output=True, echo=False)
+
+            mock_kill.assert_called_once_with(mock_proc)
+            mock_proc.wait.assert_called_once()
