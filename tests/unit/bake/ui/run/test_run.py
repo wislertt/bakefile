@@ -1,3 +1,4 @@
+import importlib
 import inspect
 import logging
 import os
@@ -18,9 +19,11 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
-from bake.ui.run import run as run_fn
 from bake.ui.run import run_script, run_uv
 from tests.utils.misc import flaky_on_macos_ci
+
+# Import the module using importlib to avoid naming conflicts with the function
+run_module = importlib.import_module("bake.ui.run.run")
 
 
 @flaky_on_macos_ci()
@@ -898,7 +901,7 @@ class TestSignatureCompatibility:
             "echo_cmd",  # handles its own display
             "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run_fn).parameters.keys())
+        run_params = set(inspect.signature(run).parameters.keys())
         script_params = set(inspect.signature(run_script).parameters.keys())
         expected = run_params - excluded
 
@@ -913,7 +916,7 @@ class TestSignatureCompatibility:
             "echo_cmd",  # handles its own display
             "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run_fn).parameters.keys())
+        run_params = set(inspect.signature(run).parameters.keys())
         uv_params = set(inspect.signature(run_uv).parameters.keys())
         expected = run_params - excluded
 
@@ -1240,8 +1243,8 @@ class TestKeyboardInterrupt:
         mock_proc.returncode = None
 
         with (
-            mock.patch("bake.ui.run.run.subprocess.Popen", return_value=mock_proc),
-            mock.patch("bake.ui.run.run._kill_process_tree") as mock_kill,
+            mock.patch.object(run_module.subprocess, "Popen", return_value=mock_proc),
+            mock.patch.object(run_module, "_kill_process_tree") as mock_kill,
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=True, capture_output=True, echo=False)
@@ -1257,8 +1260,8 @@ class TestKeyboardInterrupt:
         mock_proc.returncode = None
 
         with (
-            mock.patch("bake.ui.run.run.subprocess.Popen", return_value=mock_proc),
-            mock.patch("bake.ui.run.run._kill_process_tree") as mock_kill,
+            mock.patch.object(run_module.subprocess, "Popen", return_value=mock_proc),
+            mock.patch.object(run_module, "_kill_process_tree") as mock_kill,
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=False, capture_output=True, echo=False)
