@@ -222,8 +222,8 @@ class TestScriptBlock:
     def test_script_block_has_bold_lines(self, capsys: pytest.CaptureFixture[str]) -> None:
         console.script_block("Test", "echo 'hello'")
         captured = capsys.readouterr()
-        assert "━" in captured.err  # bold line character
-        assert "─" in captured.err  # thin line character
+        assert "=" in captured.err  # bold line character
+        assert "-" in captured.err  # thin line character
 
 
 def test_warning_prints_github_actions_format(capsys: pytest.CaptureFixture[str]) -> None:
@@ -255,7 +255,7 @@ def test_cmd_prints_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
 def test_script_block_falls_back_to_dedent_on_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    with mock.patch("bake.ui.console.BashFormatter") as mock_formatter:
+    with mock.patch("beautysh.BashFormatter") as mock_formatter:
         mock_formatter.return_value.beautify_string.return_value = ("", "error message")
         console.script_block("Test", "    echo 'indented'")
         captured = capsys.readouterr()

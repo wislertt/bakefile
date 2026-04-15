@@ -258,3 +258,216 @@ class TestExternalCommandRegistration:
         result = runner.invoke(bakebook._app, ["foo", "bar"])
         assert result.exit_code == 0
         assert result.stdout.strip() == "from bar"  # group always win
+
+
+class TestCommandWithStandardDecorators:
+    """Tests for @command combined with @staticmethod and @classmethod."""
+
+    def test_command_with_staticmethod_command_first(self) -> None:
+        """@command followed by @staticmethod should work correctly."""
+
+        class MyBakebook(Bakebook):
+            @command(name="util")
+            @staticmethod
+            def my_util() -> None:
+                console.echo("static utility")
+
+        bakebook = MyBakebook()
+        # Single command mode - invoke without command name
+        result = runner.invoke(bakebook._app, [])
+        assert result.exit_code == 0
+        assert result.stdout.strip() == "static utility"
+
+    def test_command_with_staticmethod_staticmethod_first(self) -> None:
+        """@staticmethod followed by @command should work correctly."""
+
+        class MyBakebook(Bakebook):
+            @staticmethod
+            @command(name="util")
+            def my_util() -> None:
+                console.echo("static utility")
+
+        bakebook = MyBakebook()
+        # Single command mode - invoke without command name
+        result = runner.invoke(bakebook._app, [])
+        assert result.exit_code == 0
+        assert result.stdout.strip() == "static utility"
+
+    def test_command_with_classmethod_command_first(self) -> None:
+        """@command followed by @classmethod should work correctly."""
+
+        class MyBakebook(Bakebook):
+            @command(name="factory")
+            @classmethod
+            def create(cls) -> None:
+                console.echo(f"created from {cls.__name__}")
+
+        bakebook = MyBakebook()
+        # Single command mode - invoke without command name
+        result = runner.invoke(bakebook._app, [])
+        assert result.exit_code == 0
+        assert "created from MyBakebook" in result.stdout.strip()
+
+    def test_command_with_classmethod_classmethod_first(self) -> None:
+        """@classmethod followed by @command should work correctly."""
+
+        class MyBakebook(Bakebook):
+            @classmethod
+            @command(name="factory")
+            def create(cls) -> None:
+                console.echo(f"created from {cls.__name__}")
+
+        bakebook = MyBakebook()
+        # Single command mode - invoke without command name
+        result = runner.invoke(bakebook._app, [])
+        assert result.exit_code == 0
+        assert "created from MyBakebook" in result.stdout.strip()
+
+    def test_staticmethod_command_is_registered(self) -> None:
+        """A @staticmethod with @command should be registered in commands."""
+
+        class MyBakebook(Bakebook):
+            @command(name="util")
+            @staticmethod
+            def my_util() -> None:
+                console.echo("static utility")
+
+        bakebook = MyBakebook()
+        assert "util" in bakebook._registered_commands
+
+    def test_classmethod_command_is_registered(self) -> None:
+        """A @classmethod with @command should be registered in commands."""
+
+        class MyBakebook(Bakebook):
+            @command(name="factory")
+            @classmethod
+            def create(cls) -> None:
+                console.echo(f"created from {cls.__name__}")
+
+        bakebook = MyBakebook()
+        assert "factory" in bakebook._registered_commands
+
+    def test_child_inherits_staticmethod_command(self) -> None:
+        """Child class should inherit parent's @staticmethod @command."""
+
+        class ParentBakebook(Bakebook):
+            @staticmethod
+            @command(name="util")
+            def parent_util() -> None:
+                console.echo("parent utility")
+
+        class ChildBakebook(ParentBakebook):
+            pass
+
+        child = ChildBakebook()
+        # Should inherit the parent's command
+        assert "util" in child._registered_commands
+
+        # Should be callable
+        result = runner.invoke(child._app, [])
+        assert result.exit_code == 0
+        assert "parent utility" in result.stdout.strip()
+
+    def test_child_inherits_classmethod_command(self) -> None:
+        """Child class should inherit parent's @classmethod @command."""
+
+        class ParentBakebook(Bakebook):
+            @classmethod
+            @command(name="factory")
+            def create(cls) -> None:
+                console.echo(f"created from {cls.__name__}")
+
+        class ChildBakebook(ParentBakebook):
+            pass
+
+        child = ChildBakebook()
+        # Should inherit the parent's command
+        assert "factory" in child._registered_commands
+
+        # Should be callable - should use ChildBakebook as cls
+        result = runner.invoke(child._app, [])
+        assert result.exit_code == 0
+        assert "created from ChildBakebook" in result.stdout.strip()
+
+    def test_child_shadows_parent_staticmethod_with_metadata_in_mro(self) -> None:
+        """Child shadows parent's staticmethod; MRO search finds parent's @command metadata."""
+
+        class ParentBakebook(Bakebook):
+            @staticmethod
+            @command(name="util")
+            def shared_util() -> None:
+                console.echo("parent utility")
+
+        # Child shadows with non-decorated staticmethod - no metadata on child's version
+        class ChildBakebook(ParentBakebook):
+            @staticmethod
+            def shared_util() -> None:
+                console.echo("child utility")
+
+        child = ChildBakebook()
+        # Should find the parent's @command metadata through MRO
+        assert "util" in child._registered_commands
+
+        # Should call child's version (which shadows parent) but with parent's @command config
+        result = runner.invoke(child._app, [])
+        assert result.exit_code == 0
+        assert "child utility" in result.stdout.strip()
+
+
+class TestCommandWithLruCache:
+    """Tests for @command combined with @functools.cache."""
+
+    def test_lru_cache_command_is_registered(self) -> None:
+        """A @functools.cache with @command should be registered in commands."""
+
+        import functools
+
+        class MyBakebook(Bakebook):
+            @command()
+            @functools.cache
+            @staticmethod
+            def cached(x: int) -> str:
+                return f"cached: {x}"
+
+        bakebook = MyBakebook()
+        assert "cached" in bakebook._registered_commands
+
+
+class TestCommandWithCustomDecorator:
+    """Tests for @command combined with custom wrapper decorators."""
+
+    def test_custom_decorator_command_is_registered(self) -> None:
+        """A custom decorator with @command should be registered in commands."""
+
+        import functools
+
+        def custom_decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            return wrapper
+
+        class MyBakebook(Bakebook):
+            @command()
+            @custom_decorator
+            def custom_op(self) -> str:
+                return "custom result"
+
+        bakebook = MyBakebook()
+        assert "custom-op" in bakebook._registered_commands
+
+
+class TestCommandWithAsync:
+    """Tests for @command with async def."""
+
+    def test_async_command_is_registered(self) -> None:
+        """An async command should be registered in commands."""
+
+        class MyBakebook(Bakebook):
+            @command()
+            async def async_op(self) -> None:
+                console.echo("async result")
+
+        bakebook = MyBakebook()
+        assert "async-op" in bakebook._registered_commands

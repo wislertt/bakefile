@@ -106,7 +106,7 @@ class TestRunUvSync:
 
         assert "Bakefile not found" in str(exc_info.value)
 
-    def test_dry_run(self, empty_project_folder: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_dry_run(self, empty_project_folder: Path, capfd: pytest.CaptureFixture[str]) -> None:
         bakefile_path = empty_project_folder / DEFAULT_FILE_NAME
 
         result = run_uv_sync(bakefile_path, [], dry_run=True)
@@ -116,7 +116,7 @@ class TestRunUvSync:
         assert result.stdout == ""
 
         # Check that the command was printed (from run_uv's echo=True)
-        captured = capsys.readouterr()
+        captured = capfd.readouterr()
         assert "uv sync" in captured.err
 
 

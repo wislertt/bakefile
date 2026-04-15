@@ -1,17 +1,19 @@
 import inspect
+import logging
 import re
 import types
 from pathlib import Path
 from typing import ClassVar
+from unittest.mock import patch
 
 import click
 import pytest
 import typer
 from pydantic_settings import SettingsConfigDict
 
-from bake import Bakebook, Context, command
+from bake import Bakebook, Context, command, parse_bake_log, serialize_bake_log
 from bake.bakebook.bakebook import CommandKwargs, GroupKwargs
-from bake.utils.constants import BAKE_COMMAND_KWARGS
+from bake.utils.constants import BAKE_COMMAND_KWARGS, DEFAULT_BAKE_LOG
 from bake.utils.exceptions import ContextNotAvailableError
 from tests.unit.bake.bakebook.utils import (
     ExpectedCommand,
@@ -349,6 +351,84 @@ class TestBakebookCtxProperty:
         assert match, f"Expected pattern not found in: {result.out}"
         ctx_id, self_ctx_id = match.groups()
         assert ctx_id == self_ctx_id
+
+
+class TestSetupLogging:
+    def test_setup_logging_configures_logging(self, capsys: pytest.CaptureFixture[str]) -> None:
+        from bake.utils.settings import BakeSettings
+
+        fresh_settings = BakeSettings()
+        with patch("bake.bakebook.bakebook.bake_settings", fresh_settings):
+            bb = Bakebook(bake_log="warning,bake=debug", bake_log_verbosity=3)
+            bb.setup_logging()
+
+            logging.getLogger("bake").debug("bake debug appears")
+            logging.getLogger("test").debug("test debug suppressed")
+            logging.getLogger("test").warning("test warning appears")
+
+            captured = capsys.readouterr()
+
+        assert "bake debug appears" in captured.err
+        assert "test debug suppressed" not in captured.err
+        assert "test warning appears" in captured.err
+
+
+class TestBakeLogValidation:
+    @pytest.mark.parametrize(
+        "bake_log",
+        [
+            "info,myapp=debug,myapp.db=warning",
+            "warning,bake=debug",
+            "debug",
+            "critical,myapp=trace",
+        ],
+    )
+    def test_valid_bake_log(self, bake_log: str) -> None:
+        bb = Bakebook(bake_log=bake_log)
+        assert bb.bake_log == bake_log
+
+    @pytest.mark.parametrize(
+        "bake_log, match",
+        [
+            ("", "non-empty string"),
+            ("warn", "Invalid BAKE_LOG level 'warn'"),
+            ("=debug", "empty module name"),
+            ("myapp=bad", "Invalid BAKE_LOG level 'bad'"),
+            ("myapp=debug", "default logging level"),
+        ],
+    )
+    def test_invalid_bake_log_raises(self, bake_log: str, match: str) -> None:
+        with pytest.raises(Exception, match=match):
+            Bakebook(bake_log=bake_log)
+
+
+class TestBakeLogSubclassDefaults:
+    def test_serialize_as_default_value(self) -> None:
+        class MyBakebook(Bakebook):
+            bake_log: str = serialize_bake_log({"": logging.DEBUG, "bake": logging.WARNING})
+
+        bb = MyBakebook()
+        assert bb.bake_log == "debug,bake=warning"
+
+    def test_serialize_with_parse_override_default(self) -> None:
+        class MyBakebook(Bakebook):
+            bake_log: str = serialize_bake_log(
+                {**parse_bake_log(DEFAULT_BAKE_LOG), "custom.logger": logging.DEBUG}
+            )
+
+        bb = MyBakebook()
+        assert "custom.logger=debug" in bb.bake_log
+        # Round-trip to verify structure
+        level_per_module = parse_bake_log(bb.bake_log)
+        assert "" in level_per_module
+        assert level_per_module["custom.logger"] == logging.DEBUG
+
+    def test_instance_override_takes_precedence(self) -> None:
+        class MyBakebook(Bakebook):
+            bake_log: str = serialize_bake_log({"": logging.DEBUG, "bake": logging.WARNING})
+
+        bb = MyBakebook(bake_log="info")
+        assert bb.bake_log == "info"
 
 
 class TestExcludeCommandMethods:

@@ -2,8 +2,9 @@ import inspect
 import logging
 import sys
 from contextvars import ContextVar
+from datetime import tzinfo
 from enum import Enum
-from typing import TYPE_CHECKING, Any, ClassVar, TextIO
+from typing import TYPE_CHECKING, Any, ClassVar, TextIO, cast
 
 import orjson
 from loguru import logger
@@ -11,7 +12,7 @@ from loguru._better_exceptions import ExceptionFormatter
 from loguru._simple_sinks import StreamSink
 
 if TYPE_CHECKING:
-    from loguru import FilterDict, Message, Record
+    from loguru import Message, Record
 
     class ExtendedRecord(Record):
         default_extra: dict[str, Any]
@@ -19,11 +20,29 @@ if TYPE_CHECKING:
         default_extra_json: str
 
 
+class LogKeyMixin:
+    @classmethod
+    def _required_keys(
+        cls, additional_classes: list[type["LogKeyMixin"]] | None = None
+    ) -> frozenset[str]:
+        # Cast to Enum to access __members__
+        enum_cls = cast(type[Enum], cls)
+        keys = {member.value for member in enum_cls.__members__.values()}
+        if additional_classes:
+            for additional_cls in additional_classes:
+                keys.update(additional_cls.required_keys())
+        return frozenset(keys)
+
+    @classmethod
+    def required_keys(cls) -> frozenset[str]:
+        raise NotImplementedError
+
+
 UNPARSABLE_LINE = "unparsable_line"
 LogType = dict[str, Any]
 
 
-class LogKey(str, Enum):
+class LogKey(LogKeyMixin, str, Enum):
     TIMESTAMP = "timestamp"
     LEVEL = "level"
     MESSAGE = "message"
@@ -38,10 +57,10 @@ class LogKey(str, Enum):
 
     @classmethod
     def required_keys(cls) -> frozenset[str]:
-        return frozenset(key.value for key in LogKey if key is not LogKey.EXCEPTION)
+        return cls._required_keys(None) - {cls.EXCEPTION.value}
 
 
-def get_global_min_log_level(level_per_module: "FilterDict") -> int:
+def get_global_min_log_level(level_per_module: dict[str, int]) -> int:
     if "" not in level_per_module:
         raise ValueError("Missing empty string key for default logging level")
 
@@ -89,6 +108,13 @@ class InterceptHandler(logging.Handler):
         "threadName",
     }
 
+    @staticmethod
+    def _set_record_name(record_name: str):
+        def patcher(record: "ExtendedRecord") -> None:
+            record["name"] = record_name
+
+        return patcher
+
     def emit(self, record: logging.LogRecord) -> None:
         # Get corresponding Loguru level if it exists.
         try:
@@ -108,9 +134,9 @@ class InterceptHandler(logging.Handler):
             depth += 1
 
         extra = {k: v for k, v in record.__dict__.items() if k not in self.default_log_record_attr}
-        logger.opt(depth=depth, exception=record.exc_info).bind(**extra).log(
-            level, record.getMessage()
-        )
+        logger.patch(self._set_record_name(record.name)).opt(
+            depth=depth, exception=record.exc_info
+        ).bind(**extra).log(level, record.getMessage())
 
 
 def to_json_serializable(data: Any) -> Any:
@@ -130,11 +156,17 @@ def flatten_extra(record_extra: dict[str, Any]) -> dict[str, Any]:
 
 
 class PrettyLogFormatter:
-    def __init__(self, thread_local_context: dict[str, ContextVar[Any]]):
-        self.thread_local_context = thread_local_context
+    def __init__(
+        self, thread_local_context: dict[str, ContextVar[Any]], timezone: tzinfo | None = None
+    ):
+        self.thread_local_context: dict[str, ContextVar[Any]] = thread_local_context
+        self.timezone = timezone
 
-    def __call__(self, record: "ExtendedRecord"):
-        thread_local_extra = {}
+    def __call__(self, record: "ExtendedRecord") -> str:
+        if self.timezone is not None:
+            record["time"] = record["time"].astimezone(self.timezone)
+
+        thread_local_extra: dict[str, Any] = {}
         for context_var_name, context_var in self.thread_local_context.items():
             thread_local_extra[context_var_name] = str(context_var.get())
 
@@ -165,6 +197,7 @@ class JsonSink(StreamSink):
         self,
         thread_local_context: dict[str, ContextVar[Any]] | None = None,
         stream: TextIO | Any = None,
+        timezone: tzinfo | None = None,
     ):
         # sys.stderr is mutable object
         if stream is None:
@@ -174,7 +207,8 @@ class JsonSink(StreamSink):
         if thread_local_context is None:
             thread_local_context = {}
 
-        self.thread_local_context = thread_local_context
+        self.thread_local_context: dict[str, ContextVar[Any]] = thread_local_context
+        self.timezone = timezone
 
     def write(self, message: "Message"):
         record = message.record
@@ -185,6 +219,9 @@ class JsonSink(StreamSink):
         return super().write(log_message)
 
     def json_formatter(self, record: "Record") -> LogType:
+        if self.timezone is not None:
+            record["time"] = record["time"].astimezone(self.timezone)
+
         log_entry: LogType = {
             LogKey.TIMESTAMP.value: record["time"],
             LogKey.LEVEL.value: record["level"].name,

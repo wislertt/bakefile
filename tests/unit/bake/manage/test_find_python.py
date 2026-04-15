@@ -37,7 +37,7 @@ def assert_project_level_python_exe(python_path: Path, project_folder: Path):
 
 def test_find_python_with_inline_metadata_without_lock_and_venv(
     empty_project_folder: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """Case: bakefile.py with inline metadata, no lock, no venv."""
     # Arrange ================
@@ -53,11 +53,11 @@ def test_find_python_with_inline_metadata_without_lock_and_venv(
     )
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     python_path = find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert count_message_in_logs(logs, message=r"\[run\].*uv") == 4
     assert has_messages_in_logs(
         logs,
@@ -78,7 +78,7 @@ def test_find_python_with_inline_metadata_without_lock_and_venv(
 
 def test_find_python_with_inline_metadata_with_lock_and_venv(
     empty_project_folder: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """Case: bakefile.py with inline metadata, with lock and venv already set up."""
     # Arrange ================
@@ -97,11 +97,11 @@ def test_find_python_with_inline_metadata_with_lock_and_venv(
     run_uv(["sync", "--script", str(bakefile_path.name)], check=True, cwd=bakefile_path.parent)
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     python_path = find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert count_message_in_logs(logs, message=r"\[run\].*uv") == 1
     assert has_messages_in_logs(
         logs,
@@ -115,7 +115,7 @@ def test_find_python_with_inline_metadata_with_lock_and_venv(
 
 def test_find_python_with_inline_metadata_with_lock_without_venv(
     empty_project_folder: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """Case: bakefile.py with inline metadata, with lock but no venv."""
     # Arrange ================
@@ -127,11 +127,11 @@ def test_find_python_with_inline_metadata_with_lock_without_venv(
     run_uv(["lock", "--script", str(bakefile_path.name)], cwd=bakefile_path.parent)
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     python_path = find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert count_message_in_logs(logs, message=r"\[run\].*uv") == 3
     assert has_messages_in_logs(
         logs,
@@ -148,7 +148,7 @@ def test_find_python_with_inline_metadata_with_lock_without_venv(
 
 def test_find_python_with_uv_project_with_lock_and_venv(
     uv_project_folder_without_dep: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     isolate_virtual_env: None,
 ) -> None:
     """Case: uv project with lock and venv already set up."""
@@ -163,11 +163,11 @@ def test_find_python_with_uv_project_with_lock_and_venv(
     run_uv(["add", dummy_test_package], cwd=uv_project_folder_without_dep)
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     python_path = find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert count_message_in_logs(logs, message=r"\[run\].*uv") == 1
     assert has_messages_in_logs(
         logs,
@@ -184,7 +184,7 @@ def test_find_python_with_uv_project_with_lock_and_venv(
 
 def test_find_python_with_uv_project_without_lock_and_venv(
     uv_project_folder_without_dep: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     isolate_virtual_env: None,
 ) -> None:
     """Case: uv project without lock and venv."""
@@ -197,11 +197,11 @@ def test_find_python_with_uv_project_without_lock_and_venv(
     bakefile_path = uv_project_folder_without_dep / DEFAULT_FILE_NAME
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     python_path = find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert count_message_in_logs(logs, message=r"\[run\].*uv") == 4
     assert has_messages_in_logs(
         logs,
@@ -218,7 +218,7 @@ def test_find_python_with_uv_project_without_lock_and_venv(
 
 def test_find_python_with_uv_project_with_lock_without_venv(
     uv_project_folder_without_dep: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     isolate_virtual_env: None,
 ) -> None:
     """Case: uv project with lock but no venv."""
@@ -232,11 +232,11 @@ def test_find_python_with_uv_project_with_lock_without_venv(
     run_uv(["lock"], cwd=uv_project_folder_without_dep)
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     python_path = find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert count_message_in_logs(logs, message=r"\[run\].*uv") == 3
     assert has_messages_in_logs(
         logs,
@@ -253,7 +253,7 @@ def test_find_python_with_uv_project_with_lock_without_venv(
 
 def test_find_python_with_empty_project_no_inline_metadata(
     empty_project_folder_no_inline: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     isolate_virtual_env: None,
 ) -> None:
     """Case: empty project without inline metadata and no pyproject.toml - should raise error."""
@@ -266,12 +266,12 @@ def test_find_python_with_empty_project_no_inline_metadata(
     bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     with pytest.raises(PythonNotFoundError) as exc_info:
         find_python_path(bakefile_path)
 
     # Assert =================
-    logs = capsys_to_logs(capsys)
+    logs = capsys_to_logs(capfd)
     assert has_messages_in_logs(
         logs,
         [
@@ -291,7 +291,7 @@ def test_find_python_with_empty_project_no_inline_metadata(
 
 def test_find_python_with_invalid_inline(
     empty_project_folder_no_inline: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
     isolate_virtual_env: None,
 ) -> None:
     """Case: inline metadata exists but missing 'bakefile' dependency."""
@@ -305,7 +305,7 @@ def test_find_python_with_invalid_inline(
     run_uv(["init", "--script", str(bakefile_path.name)], cwd=empty_project_folder_no_inline)
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     with pytest.raises(BakebookError) as exc_info:
         find_python_path(bakefile_path)
 
@@ -318,7 +318,7 @@ def test_find_python_with_invalid_inline(
 
 def test_find_python_with_no_bakefile(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """Case: bakefile.py does not exist - should raise FileNotFoundError."""
     # Arrange ================
@@ -330,7 +330,7 @@ def test_find_python_with_no_bakefile(
     # Don't create the bakefile.py file
 
     # Act ====================
-    _ = capsys.readouterr()
+    _ = capfd.readouterr()
     with pytest.raises(PythonNotFoundError) as exc_info:
         find_python_path(bakefile_path)
 
@@ -343,7 +343,7 @@ class TestFindProjectPythonEdgeCases:
     """Tests for _find_project_python edge cases."""
 
     def test_find_project_python_returns_none_on_non_zero_returncode(
-        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: uv python find returns non-zero returncode."""
         # Arrange ================
@@ -357,16 +357,16 @@ class TestFindProjectPythonEdgeCases:
 
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
-            _ = capsys.readouterr()
+            _ = capfd.readouterr()
             result = _find_project_python(bakefile_path)
 
             # Assert =================
             assert result is None
-            logs = capsys_to_logs(capsys)
+            logs = capsys_to_logs(capfd)
             assert has_messages_in_logs(logs, ["No project Python found"])
 
     def test_find_project_python_returns_none_on_pattern_mismatch(
-        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: uv python find succeeds but stderr doesn't match expected pattern."""
         # Arrange ================
@@ -380,16 +380,16 @@ class TestFindProjectPythonEdgeCases:
 
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
-            _ = capsys.readouterr()
+            _ = capfd.readouterr()
             result = _find_project_python(bakefile_path)
 
             # Assert =================
             assert result is None
-            logs = capsys_to_logs(capsys)
+            logs = capsys_to_logs(capfd)
             assert has_messages_in_logs(logs, ["No project Python found"])
 
     def test_find_project_python_returns_none_on_source_mismatch(
-        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: stderr matches pattern but source is not virtual environment."""
         # Arrange ================
@@ -403,16 +403,16 @@ class TestFindProjectPythonEdgeCases:
 
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
-            _ = capsys.readouterr()
+            _ = capfd.readouterr()
             result = _find_project_python(bakefile_path)
 
             # Assert =================
             assert result is None
-            logs = capsys_to_logs(capsys)
+            logs = capsys_to_logs(capfd)
             assert has_messages_in_logs(logs, ["No project Python found"])
 
     def test_find_project_python_returns_none_on_path_mismatch(
-        self, empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture[str]
+        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: Python path from stderr log doesn't match stdout (inconsistent output)."""
         # Arrange ================
@@ -428,12 +428,12 @@ class TestFindProjectPythonEdgeCases:
 
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
-            _ = capsys.readouterr()
+            _ = capfd.readouterr()
             result = _find_project_python(bakefile_path)
 
             # Assert =================
             assert result is None
-            logs = capsys_to_logs(capsys)
+            logs = capsys_to_logs(capfd)
             assert has_messages_in_logs(
                 logs,
                 ["Python path mismatch between log and stdout", "No project Python found"],

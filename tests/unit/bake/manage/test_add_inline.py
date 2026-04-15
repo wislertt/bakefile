@@ -51,7 +51,7 @@ def test_add_inline_raises_error_when_uv_init_fails(
 
 
 def test_add_inline_warns_when_already_pep723(
-    empty_project_folder_no_inline: Path, capsys: pytest.CaptureFixture
+    empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture
 ) -> None:
     bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
 
@@ -70,7 +70,7 @@ def test_add_inline_warns_when_already_pep723(
     with patch("bake.manage.add_inline.run_uv", side_effect=mock_run_uv):
         add_inline_metadata(bakefile_path)
 
-    captured = capsys.readouterr()
+    captured = capfd.readouterr()
     assert "already has PEP 723 metadata" in strip_ansi(captured.err)
 
 

@@ -6,8 +6,10 @@ import typer
 
 from bake import Bakebook
 from bake.cli.common.app import rich_markup_mode
+from bake.cli.common.context import Context
 from bake.cli.common.obj import (
     BakefileObject,
+    _get_bakefile_object,
     bakefile_obj_app,
     bakefile_obj_app_args,
     get_bakefile_object,
@@ -145,6 +147,74 @@ class TestGetBakefileObject:
 
         result = get_bakefile_object(rich_markup_mode=rich_markup_mode)
         assert result.dry_run is expected_dry_run
+
+
+class TestGetBakefileObjectBakeLogDefaults:
+    """Test bake_log, bake_log_verbosity, and bake_log_pretty parameter combinations."""
+
+    @pytest.mark.parametrize(
+        "bake_log_input,bake_log_verbosity_input,expected_bake_log,expected_verbosity",
+        [
+            # Smart default with default verbosity
+            (None, None, "warning,bake=debug,bakelib=debug,bakefile=debug", 0),
+            (None, 0, "warning,bake=debug,bakelib=debug,bakefile=debug", 0),
+            # Smart default with custom verbosity
+            (None, 1, "warning,bake=debug,bakelib=debug,bakefile=debug", 1),
+            (None, 2, "warning,bake=debug,bakelib=debug,bakefile=debug", 2),
+            (None, 3, "warning,bake=debug,bakelib=debug,bakefile=debug", 3),
+            # Custom bake_log with inferred verbosity (bake_log_verbosity=None)
+            ("error,myapp=info", None, "error,myapp=info", 2),
+            ("error,myapp=error,something=warning", None, "error,myapp=error,something=warning", 1),
+            ("debug", None, "debug", 3),
+            ("warning", None, "warning", 1),
+            ("info", None, "info", 2),
+            ("info,bake=debug", None, "info,bake=debug", 3),
+            ("warning,bakelib=info", None, "warning,bakelib=info", 2),
+            ("debug,bakefile=warning", None, "debug,bakefile=warning", 3),
+            # Custom bake_log with custom verbosity
+            ("debug", 2, "debug", 2),
+            ("info", 3, "info", 3),
+        ],
+    )
+    def test_bake_log_and_verbosity_combinations(
+        self,
+        mock_ctx: Context,
+        bake_log_input: str | None,
+        bake_log_verbosity_input: int,
+        expected_bake_log: str,
+        expected_verbosity: int,
+    ) -> None:
+        result: BakefileObject = _get_bakefile_object(
+            ctx=mock_ctx,
+            bake_log=bake_log_input,
+            bake_log_verbosity=bake_log_verbosity_input,
+        )
+
+        assert isinstance(result, BakefileObject)
+        assert result.bake_log == expected_bake_log
+        assert result.bake_log_verbosity == expected_verbosity
+        assert result.bake_log_pretty is True
+
+    @pytest.mark.parametrize(
+        "bake_log_pretty_input,expected_pretty",
+        [
+            (True, True),
+            (False, False),
+        ],
+    )
+    def test_bake_log_pretty_combinations(
+        self, mock_ctx: Context, bake_log_pretty_input: bool, expected_pretty: bool
+    ) -> None:
+        result: BakefileObject = _get_bakefile_object(
+            ctx=mock_ctx,
+            bake_log=None,
+            bake_log_pretty=bake_log_pretty_input,
+        )
+
+        assert isinstance(result, BakefileObject)
+        assert result.bake_log == "warning,bake=debug,bakelib=debug,bakefile=debug"
+        assert result.bake_log_verbosity == 0
+        assert result.bake_log_pretty is expected_pretty
 
 
 class TestBakefileObjectResolvePath:
@@ -373,17 +443,100 @@ class TestIsBakebookOptional:
 
 
 class TestBakefileObjectSetupLogging:
-    @pytest.mark.parametrize("verbosity", [0, 1, 2])
-    @patch("bake.cli.common.obj.setup_logging")
-    def test_setup_logging(self, mock_setup_logging: MagicMock, verbosity: int) -> None:
+    @pytest.mark.parametrize("verbosity", [0, 1, 2, 3])
+    @patch("bake.cli.common.obj.bake_settings")
+    def test_setup_logging_fallback_no_bakebook(
+        self, mock_bake_settings: MagicMock, verbosity: int
+    ) -> None:
         obj = BakefileObject(
             chdir=Path("."),
             file_name=DEFAULT_FILE_NAME,
             bakebook_name=DEFAULT_BAKEBOOK_NAME,
-            verbosity=verbosity,
+            bake_log_verbosity=verbosity,
         )
         obj.setup_logging()
-        mock_setup_logging.assert_called_once()
+        mock_bake_settings.setup_bake_logging.assert_called_once_with(
+            bake_log="warning,bake=debug,bakelib=debug,bakefile=debug",
+            verbosity=verbosity,
+            bake_log_pretty=True,
+        )
+
+    @pytest.mark.parametrize("verbosity", [0, 1, 2, 3])
+    @patch("bake.cli.common.obj.bake_settings")
+    def test_setup_logging_with_bakebook(
+        self, mock_bake_settings: MagicMock, verbosity: int
+    ) -> None:
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+            bake_log_verbosity=verbosity,
+        )
+        mock_bakebook = MagicMock(spec=Bakebook)
+        mock_bakebook.bake_log = "warning,bake=debug,bakelib=debug,bakefile=debug"
+        mock_bakebook.bake_log_pretty = True
+        obj.bakebook = mock_bakebook
+
+        obj.setup_logging()
+
+        mock_bake_settings.setup_bake_logging.assert_called_once_with(
+            bake_log="warning,bake=debug,bakelib=debug,bakefile=debug",
+            verbosity=verbosity,
+            bake_log_pretty=True,
+        )
+
+    @patch("bake.cli.common.obj.bake_settings")
+    def test_setup_logging_fallback_with_bake_log_option(
+        self, mock_bake_settings: MagicMock
+    ) -> None:
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+            bake_log_verbosity=2,
+            bake_log="info,myapp=debug",
+        )
+        obj.setup_logging()
+        mock_bake_settings.setup_bake_logging.assert_called_once_with(
+            bake_log="info,myapp=debug",
+            verbosity=2,
+            bake_log_pretty=True,
+        )
+
+    @patch("bake.cli.common.obj.bake_settings")
+    def test_setup_logging_fallback_with_bake_log_pretty_false_option(
+        self, mock_bake_settings: MagicMock
+    ) -> None:
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+            bake_log_verbosity=2,
+            bake_log_pretty=False,
+        )
+        obj.setup_logging()
+        mock_bake_settings.setup_bake_logging.assert_called_once_with(
+            bake_log="warning,bake=debug,bakelib=debug,bakefile=debug",
+            verbosity=2,
+            bake_log_pretty=False,
+        )
+
+    @patch("bake.cli.common.obj.bake_settings")
+    def test_setup_logging_fallback_with_both_options(self, mock_bake_settings: MagicMock) -> None:
+        obj = BakefileObject(
+            chdir=Path("."),
+            file_name=DEFAULT_FILE_NAME,
+            bakebook_name=DEFAULT_BAKEBOOK_NAME,
+            bake_log_verbosity=2,
+            bake_log="debug",
+            bake_log_pretty=False,
+        )
+        obj.setup_logging()
+        mock_bake_settings.setup_bake_logging.assert_called_once_with(
+            bake_log="debug",
+            verbosity=2,
+            bake_log_pretty=False,
+        )
 
 
 class TestBakefileObjectIsStandalone:

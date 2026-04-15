@@ -1,8 +1,8 @@
 import logging
 from contextvars import ContextVar
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import datetime, timezone
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import loguru
 import pytest
@@ -10,6 +10,8 @@ import pytest
 from bake.ui.logger.utils import (
     InterceptHandler,
     JsonSink,
+    LogKey,
+    LogKeyMixin,
     PrettyLogFormatter,
     flatten_extra,
     get_global_min_log_level,
@@ -17,12 +19,31 @@ from bake.ui.logger.utils import (
     to_json_serializable,
 )
 
-if TYPE_CHECKING:
-    from loguru import FilterDict
-
 # ==============================================================================
 # Tests for individual components
 # ==============================================================================
+
+
+class TestLogKeyMixin:
+    """Tests for LogKeyMixin class."""
+
+    def test_required_keys_raises_not_implemented(self) -> None:
+        """Test that LogKeyMixin.required_keys() raises NotImplementedError."""
+        with pytest.raises(NotImplementedError):
+            LogKeyMixin.required_keys()
+
+    def test_required_keys_returns_frozenset(self) -> None:
+        """Test that LogKey.required_keys() returns a frozenset."""
+        result = LogKey.required_keys()
+        assert isinstance(result, frozenset)
+
+    def test_required_keys_excludes_exception(self) -> None:
+        """Test that LogKey.required_keys() excludes EXCEPTION key."""
+        result = LogKey.required_keys()
+        assert LogKey.EXCEPTION.value not in result
+        assert LogKey.TIMESTAMP.value in result
+        assert LogKey.LEVEL.value in result
+        assert LogKey.MESSAGE.value in result
 
 
 class TestInterceptHandler:
@@ -51,21 +72,21 @@ class TestGetGlobalMinLogLevel:
 
     def test_returns_min_level(self) -> None:
         """Test that function returns minimum log level."""
-        level_per_module: FilterDict = {"": logging.WARNING, "test_module": logging.DEBUG}
+        level_per_module: dict[str, int] = {"": logging.WARNING, "test_module": logging.DEBUG}
         result: int = get_global_min_log_level(level_per_module)
         assert result == logging.DEBUG
 
     def test_raises_on_missing_default_key(self) -> None:
         """Test that function raises ValueError when '' key is missing."""
-        level_per_module: FilterDict = {"test_module": logging.WARNING}
+        level_per_module: dict[str, int] = {"test_module": logging.WARNING}
         with pytest.raises(ValueError, match="Missing empty string key"):
             get_global_min_log_level(level_per_module)
 
     def test_raises_on_non_int_values(self) -> None:
         """Test that function raises ValueError on non-int values."""
-        level_per_module: FilterDict = {"": logging.WARNING, "test": "INFO"}
+        level_per_module: dict[str, int | str] = {"": logging.WARNING, "test": "INFO"}
         with pytest.raises(ValueError, match=r"All values.*must be of type 'int'"):
-            get_global_min_log_level(level_per_module)
+            get_global_min_log_level(level_per_module)  # ty: ignore[invalid-argument-type]
 
     @pytest.mark.parametrize(
         "levels,expected_min",
@@ -78,7 +99,7 @@ class TestGetGlobalMinLogLevel:
     )
     def test_various_level_combinations(self, levels: dict[str, int], expected_min: int) -> None:
         """Test various combinations of log levels."""
-        assert get_global_min_log_level(levels) == expected_min  # ty: ignore[invalid-argument-type]
+        assert get_global_min_log_level(levels) == expected_min
 
 
 class TestResetAllLoggingStates:
@@ -186,6 +207,75 @@ class TestJsonSink:
         sink = JsonSink(thread_local_context={"test": context_var})
         assert sink.thread_local_context == {"test": context_var}
 
+    def test_json_sink_accepts_timezone(self) -> None:
+        """Test that JsonSink accepts timezone parameter."""
+        sink = JsonSink(timezone=ZoneInfo("UTC"))
+        assert sink.timezone == ZoneInfo("UTC")
+
+    def test_json_sink_timezone_none_by_default(self) -> None:
+        """Test that JsonSink has timezone=None by default."""
+        sink = JsonSink()
+        assert sink.timezone is None
+
+    def test_json_sink_json_formatter_converts_to_utc(self) -> None:
+        """Test that JsonSink.json_formatter converts timestamp to UTC."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        sink = JsonSink(timezone=timezone.utc)
+
+        record = {
+            "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "module": "test_module",
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        result = sink.json_formatter(record)  # ty: ignore[invalid-argument-type]
+
+        # Bangkok is UTC+7, so 17:00 becomes 10:00 UTC
+        assert result["timestamp"].hour == 10
+        assert result["timestamp"].tzinfo == timezone.utc
+
+    def test_json_sink_json_formatter_no_timezone_conversion_when_none(self) -> None:
+        """Test that JsonSink.json_formatter does not convert timezone when None."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        sink = JsonSink(timezone=None)
+
+        local_time = datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok"))
+        record = {
+            "time": local_time,
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "module": "test_module",
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        result = sink.json_formatter(record)  # ty: ignore[invalid-argument-type]
+
+        # Should keep original time
+        assert result["timestamp"].hour == 17
+        assert result["timestamp"].tzinfo == ZoneInfo("Asia/Bangkok")
+
 
 class TestPrettyLogFormatter:
     """Tests for PrettyLogFormatter class."""
@@ -227,6 +317,73 @@ class TestPrettyLogFormatter:
         result = formatter(record)  # ty: ignore[invalid-argument-type]
         assert isinstance(result, str)
         assert len(result) > 0
+
+    def test_pretty_log_formatter_accepts_timezone(self) -> None:
+        """Test that PrettyLogFormatter accepts timezone parameter."""
+        formatter = PrettyLogFormatter(thread_local_context={}, timezone=ZoneInfo("UTC"))
+        assert formatter.timezone == ZoneInfo("UTC")
+
+    def test_pretty_log_formatter_timezone_none_by_default(self) -> None:
+        """Test that PrettyLogFormatter has timezone=None by default."""
+        formatter = PrettyLogFormatter(thread_local_context={})
+        assert formatter.timezone is None
+
+    def test_pretty_log_formatter_converts_to_utc(self) -> None:
+        """Test that PrettyLogFormatter converts timestamp to UTC."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        formatter = PrettyLogFormatter(thread_local_context={}, timezone=timezone.utc)
+
+        record = {
+            "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        formatter(record)  # ty: ignore[invalid-argument-type]
+
+        # Bangkok is UTC+7, so 17:00 becomes 10:00 UTC
+        assert record["time"].hour == 10
+        assert record["time"].tzinfo == timezone.utc
+
+    def test_pretty_log_formatter_no_timezone_conversion_when_none(self) -> None:
+        """Test that PrettyLogFormatter does not convert timezone when None."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        formatter = PrettyLogFormatter(thread_local_context={}, timezone=None)
+
+        local_time = datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok"))
+        record = {
+            "time": local_time,
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        formatter(record)  # ty: ignore[invalid-argument-type]
+
+        # Should keep original time
+        assert record["time"].hour == 17
+        assert record["time"].tzinfo == ZoneInfo("Asia/Bangkok")
 
 
 class TestToJsonSerializable:

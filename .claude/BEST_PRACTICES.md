@@ -245,14 +245,14 @@ src/bake/cli/common/  tests/cli/common/
 # ==========================================================
 # Bakefile CLI Parameters
 # ==========================================================
-chdir_option = ...
-file_name_option = ...
+ChdirOption = ...
+FileNameOption = ...
 ...
 
 # ==========================================================
 # Bakefile Local CLI Frequently Used Params
 # ==========================================================
-force_option = ...
+ForceOption = ...
 ```
 
 #### Keep **init**.py minimal
@@ -374,7 +374,7 @@ def show_help_if_no_command(ctx: typer.Context) -> None:
 def bake_app_callback_with_obj(obj: BakefileObject) -> Callable:
     def bake_app_callback(
         ctx: Context,
-        _chdir: chdir_option = DEFAULT_CHDIR,
+        _chdir: ChdirOption = DEFAULT_CHDIR,
         ...
     ):
         ctx.obj = obj
@@ -550,6 +550,7 @@ from bake import Bakebook
 | Method                     | Purpose                                |
 | -------------------------- | -------------------------------------- |
 | `command(*args, **kwargs)` | Register commands (delegates to Typer) |
+| `setup_logging()`          | Configure logging from bakebook fields |
 
 **Environment Variable Configuration:**
 
@@ -582,9 +583,10 @@ def process_bakebook(bakebook: Bakebook) -> None:
 
 **Public Properties:**
 
-| Property | Purpose                                 |
-| -------- | --------------------------------------- |
-| `ctx`    | Access CLI context (run, dry_run, etc.) |
+| Property        | Purpose                                                                    |
+| --------------- | -------------------------------------------------------------------------- |
+| `ctx`           | Access CLI context (run, dry_run, etc.)                                    |
+| `bake_log_dict` | Parsed `bake_log` as `dict[str, int]` (e.g., `{"": INFO, "myapp": DEBUG}`) |
 
 ### Bakebook Context Property
 
@@ -638,7 +640,7 @@ with self.ctx.override_dry_run(True):
     self.ctx.run("echo 'This is a dry run'")
 
 # Verbosity level
-self.ctx.verbosity  # 0=WARNING, 1=INFO, 2=DEBUG
+self.ctx.verbosity  # 0=silent, 1=WARNING, 2=INFO, 3=DEBUG
 ```
 
 ---
@@ -741,15 +743,16 @@ rich_markup_mode = "rich" if env.should_use_colors() else None
 
 ### Verbosity Levels
 
-The bakefile CLI supports three verbosity levels via the `-v` flag:
+The bakefile CLI supports four verbosity levels via the `-v` flag:
 
-| Flag   | Level    | Output                        |
-| ------ | -------- | ----------------------------- |
-| (none) | WARNING+ | Warnings, Errors (default)    |
-| `-v`   | INFO+    | Info, Warnings, Errors        |
-| `-vv`  | DEBUG+   | Debug, Info, Warnings, Errors |
+| Flag   | Level    | Output                       |
+| ------ | -------- | ---------------------------- |
+| (none) | Silent   | No log output (verbosity=0)  |
+| `-v`   | WARNING+ | Warnings and errors only     |
+| `-vv`  | INFO+    | Info, warnings, and errors   |
+| `-vvv` | DEBUG+   | All messages including debug |
 
-**Max validation:** `-vvv` raises "Maximum verbosity is -vv" error
+Verbosity acts as a **global floor** — even if `bake_log` configures a module for DEBUG, the floor set by verbosity blocks messages below it.
 
 ### Logging in User Bakefiles
 
@@ -773,23 +776,66 @@ def build():
 
 The logging is automatically intercepted and formatted consistently with the CLI output.
 
-### Internal Logging (for bakefile development)
+### Unified Logging Configuration
 
-For internal bakefile CLI development, use `setup_logging()` and Loguru:
+Bakebook has three logging fields that work for both CLI and non-CLI usage:
 
 ```python
-from bake.ui import setup_logging
-import logging
+from bake import Bakebook
 
-# Setup with per-module log levels
-setup_logging(
-    level_per_module={
-        "": logging.WARNING,  # Default level
-        "bakefile.cli": logging.DEBUG,  # Debug for CLI module
-        "bakefile.manage": logging.INFO,  # Info for manage module
-    },
-    is_pretty_log=True,  # Use human-readable format (False for JSON)
-)
+class MyBakebook(Bakebook):
+    bake_log: str = "warning,bake=debug,myapp=debug"
+    bake_log_verbosity: int = 0
+    bake_log_pretty: bool = True
+```
+
+**BAKE_LOG format** (RUST_LOG-compatible, comma-separated):
+
+```bash
+# Simple global level
+bake_log = "info"             # All modules at INFO
+bake_log = "debug"            # All modules at DEBUG
+
+# Global + per-module
+bake_log = "warning,bake=debug"           # bake module at DEBUG, others at WARNING
+bake_log = "info,myapp=debug,myapp.db=error"  # Multiple per-module overrides
+
+# Per-module only (no global default)
+bake_log = "myapp=debug"      # Only myapp logs, no global default
+```
+
+Valid level names: `critical`, `error`, `warning`, `warn`, `info`, `debug`
+
+**Verbosity as floor:**
+
+```python
+# bake_log="debug" + verbosity=1 (WARNING floor)
+bake -v build        # Only WARNING+ appears, DEBUG suppressed by floor
+
+# bake_log="debug" + verbosity=3 (DEBUG floor)
+bake -vvv build      # DEBUG appears, floor allows it
+```
+
+**Environment variable configuration:**
+
+```bash
+# .env
+BAKE_LOG=warning,bake=debug,bakelib=debug
+BAKE_LOG_VERBOSITY=1
+BAKE_LOG_PRETTY=true
+```
+
+**Non-CLI usage:**
+
+```python
+from bake import Bakebook
+
+class MyBakebook(Bakebook):
+    bake_log: str = "info,myapp=debug"
+    bake_log_verbosity: int = 2
+
+bb = MyBakebook()
+bb.setup_logging()  # Uses own bake_log and bake_log_verbosity
 ```
 
 **Key points:**

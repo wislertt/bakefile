@@ -8,7 +8,7 @@ from tests.utils.cli import get_error_label
 def test_run_help_shows_help(tmp_path: Path, run_cli: RunCli) -> None:
     result = run_cli(command=CMD_BAKEFILE, dir_path=tmp_path, args=["run", "--help"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "python <args>" in result.out
     assert "bakefile's Python environment" in result.out
 

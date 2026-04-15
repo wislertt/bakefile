@@ -50,6 +50,7 @@ class EnvBakebook(Bakebook, Generic[E]):
 
     def lazy_init(self) -> None:
         """Override for expensive initialization. Called by get_bakebook()."""
+        self.setup_logging()
 
     @classmethod
     def settings_customise_sources(

@@ -31,7 +31,7 @@ class TestContextProperties:
             file_name="bakefile.py",
             bakebook_name="__bakebook__",
             dry_run=True,
-            verbosity=2,
+            bake_log_verbosity=2,
         )
 
     @pytest.fixture

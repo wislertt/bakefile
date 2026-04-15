@@ -6,7 +6,7 @@ from bake.bakebook.get import (
     resolve_bakefile_path,
 )
 from bake.cli.common.context import Context
-from bake.cli.common.params import force_option
+from bake.cli.common.params import ForceOption
 from bake.manage.add_inline import add_inline_metadata
 from bake.manage.write_bakefile import write_bakefile
 from bake.samples import simple
@@ -16,7 +16,7 @@ from bake.utils.exceptions import BakebookError
 
 def init(
     ctx: Context,
-    force: force_option = False,
+    force: ForceOption = False,
     inline: Annotated[
         bool, typer.Option("--inline", "-i", help="Create bakefile with PEP 723 inline metadata")
     ] = False,

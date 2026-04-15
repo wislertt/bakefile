@@ -495,6 +495,11 @@ class AlternateDefaultsComplexVarsBakebook(ComplexVarsBakebook):
     api_key: SecretStr = Field(default_factory=lambda: SecretStr("alternate_secret_key"))
     password: SecretStr = Field(default_factory=lambda: SecretStr("alt_password"))
 
+    # Logging config with different defaults
+    bake_log: str = "info"
+    bake_log_verbosity: int = 1
+    bake_log_pretty: bool = False
+
 
 def _assert_values_differ(value1: Any, value2: Any) -> None:
     # Skip comparison of masked secret values

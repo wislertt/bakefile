@@ -1,16 +1,15 @@
 import logging
 from collections.abc import Callable
 from contextvars import ContextVar
+from datetime import timezone
 from itertools import product
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 import loguru._logger
 import pytest
 
 from bake.ui.logger import capsys_to_logs, capsys_to_logs_pretty, setup_logging
-
-if TYPE_CHECKING:
-    from loguru import FilterDict
 from tests.unit.bake.ui.logger import module_a, module_b
 from tests.unit.bake.ui.logger.utils import (
     get_number_of_logs,
@@ -32,7 +31,10 @@ def inner_test_setup_logging(
     is_pretty_log: bool,
 ):
     # setup handler/logger inputs
-    level_per_module: FilterDict = {"": handler_root_level, module_b.NAME: handler_module_b_level}
+    level_per_module: dict[str, int] = {
+        "": handler_root_level,
+        module_b.NAME: handler_module_b_level,
+    }
 
     if context_vars is not None:
         thread_local_context = {
@@ -366,3 +368,177 @@ class TestSetupLoggingDefaults:
 
         assert "test warning message" in output
         assert "test info message" not in output
+
+
+class TestSetupLoggingTimezone:
+    """Tests for setup_logging timezone parameter."""
+
+    def test_setup_logging_with_utc_timezone_json(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that setup_logging converts timestamps to UTC with JSON sink."""
+        setup_logging(
+            level_per_module={"": logging.INFO}, timezone=ZoneInfo("UTC"), is_pretty_log=False
+        )
+
+        logging.getLogger("test").info("test message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        # Should have +00:00 timezone offset
+        assert "+00:00" in output
+
+    def test_setup_logging_with_utc_timezone_pretty(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that setup_logging converts timestamps to UTC with pretty log."""
+        setup_logging(
+            level_per_module={"": logging.INFO}, timezone=timezone.utc, is_pretty_log=True
+        )
+
+        logging.getLogger("test").info("test message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        # Should have +00:00 timezone offset
+        assert "+00:00" in output
+
+    def test_setup_logging_with_tokyo_timezone_json(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that setup_logging converts timestamps to Tokyo timezone with JSON sink."""
+        setup_logging(
+            level_per_module={"": logging.INFO},
+            timezone=ZoneInfo("Asia/Tokyo"),
+            is_pretty_log=False,
+        )
+
+        logging.getLogger("test").info("test message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        # Tokyo is UTC+9
+        assert "+09:00" in output
+
+    def test_setup_logging_with_none_timezone_json(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that setup_logging uses local time when timezone=None with JSON sink."""
+        from datetime import datetime
+
+        # Get local timezone offset
+        local_offset = datetime.now().astimezone().utcoffset()
+        if local_offset is None:
+            local_offset_str = "+00:00"
+        else:
+            offset_seconds = int(local_offset.total_seconds())
+            sign = "+" if offset_seconds >= 0 else "-"
+            hours = abs(offset_seconds) // 3600
+            minutes = (abs(offset_seconds) % 3600) // 60
+            local_offset_str = f"{sign}{hours:02d}:{minutes:02d}"
+
+        setup_logging(level_per_module={"": logging.INFO}, timezone=None, is_pretty_log=False)
+
+        logging.getLogger("test").info("test message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        # Should have local timezone offset
+        assert local_offset_str in output
+
+    def test_setup_logging_with_none_timezone_pretty(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that setup_logging uses local time when timezone=None with pretty log."""
+        from datetime import datetime
+
+        # Get local timezone offset
+        local_offset = datetime.now().astimezone().utcoffset()
+        if local_offset is None:
+            local_offset_str = "+00:00"
+        else:
+            offset_seconds = int(local_offset.total_seconds())
+            sign = "+" if offset_seconds >= 0 else "-"
+            hours = abs(offset_seconds) // 3600
+            minutes = (abs(offset_seconds) % 3600) // 60
+            local_offset_str = f"{sign}{hours:02d}:{minutes:02d}"
+
+        setup_logging(level_per_module={"": logging.INFO}, timezone=None, is_pretty_log=True)
+
+        logging.getLogger("test").info("test message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        # Should have local timezone offset
+        assert local_offset_str in output
+
+    def test_setup_logging_with_new_york_timezone_json(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that setup_logging converts timestamps to New York timezone with JSON sink."""
+        setup_logging(
+            level_per_module={"": logging.INFO},
+            timezone=ZoneInfo("America/New_York"),
+            is_pretty_log=False,
+        )
+
+        logging.getLogger("test").info("test message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        # New York is UTC-5 or UTC-4 depending on DST
+        # We just check that there's a negative offset
+        assert "-05:00" in output or "-04:00" in output
+
+
+class TestSetupLoggingGlobalMinLogLevel:
+    """Tests for setup_logging global_min_log_level parameter."""
+
+    @pytest.mark.parametrize(
+        "global_min_log_level, level_per_module, blocked_messages, allowed_messages",
+        [
+            # Explicit global_min_log_level=ERROR acts as strict filter
+            (
+                logging.ERROR,
+                {"": logging.DEBUG},
+                ["debug message", "info message", "warning message"],
+                ["error message"],
+            ),
+            # global_min_log_level=None uses min from level_per_module (WARNING)
+            (
+                None,
+                {"": logging.WARNING},
+                ["debug message", "info message"],
+                ["warning message"],
+            ),
+        ],
+    )
+    def test_setup_logging_global_min_log_level(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        global_min_log_level: int | None,
+        level_per_module: dict[str, int],
+        blocked_messages: list[str],
+        allowed_messages: list[str],
+    ) -> None:
+        setup_logging(
+            level_per_module=level_per_module,
+            global_min_log_level=global_min_log_level,
+        )
+
+        logging.getLogger("test").debug("debug message")
+        logging.getLogger("test").info("info message")
+        logging.getLogger("test").warning("warning message")
+        logging.getLogger("test").error("error message")
+
+        captured = capsys.readouterr()
+        output = captured.err
+
+        for msg in blocked_messages:
+            assert msg not in output
+        for msg in allowed_messages:
+            assert msg in output

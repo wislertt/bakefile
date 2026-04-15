@@ -15,17 +15,19 @@ def validate_file_name(value: str) -> str:
     return value
 
 
-def verbosity_callback(_ctx: typer.Context, _param: typer.CallbackParam, value: int) -> int:
-    """Validate verbosity level (max 2)."""
-    if value > 2:
-        raise typer.BadParameter("Maximum verbosity is -vv")
+def verbosity_callback(
+    _ctx: typer.Context, _param: typer.CallbackParam, value: int | None
+) -> int | None:
+    """Validate verbosity level (max 3)."""
+    if value is not None and (value < 0 or value > 3):
+        raise typer.BadParameter("Maximum verbosity is -vvv")
     return value
 
 
 # ==========================================================
 # Bakefile CLI Parameters
 # ==========================================================
-chdir_option = Annotated[
+ChdirOption = Annotated[
     Path,
     typer.Option(
         "-C",
@@ -33,7 +35,7 @@ chdir_option = Annotated[
         help="Change directory before running",
     ),
 ]
-file_name_option = Annotated[
+FileNameOption = Annotated[
     str,
     typer.Option(
         "--file-name",
@@ -42,10 +44,10 @@ file_name_option = Annotated[
         callback=validate_file_name,
     ),
 ]
-bakebook_name_option = Annotated[
+BakebookNameOption = Annotated[
     str, typer.Option("--book-name", "-b", help="Name of bakebook object to retrieve")
 ]
-version_option = Annotated[
+VersionOption = Annotated[
     bool,
     typer.Option(
         "--version",
@@ -54,27 +56,44 @@ version_option = Annotated[
         is_eager=True,
     ),
 ]
-is_chain_commands_option = Annotated[bool, typer.Option("--chain", "-c", help="Chain commands")]
-remaining_args_argument = Annotated[list[str] | None, typer.Argument()]
+IsChainCommandsOption = Annotated[bool, typer.Option("--chain", "-c", help="Chain commands")]
+RemainingArgsArgument = Annotated[list[str] | None, typer.Argument()]
 
-verbosity_option = Annotated[
-    int,
+VerbosityOption = Annotated[
+    int | None,
     typer.Option(
         "-v",
         "--verbose",
-        help="Increase verbosity (-v for info, -vv for debug)",
+        envvar="BAKE_LOG_VERBOSITY",
+        help="Increase verbosity (-v for warning, -vv for info, -vvv for debug)",
         count=True,
         callback=verbosity_callback,
     ),
 ]
-dry_run_option = Annotated[
+DryRunOption = Annotated[
     bool,
     typer.Option("-n", "--dry-run", help="Dry run (show what would be done without executing)"),
+]
+BakeLogOption = Annotated[
+    str | None,
+    typer.Option(
+        "--bake-log",
+        envvar="BAKE_LOG",
+        help="Log level configuration (e.g., 'warning,bake=debug,bakelib=debug')",
+    ),
+]
+BakeLogPrettyOption = Annotated[
+    bool,
+    typer.Option(
+        "--log-pretty/--no-log-pretty",
+        envvar="BAKE_LOG_PRETTY",
+        help="Use pretty log format (vs JSON)",
+    ),
 ]
 
 # ==========================================================
 # Bakefile Local CLI Frequently Used Params
 # ==========================================================
-force_option = Annotated[
+ForceOption = Annotated[
     bool | None, typer.Option("--force/--no-force", "-f", help="Force execution")
 ]

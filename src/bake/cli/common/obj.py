@@ -17,27 +17,36 @@ from bake.bakebook.get import (
     get_bakebook_from_target_dir_path,
     resolve_bakefile_path,
 )
+from bake.bakebook.utils import parse_bake_log
 from bake.manage.find_python import is_standalone_bakefile
-from bake.ui import console, setup_logging
+from bake.ui import console
 from bake.utils.constants import (
+    DEFAULT_BAKE_LOG,
+    DEFAULT_BAKE_LOG_PRETTY,
+    DEFAULT_BAKE_LOG_VERBOSITY,
     DEFAULT_BAKEBOOK_NAME,
     DEFAULT_CHDIR,
+    DEFAULT_DRY_RUN,
     DEFAULT_FILE_NAME,
     DEFAULT_IS_CHAIN_COMMAND,
     GET_BAKEFILE_OBJECT,
+    get_default_bake_log,
 )
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
+from bake.utils.settings import _LOG_LEVELS_TO_VERBOSITY, bake_settings
 
 from .exception_handler import typer_exception_handler
 from .params import (
-    bakebook_name_option,
-    chdir_option,
-    dry_run_option,
-    file_name_option,
-    is_chain_commands_option,
-    remaining_args_argument,
+    BakebookNameOption,
+    BakeLogOption,
+    BakeLogPrettyOption,
+    ChdirOption,
+    DryRunOption,
+    FileNameOption,
+    IsChainCommandsOption,
+    RemainingArgsArgument,
+    VerbosityOption,
     validate_file_name,
-    verbosity_option,
 )
 from .reinvocation import CliModule, _reinvoke_with_detected_python
 
@@ -54,10 +63,12 @@ class BakefileObject:
     bakebook_name: str
     bakefile_path: Path | None = None
     bakebook: "Bakebook | None" = None
-    verbosity: int = 0
-    dry_run: bool = False
+    bake_log_verbosity: int = DEFAULT_BAKE_LOG_VERBOSITY
+    dry_run: bool = DEFAULT_DRY_RUN
+    bake_log: str = DEFAULT_BAKE_LOG
+    bake_log_pretty: bool = DEFAULT_BAKE_LOG_PRETTY
     remaining_args: list[str] | None = None
-    is_chain_commands: bool = False
+    is_chain_commands: bool = DEFAULT_IS_CHAIN_COMMAND
 
     def __post_init__(self):
         validate_file_name(self.file_name)
@@ -95,6 +106,7 @@ class BakefileObject:
             self.bakebook = get_bakebook_from_target_dir_path(
                 target_dir_path=self.bakefile_path, bakebook_name=self.bakebook_name
             )
+            self.setup_logging()
         except BakefileNotFoundError as e:
             if allow_missing:
                 return
@@ -126,10 +138,19 @@ class BakefileObject:
             console.echo(f"Searched in: {self.chdir.resolve()}\n")
 
     def setup_logging(self):
-        # Verbosity: 0=silent, 1=INFO, 2=DEBUG (CRITICAL+1 silences all logs)
-        level_map: dict[int, int] = {0: logging.CRITICAL + 1, 1: logging.INFO, 2: logging.DEBUG}
-        log_level = level_map.get(self.verbosity, logging.CRITICAL + 1)
-        setup_logging(level_per_module={"": log_level}, is_pretty_log=True)
+        bake_settings._bake_logging_setup = False
+        if self.bakebook is not None:
+            bake_log = self.bakebook.bake_log
+            bake_log_pretty = self.bakebook.bake_log_pretty
+        else:
+            bake_log = self.bake_log
+            bake_log_pretty = self.bake_log_pretty
+
+        bake_settings.setup_bake_logging(
+            bake_log=bake_log,
+            verbosity=self.bake_log_verbosity,
+            bake_log_pretty=bake_log_pretty,
+        )
 
 
 bakefile_obj_app = typer.Typer()
@@ -181,21 +202,37 @@ def is_bakebook_optional(remaining_args: list[str] | None) -> bool:
 )
 def _get_bakefile_object(
     ctx: typer.Context,
-    chdir: chdir_option = DEFAULT_CHDIR,
-    file_name: file_name_option = DEFAULT_FILE_NAME,
-    bakebook_name: bakebook_name_option = DEFAULT_BAKEBOOK_NAME,
-    is_chain_commands: is_chain_commands_option = DEFAULT_IS_CHAIN_COMMAND,
-    remaining_args: remaining_args_argument = None,
-    verbosity: verbosity_option = 0,
-    dry_run: dry_run_option = False,
-):
+    chdir: ChdirOption = DEFAULT_CHDIR,
+    file_name: FileNameOption = DEFAULT_FILE_NAME,
+    bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
+    is_chain_commands: IsChainCommandsOption = DEFAULT_IS_CHAIN_COMMAND,
+    remaining_args: RemainingArgsArgument = None,
+    bake_log_verbosity: VerbosityOption = None,
+    dry_run: DryRunOption = DEFAULT_DRY_RUN,
+    bake_log: BakeLogOption = None,
+    bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,
+) -> BakefileObject:
     _ = ctx
+
+    effective_bake_log = bake_log if bake_log is not None else get_default_bake_log(file_name)
+
+    if bake_log_verbosity is not None:
+        effective_bake_log_verbosity = bake_log_verbosity
+    elif bake_log is not None:
+        effective_bake_log_verbosity = _LOG_LEVELS_TO_VERBOSITY[
+            int(min(parse_bake_log(bake_log).values()))
+        ]
+    else:
+        effective_bake_log_verbosity = DEFAULT_BAKE_LOG_VERBOSITY
+
     return BakefileObject(
         chdir=chdir,
         file_name=file_name,
         bakebook_name=bakebook_name,
-        verbosity=verbosity,
+        bake_log_verbosity=effective_bake_log_verbosity,
         dry_run=dry_run,
+        bake_log=effective_bake_log,
+        bake_log_pretty=bake_log_pretty,
         remaining_args=remaining_args,
         is_chain_commands=is_chain_commands,
     )

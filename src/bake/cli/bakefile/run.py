@@ -29,7 +29,7 @@ def run(ctx: Context) -> None:
     """
     if not ctx.args or ctx.args[0] in ("--help"):
         typer.echo(ctx.get_help())
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=1)
 
     bakefile_path: Path | None = ctx.obj.bakefile_path
 
