@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -85,6 +86,7 @@ class TestEnvWrapMode:
 
         assert result.exit_code == 0
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="requires Unix sh for shell redirection")
     def test_env_wrap_injects_env(self, complex_vars_project: Path, run_cli: RunCli) -> None:
         output_file = complex_vars_project / "env_test_output.txt"
         result = run_cli(
@@ -142,6 +144,7 @@ class TestEnvWrapMode:
         assert result.exit_code == 0
         assert result.out.strip() == "app"  # NAME injected, COUNT is empty (not injected)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="requires Unix sh for shell redirection")
     def test_env_wrap_preserves_existing_env(
         self, complex_vars_project: Path, run_cli: RunCli, monkeypatch: pytest.MonkeyPatch
     ) -> None:

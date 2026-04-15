@@ -173,7 +173,7 @@ class TestExportCli:
 
         fields = ComplexVarsBakebook().model_dump(mode="json").keys()
 
-        results = []
+        results: list[str] = []
 
         for field in fields:
             upper_field = field.upper()
@@ -985,5 +985,5 @@ class TestExportSecret:
         bakebook = ComplexVarsBakebook()
         output = tmp_path / "secret.json"
         _export(bakebook=bakebook, format="json", output=output, reveal_secrets=True)
-        data = json.loads(output.read_text())
+        data = json.loads(output.read_text(encoding="utf-8"))
         assert data["api_key"] == "super_secret_key_123"
