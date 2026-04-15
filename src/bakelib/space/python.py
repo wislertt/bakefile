@@ -61,7 +61,7 @@ class PythonSpace(BaseSpace):
 
     def test_integration(
         self,
-        verbose: params.VerboseBool = False,
+        verbose: params.VerboseBoolOption = False,
     ) -> None:
         integration_tests_path = "tests/integration/"
         if Path(integration_tests_path).exists():

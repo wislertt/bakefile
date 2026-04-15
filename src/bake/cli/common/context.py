@@ -40,7 +40,7 @@ class Context(typer.Context):
 
     @property
     def verbosity(self) -> int:
-        return self.obj.verbosity
+        return self.obj.bake_log_verbosity
 
     @property
     def bakebook(self) -> "Bakebook | None":
@@ -161,7 +161,7 @@ def context(
         file_name="bakefile.py",
         bakebook_name="bakebook",
         dry_run=dry_run,
-        verbosity=verbosity,
+        bake_log_verbosity=verbosity,
     )
 
     return Context(command=click.Command(name=name), obj=obj, info_name=name)

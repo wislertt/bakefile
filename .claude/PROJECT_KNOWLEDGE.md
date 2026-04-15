@@ -240,7 +240,7 @@ Both `bake` and `bakefile` CLIs (from bake package) share common code in `src/ba
 | `context.py`           | `Context` subclass (extends `typer.Context`) with typed `obj: BakefileObject`                                                                       |
 | `exception_handler.py` | Custom Typer exception handling with rich error formatting                                                                                          |
 | `obj.py`               | `BakefileObject` dataclass, `get_bakefile_object()` function for retrieving bakebook from CLI args                                                  |
-| `params.py`            | Shared typer option definitions using `Annotated` types (`chdir_option`, `file_name_option`, `verbosity_option`, etc.)                              |
+| `params.py`            | Shared typer option definitions using `Annotated` types (`ChdirOption`, `FileNameOption`, `VerbosityOption`, etc.)                                  |
 
 ### Bakebook Module
 
@@ -405,12 +405,20 @@ class BakefileObject:
     bakebook_name: str
     bakefile_path: Path | None = None
     bakebook: Bakebook | None = None
-    verbosity: int = 0
-    dry_run: bool = False  # NEW: Dry run flag
+    bake_log_verbosity: int = 0
+    dry_run: bool = False
+    bake_log: str = DEFAULT_BAKE_LOG
+    bake_log_pretty: bool = True
 
     def __post_init__(self):
         # Validate file name on initialization
         validate_file_name(self.file_name)
+
+    def setup_logging(self):
+        # Reset idempotency guard, then configure logging
+        # Uses bakebook's bake_log/bake_log_pretty when available
+        # Falls back to own bake_log/bake_log_pretty otherwise
+        # Verbosity always comes from self.bake_log_verbosity (CLI)
 
     def get_bakebook(self):
         # Load bakebook if not already loaded
@@ -562,12 +570,14 @@ setup_logging(
 
 **Verbosity levels:**
 
-| Flag   | Level    | Usage                              |
-| ------ | -------- | ---------------------------------- |
-| (none) | WARNING+ | Default - warnings and errors only |
-| `-v`   | INFO+    | Info messages visible              |
-| `-vv`  | DEBUG+   | Debug messages visible             |
-| `-vvv` | ERROR    | "Maximum verbosity is -vv"         |
+| Flag   | Level    | Usage                        |
+| ------ | -------- | ---------------------------- |
+| (none) | Silent   | No log output (verbosity=0)  |
+| `-v`   | WARNING+ | Warnings and errors only     |
+| `-vv`  | INFO+    | Info, warnings, and errors   |
+| `-vvv` | DEBUG+   | All messages including debug |
+
+Verbosity acts as a **global floor** — even if `bake_log` configures a module for DEBUG, the floor set by verbosity blocks messages below it.
 
 ### User Bakefile Logging
 
@@ -586,6 +596,68 @@ def build():
 ```
 
 All `logging` calls are intercepted and formatted consistently with the CLI's Loguru setup.
+
+### Unified Logging Configuration
+
+Bakebook has three logging configuration fields that unify CLI and non-CLI logging:
+
+```python
+from bake import Bakebook
+
+class MyBakebook(Bakebook):
+    bake_log: str = "warning,bake=debug,bakelib=debug"
+    bake_log_verbosity: int = 0
+    bake_log_pretty: bool = True
+```
+
+**Fields:**
+
+| Field                | Type   | Default                                             | Purpose                                 |
+| -------------------- | ------ | --------------------------------------------------- | --------------------------------------- |
+| `bake_log`           | `str`  | `"warning,bake=debug,bakelib=debug,bakefile=debug"` | Per-module log levels (BAKE_LOG format) |
+| `bake_log_verbosity` | `int`  | `0`                                                 | Global minimum log level floor (0-3)    |
+| `bake_log_pretty`    | `bool` | `True`                                              | Pretty vs JSON log format               |
+
+**BAKE_LOG format** (RUST_LOG-compatible):
+
+```bash
+# Simple global level
+bake_log = "info"
+
+# Global + per-module
+bake_log = "warning,bake=debug,myapp.database=error"
+
+# Per-module only (no global default)
+bake_log = "myapp=debug"
+```
+
+**Verbosity as floor:**
+
+- `bake_log` controls what modules **emit** (per-module filter)
+- `bake_log_verbosity` controls what logger **outputs** (global floor)
+- Floor overrides per-module config
+
+```python
+# bake_log="debug", verbosity=1 (WARNING floor)
+# → modules emit DEBUG, but logger only outputs WARNING+
+
+# bake_log="debug", verbosity=3 (DEBUG floor)
+# → modules emit DEBUG, logger outputs DEBUG+
+```
+
+**Two paths to setup_logging:**
+
+1. **CLI path**: `BakefileObject.setup_logging()` — uses bakebook's `bake_log`/`bake_log_pretty` when available, CLI's `bake_log_verbosity` always
+2. **Non-CLI path**: `Bakebook.setup_logging()` — uses own `bake_log`, `bake_log_verbosity`, `bake_log_pretty`
+
+**Environment variables:**
+
+```bash
+# .env
+BAKE_LOG=warning,bake=debug,bakelib=debug
+BAKE_LOG_VERBOSITY=1
+BAKE_LOG_PRETTY=true
+```
 
 ## CLI Entry Points
 

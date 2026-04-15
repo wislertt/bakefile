@@ -32,14 +32,16 @@ def _create_bakefile(
 
 @pytest.fixture
 def empty_project_folder_no_inline(
-    tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path
+    tmp_path: Path,
+    run_cli: RunCli,
+    isolated_uv_cache: Path | None,
 ) -> Path:
     _ = isolated_uv_cache
     return _create_bakefile(tmp_path, run_cli)
 
 
 @pytest.fixture
-def empty_project_folder(tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path) -> Path:
+def empty_project_folder(tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path | None) -> Path:
     _ = isolated_uv_cache
     tmp_path = _create_bakefile(tmp_path, run_cli, extra_args=["--inline"])
     run(["bakefile", "add", f"bakefile @ {Path.cwd().as_posix()}"], cwd=tmp_path)
@@ -48,7 +50,7 @@ def empty_project_folder(tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Pat
 
 @pytest.fixture
 def uv_project_folder_without_dep(
-    tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path, isolate_virtual_env: None
+    tmp_path: Path, run_cli: RunCli, isolated_uv_cache: Path | None, isolate_virtual_env: None
 ) -> Path:
     _ = isolated_uv_cache
     _ = isolate_virtual_env
@@ -87,7 +89,13 @@ def uv_project_folder_with_deps(
 
 @pytest.fixture(scope="session")
 def isolated_uv_cache(tmp_path_factory: pytest.TempPathFactory):
-    """Isolate uv cache for the entire test session to avoid cache conflicts."""
+    """Isolate uv cache on CI to avoid conflicts from restored cache."""
+    from bake.utils.settings import bake_settings
+
+    if not bake_settings.github_actions:
+        yield None
+        return
+
     temp_session_dir = tmp_path_factory.mktemp("uv-cache-session")
     uv_cache = temp_session_dir / ".cache" / "uv"
     uv_cache.mkdir(parents=True, exist_ok=True)
@@ -116,7 +124,7 @@ def no_bakefile_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def complex_vars_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
+def complex_vars_project(tmp_path: Path, isolated_uv_cache: Path | None) -> Path:
     _ = isolated_uv_cache
     bakefile_path = tmp_path / DEFAULT_FILE_NAME
     shutil.copy(COMPLEX_VARS_BAKEBOOK_PATH, bakefile_path)
@@ -124,7 +132,7 @@ def complex_vars_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
 
 
 @pytest.fixture
-def ctx_test_project(tmp_path: Path, isolated_uv_cache: Path) -> Path:
+def ctx_test_project(tmp_path: Path, isolated_uv_cache: Path | None) -> Path:
     _ = isolated_uv_cache
     bakefile_path = tmp_path / DEFAULT_FILE_NAME
     shutil.copy(CTX_TEST_BAKEBOOK_PATH, bakefile_path)

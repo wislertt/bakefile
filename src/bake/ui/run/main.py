@@ -228,13 +228,16 @@ def run(
         String commands automatically use shell=True for shell features
         (pipes, wildcards, chaining). List/tuple commands use shell=False
         for safer direct execution.
-    capture_output : bool, optional
-        Whether to capture stdout/stderr, by default True.
-    check : bool, optional
+    capture_output : bool
+        Whether to capture stdout/stderr, by default False.
+        **Note:** When combined with ``stream=True``, interactive or progressive
+        output (spinners, progress bars, cursor movements) may not display
+        correctly. For interactive commands, use ``capture_output=False``.
+    check : bool
         Raise typer.Exit on non-zero exit code, by default True.
     cwd : Path | str | None, optional
         Working directory, by default None.
-    stream : bool, optional
+    stream : bool
         Stream output to terminal in real-time, by default True.
         On Unix, uses PTY to preserve ANSI color codes.
     shell : bool | None, optional
@@ -243,7 +246,7 @@ def run(
         str → True, list/tuple → False.
         **Security Warning:** Shell=True can be vulnerable to injection
         with untrusted input. Only use with trusted commands.
-    echo : bool, optional
+    echo : bool
         Display command before execution using console.cmd().
         Default is True. Set to False for silent execution.
     echo_cmd : str | None, optional
@@ -251,11 +254,11 @@ def run(
         The actual command is still executed, but this string is shown instead.
         Useful for hiding complex binary paths or secrets in commands.
         Default is None (show actual command).
-    dry_run : bool, optional
+    dry_run : bool
         Display command without executing (dry-run mode).
         Default is False. Does NOT auto-echo; combine with echo=True
         to preview commands.
-    keep_temp_file : bool, optional
+    keep_temp_file : bool
         Keep temporary script files for debugging instead of deleting them.
         Only applies when temp files are created (multi-line scripts on Windows
         or scripts with shebang). Default is False. Logs temp file path when True.
@@ -282,6 +285,12 @@ def run(
         When check=True and command returns non-zero exit code.
     subprocess.TimeoutExpired
         When timeout is exceeded.
+
+    Notes
+    -----
+    When ``stream=True`` and ``capture_output=True``, interactive or progressive
+    output (spinners, progress bars, cursor movements) may not display correctly.
+    For interactive commands, use ``stream=True, capture_output=False`` instead.
 
     Examples
     --------

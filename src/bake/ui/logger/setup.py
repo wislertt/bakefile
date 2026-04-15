@@ -1,6 +1,7 @@
 import logging
 import sys
 from contextvars import ContextVar
+from datetime import tzinfo
 from typing import TYPE_CHECKING, Any, cast
 
 from loguru import logger
@@ -18,9 +19,13 @@ if TYPE_CHECKING:
 
 
 def setup_logging(
-    level_per_module: "FilterDict | None" = None,
+    level_per_module: dict[str, int] | None = None,
     thread_local_context: dict[str, ContextVar[Any]] | None = None,
     is_pretty_log: bool = False,
+    json_sink_class: type[JsonSink] | None = None,
+    pretty_log_formatter_class: type[PrettyLogFormatter] | None = None,
+    timezone: tzinfo | None = None,
+    global_min_log_level: int | None = None,
 ) -> None:
     if level_per_module is None:
         level_per_module = {"": logging.WARNING}
@@ -28,7 +33,8 @@ def setup_logging(
     if thread_local_context is None:
         thread_local_context = {}
 
-    global_min_log_level = get_global_min_log_level(level_per_module)
+    if global_min_log_level is None:
+        global_min_log_level = get_global_min_log_level(level_per_module)
 
     reset_all_logging_states()
     logger.remove()
@@ -38,16 +44,20 @@ def setup_logging(
         sink = sys.stderr
         formatter: FormatFunction | str = cast(
             "FormatFunction",
-            PrettyLogFormatter(thread_local_context=thread_local_context),
+            (pretty_log_formatter_class or PrettyLogFormatter)(
+                thread_local_context=thread_local_context, timezone=timezone
+            ),
         )
     else:
-        sink = JsonSink(thread_local_context=thread_local_context)
+        sink = (json_sink_class or JsonSink)(
+            thread_local_context=thread_local_context, timezone=timezone
+        )
         formatter: FormatFunction | str = ""
 
     logger.add(
         sink=sink,
         format=formatter,
         level=global_min_log_level,
-        filter=level_per_module,
+        filter=cast("FilterDict", level_per_module),
         backtrace=False,
     )

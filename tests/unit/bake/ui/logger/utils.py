@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from bake.ui.logger.utils import LogKey
+from bake.ui.logger.utils import LogKey, LogKeyMixin
 
 
 def is_log_present_as_expected(
@@ -33,5 +33,6 @@ def get_number_of_logs(
     return len(handled_log_levels)
 
 
-def has_required_keys(log: dict[str, Any]) -> bool:
-    return LogKey.required_keys().issubset(log.keys())
+def has_required_keys(log: dict[str, Any], log_key_cls: type[LogKeyMixin] = LogKey) -> bool:
+    """Check if log has all required keys for the specified LogKey class."""
+    return log_key_cls.required_keys().issubset(log.keys())

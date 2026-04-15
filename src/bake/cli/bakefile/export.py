@@ -1,13 +1,16 @@
 import shlex
 from collections.abc import Callable, Hashable
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
+import click
 import orjson
 import typer
 import yaml
-from pydantic_settings import BaseSettings
+from pydantic import SecretBytes, SecretStr
+from pydantic.fields import FieldInfo
 
+from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
 from bake.ui import console
 
@@ -109,6 +112,14 @@ def _format_dotenv_value(value: JsonValue) -> str:
     )
 
 
+def _filter_data(data: dict[str, Any], include: list[str]) -> dict[str, Any]:
+    lower_map = {k.lower(): k for k in data}
+    unknown = [i for i in include if i.lower() not in lower_map]
+    if unknown:
+        raise click.BadParameter(f"Unknown keys: {', '.join(sorted(unknown))}")
+    return {k: data[lower_map[k.lower()]] for k in include}
+
+
 def _format_vars(data: dict, value_formatter: Callable[[JsonValue], str], prefix: str = "") -> str:
     lines: list[str] = []
     for field_name, value in data.items():
@@ -142,10 +153,28 @@ class YamlExportFormatter(ExportFormatter):
         return yaml.dump(data, default_flow_style=False, sort_keys=False)
 
 
+def _reveal_secrets(bakebook: Bakebook, data: dict[str, Any]) -> dict[str, Any]:
+    for field_name in cast(dict[str, FieldInfo], bakebook.__class__.model_fields):
+        value = getattr(bakebook, field_name, None)
+        if isinstance(value, (SecretStr, SecretBytes)):
+            secret_val = cast(SecretStr | SecretBytes, value).get_secret_value()
+            data[field_name] = secret_val.decode() if isinstance(secret_val, bytes) else secret_val
+    return data
+
+
+def _get_data(bakebook: Bakebook, reveal_secrets: bool = False) -> dict[str, Any]:
+    data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+    if reveal_secrets:
+        data = _reveal_secrets(bakebook=bakebook, data=data)
+    return data
+
+
 def _export(
-    bakebook: BaseSettings,
+    bakebook: Bakebook,
     format: ExportFormat = "sh",
     output: Path | None = None,
+    include: list[str] | None = None,
+    reveal_secrets: bool = False,
 ) -> None:
     formatters: dict[str, ExportFormatter] = {
         "sh": ShExportFormatter(),
@@ -158,14 +187,18 @@ def _export(
     if formatter is None:
         raise ValueError(f"Unknown format: {format}")
 
-    data: dict[str, Any] = bakebook.model_dump(mode="json")
+    data = _get_data(bakebook=bakebook, reveal_secrets=reveal_secrets)
+
+    if include is not None:
+        data = _filter_data(data=data, include=include)
+
     content = formatter(data)
 
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(content, encoding="utf-8")
     elif content != "":
-        console.echo(content, overflow="ignore", crop=False)
+        console.plain_out.print(content, overflow="ignore", crop=False)
 
 
 def export(
@@ -187,6 +220,22 @@ def export(
             exists=False,
         ),
     ] = None,
+    include: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--include",
+            "-i",
+            help="Keys to export (default: all)",
+        ),
+    ] = None,
+    secret: Annotated[
+        bool,
+        typer.Option(
+            "--secret",
+            "-s",
+            help="Reveal SecretStr/SecretBytes values (default: masked)",
+        ),
+    ] = False,
 ) -> None:
     """Export bakebook args to external formats.
 
@@ -202,6 +251,9 @@ def export(
 
         # Export to JSON
         bakefile export --format json --output config.json
+
+        # Export specific keys only
+        bakefile export --include database_url --include api_key
     """
     if ctx.obj.bakebook is None:
         ctx.obj.get_bakebook(allow_missing=False, reinvoke_cli_module="bake.cli.bakefile")
@@ -209,4 +261,10 @@ def export(
     if ctx.obj.bakebook is None:
         raise RuntimeError("Bakebook not found.")
 
-    _export(bakebook=ctx.obj.bakebook, format=format, output=output)
+    _export(
+        bakebook=ctx.obj.bakebook,
+        format=format,
+        output=output,
+        include=include,
+        reveal_secrets=secret,
+    )

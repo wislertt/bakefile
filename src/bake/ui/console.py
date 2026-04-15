@@ -4,7 +4,6 @@ from typing import Any
 
 import rich
 import rich.style
-from beautysh import BashFormatter
 from rich.console import Console as RichConsole
 from rich.console import JustifyMethod, OverflowMethod
 from rich.text import Text
@@ -77,6 +76,8 @@ err = Console(
     force_terminal=_FORCE_TERMINAL_DEFAULT,
     legacy_windows=_LEGACY_WINDOWS_DEFAULT,
 )
+plain_out = Console(no_color=True, stderr=False)
+plain_err = Console(no_color=True, stderr=True)
 
 
 BOLD_GREEN = "bold green"
@@ -158,6 +159,9 @@ def cmd(cmd_str: str, **kwargs) -> None:
 
 
 def script_block(title: str, script: str, **kwargs) -> None:
+    # Lazy import: beautysh adds a StreamHandler to logging.root at import time
+    from beautysh import BashFormatter
+
     formatter = BashFormatter()
     formatted, error = formatter.beautify_string(script)
 
@@ -166,8 +170,8 @@ def script_block(title: str, script: str, **kwargs) -> None:
 
     terminal_width: int = err.size.width
     width = min(70, terminal_width)
-    bold_line = "━" * width
-    thin_line = "─" * width
+    bold_line = "=" * width
+    thin_line = "-" * width
 
     err.print(bold_line, style=BOLD_GREEN)
     err.print(title, style="bold")

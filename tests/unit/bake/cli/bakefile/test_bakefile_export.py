@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any, cast
 
+import click
 import pytest
 import yaml
 from dotenv import dotenv_values
@@ -15,8 +16,11 @@ from pydantic import HttpUrl, PastDate, SecretBytes, SecretStr, create_model
 from bake.cli.bakefile.export import (
     ExportFormatter,
     _export,
+    _filter_data,
     _format_dotenv_value,
     _format_shell_value,
+    _get_data,
+    _reveal_secrets,
 )
 from bake.ui import run
 from bake.utils.constants import CMD_BAKEFILE
@@ -63,6 +67,9 @@ class TestExportCli:
         assert not bad_lines, f"Some lines don't start with 'export ': {bad_lines}"
 
         expected = [
+            "export BAKE_LOG=warning,bake=debug,bakelib=debug,bakefile=debug",
+            "export BAKE_LOG_VERBOSITY=0",
+            "export BAKE_LOG_PRETTY=true",
             "export NAME=app",
             "export COUNT=42",
             "export ENABLED=true",
@@ -166,7 +173,7 @@ class TestExportCli:
 
         fields = ComplexVarsBakebook().model_dump(mode="json").keys()
 
-        results = []
+        results: list[str] = []
 
         for field in fields:
             upper_field = field.upper()
@@ -176,6 +183,9 @@ class TestExportCli:
             results.append(completed.stdout.strip())
 
         expected = [
+            "BAKE_LOG=warning,bake=debug,bakelib=debug,bakefile=debug",
+            "BAKE_LOG_VERBOSITY=0",
+            "BAKE_LOG_PRETTY=true",
             "NAME=app",
             "COUNT=42",
             "ENABLED=true",
@@ -366,6 +376,62 @@ class TestExportFormatter:
 
         with pytest.raises(RuntimeError, match="Bakebook not found"):
             export_cmd(mock_ctx, format="json")
+
+
+class TestFilterData:
+    def test_filter_data_with_valid_keys(self) -> None:
+        data = {"foo": 1, "bar": 2, "baz": 3}
+        result = _filter_data(data, ["foo", "bar"])
+        assert result == {"foo": 1, "bar": 2}
+
+    def test_filter_data_case_insensitive(self) -> None:
+        data = {"foo": 1, "bar": 2}
+        result = _filter_data(data, ["FOO", "Bar"])
+        assert result == {"FOO": 1, "Bar": 2}
+
+    def test_filter_data_unknown_keys_raises(self) -> None:
+        data = {"foo": 1}
+        with pytest.raises(click.BadParameter, match="Unknown keys"):
+            _filter_data(data, ["unknown"])
+
+    def test_filter_data_preserves_original_key_casing(self) -> None:
+        data = {"MyKey": "value"}
+        result = _filter_data(data, ["mykey"])
+        assert "mykey" in result
+        assert result["mykey"] == "value"
+
+
+class TestExportWithInclude:
+    def test_export_with_include_filters_output(self, tmp_path: Path) -> None:
+        bakebook = ComplexVarsBakebook()
+        output = tmp_path / "filtered.json"
+        _export(
+            bakebook=bakebook,
+            format="json",
+            output=output,
+            include=["name", "count"],
+        )
+        exported = json.loads(output.read_text())
+        assert set(exported.keys()) == {"name", "count"}
+        assert exported["name"] == "app"
+        assert exported["count"] == 42
+
+    def test_export_with_include_case_insensitive(self, tmp_path: Path) -> None:
+        bakebook = ComplexVarsBakebook()
+        output = tmp_path / "filtered.json"
+        _export(
+            bakebook=bakebook,
+            format="json",
+            output=output,
+            include=["NAME", "Count"],
+        )
+        exported = json.loads(output.read_text())
+        assert set(exported.keys()) == {"NAME", "Count"}
+
+    def test_export_with_include_unknown_key_exits(self) -> None:
+        bakebook = ComplexVarsBakebook()
+        with pytest.raises(click.BadParameter, match="Unknown keys"):
+            _export(bakebook=bakebook, format="json", include=["nonexistent"])
 
 
 @pytest.mark.skipif(
@@ -789,3 +855,135 @@ class TestFormatDotEnvValueUnit:
     def test_format_dotenv_value_unexpected_type_raises(self, value: Any) -> None:
         with pytest.raises(TypeError, match="Unexpected type for dotenv export"):
             _format_dotenv_value(value)
+
+
+class TestRevealSecrets:
+    def test_reveal_secrets_str(self) -> None:
+        bakebook = ComplexVarsBakebook()
+        data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+        result = _reveal_secrets(bakebook=bakebook, data=data)
+        assert result["api_key"] == "super_secret_key_123"
+        assert result["password"] == "my_password"
+
+    def test_reveal_secrets_bytes(self) -> None:
+        from bake.bakebook.bakebook import Bakebook
+
+        class BytesBakebook(Bakebook):
+            secret_bytes: SecretBytes = SecretBytes(b"my_bytes_secret")
+
+        bakebook = BytesBakebook()
+        data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+        result = _reveal_secrets(bakebook=bakebook, data=data)
+        assert result["secret_bytes"] == "my_bytes_secret"
+
+    def test_reveal_secrets_preserves_non_secret_fields(self) -> None:
+        bakebook = ComplexVarsBakebook()
+        data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+        result = _reveal_secrets(bakebook=bakebook, data=data)
+        assert result["name"] == "app"
+        assert result["count"] == 42
+        assert result["enabled"] is True
+
+
+class TestGetData:
+    def test_get_data_masks_secrets_by_default(self) -> None:
+        bakebook = ComplexVarsBakebook()
+        data = _get_data(bakebook=bakebook)
+        assert data["api_key"] == MASKED_SECRET_STRING
+        assert data["password"] == MASKED_SECRET_STRING
+
+    def test_get_data_reveals_secrets_when_requested(self) -> None:
+        bakebook = ComplexVarsBakebook()
+        data = _get_data(bakebook=bakebook, reveal_secrets=True)
+        assert data["api_key"] == "super_secret_key_123"
+        assert data["password"] == "my_password"
+
+
+class TestExportSecret:
+    def test_export_sh_masks_secrets_by_default(
+        self, complex_vars_project: Path, run_cli: RunCli
+    ) -> None:
+        result = run_cli(
+            command=CMD_BAKEFILE,
+            dir_path=complex_vars_project,
+            args=["export", "--format", "sh"],
+        ).stripped()
+
+        assert result.exit_code == 0
+        assert "super_secret_key_123" not in result.out
+        assert "my_password" not in result.out
+        assert "**********" in result.out
+
+    def test_export_sh_reveals_secrets_with_flag(
+        self, complex_vars_project: Path, run_cli: RunCli
+    ) -> None:
+        result = run_cli(
+            command=CMD_BAKEFILE,
+            dir_path=complex_vars_project,
+            args=["export", "--format", "sh", "-s"],
+        ).stripped()
+
+        assert result.exit_code == 0
+        assert "super_secret_key_123" in result.out
+        assert "my_password" in result.out
+
+    def test_export_json_reveals_secrets_with_flag(
+        self, complex_vars_project: Path, run_cli: RunCli
+    ) -> None:
+        result = run_cli(
+            command=CMD_BAKEFILE,
+            dir_path=complex_vars_project,
+            args=["export", "--format", "json", "-s"],
+        ).stripped()
+
+        assert result.exit_code == 0
+        data = json.loads(result.out)
+        assert data["api_key"] == "super_secret_key_123"
+
+    def test_export_yaml_reveals_secrets_with_flag(
+        self, complex_vars_project: Path, run_cli: RunCli
+    ) -> None:
+        result = run_cli(
+            command=CMD_BAKEFILE,
+            dir_path=complex_vars_project,
+            args=["export", "--format", "yaml", "-s"],
+        ).stripped()
+
+        assert result.exit_code == 0
+        data = yaml.safe_load(result.out)
+        assert data["api_key"] == "super_secret_key_123"
+
+    def test_export_dotenv_reveals_secrets_with_flag(
+        self, complex_vars_project: Path, run_cli: RunCli
+    ) -> None:
+        tmp_dotenv_path = complex_vars_project / "tmp_secret.env"
+        result = run_cli(
+            command=CMD_BAKEFILE,
+            dir_path=complex_vars_project,
+            args=["export", "--format", "dotenv", "-s", "--output", str(tmp_dotenv_path)],
+        ).stripped()
+
+        assert result.exit_code == 0
+        parsed = dotenv_values(tmp_dotenv_path)
+        assert parsed.get("API_KEY") == "super_secret_key_123"
+
+    def test_export_with_secret_and_include(
+        self, complex_vars_project: Path, run_cli: RunCli
+    ) -> None:
+        result = run_cli(
+            command=CMD_BAKEFILE,
+            dir_path=complex_vars_project,
+            args=["export", "--format", "json", "-s", "--include", "api_key"],
+        ).stripped()
+
+        assert result.exit_code == 0
+        data = json.loads(result.out)
+        assert data["api_key"] == "super_secret_key_123"
+        assert "password" not in data
+
+    def test_export_with_secret_to_file(self, tmp_path: Path) -> None:
+        bakebook = ComplexVarsBakebook()
+        output = tmp_path / "secret.json"
+        _export(bakebook=bakebook, format="json", output=output, reveal_secrets=True)
+        data = json.loads(output.read_text(encoding="utf-8"))
+        assert data["api_key"] == "super_secret_key_123"

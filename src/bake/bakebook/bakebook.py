@@ -3,11 +3,11 @@ import types
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar
 
 import click
 import typer
-from pydantic import PrivateAttr
+from pydantic import Field, PrivateAttr, field_validator
 from pydantic.warnings import PydanticDeprecationWarning
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typer.core import TyperCommand, TyperGroup
@@ -15,10 +15,22 @@ from typer.main import get_command_name
 from typer.models import CommandFunctionType, Default
 
 from bake.cli.common.context import BakeCommand, Context
-from bake.utils.constants import BAKE_COMMAND_KWARGS
+from bake.utils.constants import (
+    BAKE_COMMAND_KWARGS,
+    DEFAULT_BAKE_LOG,
+    DEFAULT_BAKE_LOG_PRETTY,
+    DEFAULT_BAKE_LOG_VERBOSITY,
+)
 from bake.utils.exceptions import CommandConflictError, ContextNotAvailableError
+from bake.utils.settings import bake_settings
 
 logger = logging.getLogger(__name__)
+
+# A function or method that can be used as a command
+CommandFunction = types.FunctionType | types.MethodType
+
+# Type alias for bake_log_verbosity field
+BakeLogVerbosityField = Annotated[int, Field(ge=0, le=3)]
 
 
 @dataclass
@@ -88,6 +100,36 @@ def _get_registered_command_names(app: typer.Typer) -> set[str]:
     return result
 
 
+def _try_get_command_metadata(obj: Any) -> CommandKwargs | None:
+    """Safely get command metadata from an object."""
+    if hasattr(obj, BAKE_COMMAND_KWARGS):
+        return object.__getattribute__(obj, BAKE_COMMAND_KWARGS)
+    return None
+
+
+def _get_command_kwargs_from_class(base: type, method_name: str) -> CommandKwargs | None:
+    """Get command kwargs from a specific class in the MRO."""
+    # Not in __dict__ - try getattr
+    if method_name not in base.__dict__:
+        return _try_get_command_metadata(getattr(base, method_name))
+
+    # In __dict__ - handle descriptor (staticmethod/classmethod)
+    func_or_descriptor = base.__dict__[method_name]
+
+    # Check descriptor first (@command then @staticmethod/@classmethod)
+    if command_kwargs := _try_get_command_metadata(func_or_descriptor):
+        return command_kwargs
+
+    # For staticmethod/classmethod, also check __func__ (reverse decorator order)
+    if isinstance(func_or_descriptor, (staticmethod, classmethod)) and (
+        command_kwargs := _try_get_command_metadata(func_or_descriptor.__func__)
+    ):
+        return command_kwargs
+
+    # Regular function/method - check if it has metadata
+    return _try_get_command_metadata(func_or_descriptor)
+
+
 @dataclass
 class CommandGroup:
     """Holds a command group's Typer app."""
@@ -106,6 +148,30 @@ class Bakebook(BaseSettings):
     model_config: bakebook_model_config_type = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
+
+    # Logging lifecycle:
+    # - CLI initial setup: before bakebook object is loaded (CLI args/env vars)
+    # - CLI post-bakebook setup: after bakebook object is loaded (bakebook fields)
+    # - User explicit setup: setup_logging() called directly by user (non-CLI entry)
+
+    bake_log: str = (
+        # Logging config (level per module).
+        # Affects CLI post-bakebook setup and user explicit setup.
+        # Can also be set via CLI `--bake-log` or env `BAKE_LOG` (CLI initial setup).
+        DEFAULT_BAKE_LOG
+    )
+    bake_log_verbosity: BakeLogVerbosityField = (
+        # Only affects non-CLI entry (e.g. `uv run test.py`).
+        # CLI entry is fully controlled by `-v`/`-vv`/`-vvv` flags (CLI initial setup).
+        DEFAULT_BAKE_LOG_VERBOSITY
+    )
+    bake_log_pretty: bool = (
+        # Use pretty log format (vs JSON). Affects CLI post-bakebook setup and user explicit setup.
+        # Can also be set via CLI `--log-pretty`/`--no-log-pretty` or env `BAKE_LOG_PRETTY`
+        # (CLI initial setup).
+        DEFAULT_BAKE_LOG_PRETTY
+    )
+
     _app: typer.Typer = PrivateAttr(default_factory=typer.Typer)
     _command_groups: dict[str, CommandGroup] = PrivateAttr(default_factory=dict)
     __exclude_command_methods__: ClassVar[list[str]] = (
@@ -114,6 +180,13 @@ class Bakebook(BaseSettings):
         # registered as commands. Uses method names, not command names.
         []
     )
+
+    @field_validator("bake_log")
+    @classmethod
+    def _validate_bake_log(cls, v: str) -> str:
+        from bake.bakebook.utils import parse_bake_log, serialize_bake_log
+
+        return serialize_bake_log(parse_bake_log(v))
 
     @property
     def _registered_commands(self) -> set[str]:
@@ -136,23 +209,27 @@ class Bakebook(BaseSettings):
         super().__init__(**kwargs)
         self._register_marked_methods()
 
-    def _get_command_kwargs(self, method: types.MethodType) -> CommandKwargs | None:
-        func = method.__func__
+    def _get_command_kwargs(self, method: CommandFunction) -> CommandKwargs | None:
+        """Get command kwargs from a method, static method, or class method."""
+        # Get the underlying function
+        func = method.__func__ if isinstance(method, types.MethodType) else method
 
-        if hasattr(func, BAKE_COMMAND_KWARGS):
-            return object.__getattribute__(func, BAKE_COMMAND_KWARGS)
+        # Direct check on the function itself
+        if command_kwargs := _try_get_command_metadata(func):
+            return command_kwargs
 
+        # Search through MRO for inherited commands
         method_name = method.__name__
-        for base in self.__class__.__mro__[1:]:
-            if not hasattr(base, method_name):
-                continue
-            parent_func = getattr(base, method_name)
-            if hasattr(parent_func, BAKE_COMMAND_KWARGS):
-                return object.__getattribute__(parent_func, BAKE_COMMAND_KWARGS)
+        for base in self.__class__.__mro__:
+            if hasattr(base, method_name) and (
+                command_kwargs := _get_command_kwargs_from_class(base, method_name)
+            ):
+                return command_kwargs
 
         return None
 
-    def _get_bound_method(self, name: str) -> types.MethodType | None:
+    def _get_bound_method(self, name: str) -> CommandFunction | None:
+        """Get a bound method, static method, or class method by name."""
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings(
@@ -160,9 +237,10 @@ class Bakebook(BaseSettings):
                     category=PydanticDeprecationWarning,
                     message=".*is deprecated.*",
                 )
-                bound_method = getattr(self, name)
-                if isinstance(bound_method, types.MethodType):
-                    return bound_method
+                obj = getattr(self, name)
+                # Accept regular methods, static methods, and class methods
+                if isinstance(obj, (types.MethodType, types.FunctionType)):
+                    return obj
         except Exception:
             pass
         return None
@@ -183,7 +261,7 @@ class Bakebook(BaseSettings):
             if cmd_kwargs:
                 self._register_command(bound_method, cmd_kwargs)
 
-    def _register_command(self, method: types.MethodType, cmd_kwargs: CommandKwargs) -> None:
+    def _register_command(self, method: CommandFunction, cmd_kwargs: CommandKwargs) -> None:
         cmd_name = cmd_kwargs.name or get_command_name(method.__name__)
 
         if cmd_kwargs.group_name:
@@ -192,7 +270,7 @@ class Bakebook(BaseSettings):
             self._register_app_command(method=method, cmd_kwargs=cmd_kwargs, cmd_name=cmd_name)
 
     def _register_grouped_command(
-        self, method: types.MethodType, cmd_kwargs: CommandKwargs, cmd_name: str
+        self, method: CommandFunction, cmd_kwargs: CommandKwargs, cmd_name: str
     ) -> None:
         assert cmd_kwargs.group_name is not None  # Type narrowing
         group = self._get_or_create_group(cmd_kwargs.group_name)
@@ -204,7 +282,7 @@ class Bakebook(BaseSettings):
         group.app.command(**cmd_kwargs.to_typer_kwargs())(method)
 
     def _register_app_command(
-        self, method: types.MethodType, cmd_kwargs: CommandKwargs, cmd_name: str
+        self, method: CommandFunction, cmd_kwargs: CommandKwargs, cmd_name: str
     ) -> None:
         if cmd_name in self._command_groups:
             raise CommandConflictError(
@@ -235,6 +313,13 @@ class Bakebook(BaseSettings):
     def get_group_kwargs(self) -> dict[str, GroupKwargs]:
         """Override to configure command groups. Key is group name."""
         return {}
+
+    def setup_logging(self) -> None:
+        bake_settings.setup_bake_logging(
+            bake_log=self.bake_log,
+            verbosity=self.bake_log_verbosity,
+            bake_log_pretty=self.bake_log_pretty,
+        )
 
     def command(
         self,

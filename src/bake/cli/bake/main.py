@@ -1,3 +1,4 @@
+import logging
 import sys
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -14,34 +15,44 @@ from bake.cli.common.app import (
 from bake.cli.common.context import Context
 from bake.cli.common.obj import BakefileObject, get_bakefile_object, is_bakebook_optional
 from bake.cli.common.params import (
-    bakebook_name_option,
-    chdir_option,
-    dry_run_option,
-    file_name_option,
-    is_chain_commands_option,
-    verbosity_option,
-    version_option,
+    BakebookNameOption,
+    BakeLogOption,
+    BakeLogPrettyOption,
+    ChdirOption,
+    DryRunOption,
+    FileNameOption,
+    IsChainCommandsOption,
+    VerbosityOption,
+    VersionOption,
 )
 from bake.ui import console
 from bake.utils.constants import (
+    DEFAULT_BAKE_LOG,
+    DEFAULT_BAKE_LOG_PRETTY,
+    DEFAULT_BAKE_LOG_VERBOSITY,
     DEFAULT_BAKEBOOK_NAME,
     DEFAULT_CHDIR,
+    DEFAULT_DRY_RUN,
     DEFAULT_FILE_NAME,
     DEFAULT_IS_CHAIN_COMMAND,
 )
 from bake.utils.settings import bake_settings
 
+logger = logging.getLogger(__name__)
+
 
 def bake_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
     def bake_app_callback(
         ctx: Context,
-        _chdir: chdir_option = DEFAULT_CHDIR,
-        _file_name: file_name_option = DEFAULT_FILE_NAME,
-        _bakebook_name: bakebook_name_option = DEFAULT_BAKEBOOK_NAME,
-        _version: version_option = False,
-        _is_chain_commands: is_chain_commands_option = DEFAULT_IS_CHAIN_COMMAND,
-        _verbosity: verbosity_option = 0,
-        _dry_run: dry_run_option = False,
+        _chdir: ChdirOption = DEFAULT_CHDIR,
+        _file_name: FileNameOption = DEFAULT_FILE_NAME,
+        _bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
+        _version: VersionOption = False,
+        _is_chain_commands: IsChainCommandsOption = DEFAULT_IS_CHAIN_COMMAND,
+        _bake_log: BakeLogOption = DEFAULT_BAKE_LOG,
+        _bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,
+        _verbosity: VerbosityOption = DEFAULT_BAKE_LOG_VERBOSITY,
+        _dry_run: DryRunOption = DEFAULT_DRY_RUN,
     ):
         ctx.obj = obj
         show_help_if_no_command(ctx)

@@ -83,12 +83,12 @@ class TestVerbosityCallback:
         result = verbosity_callback(mock_ctx, mock_param, value)
         assert result == value
 
-    def test_verbosity_callback_raises_for_value_over_2(self) -> None:
-        """verbosity_callback should raise BadParameter when value exceeds 2."""
+    def test_verbosity_callback_raises_for_value_over_3(self) -> None:
+        """verbosity_callback should raise BadParameter when value exceeds 3."""
         mock_ctx = MagicMock()
         mock_param = MagicMock()
-        with pytest.raises(typer.BadParameter, match="Maximum verbosity is -vv"):
-            verbosity_callback(mock_ctx, mock_param, 3)
+        with pytest.raises(typer.BadParameter, match="Maximum verbosity is -vvv"):
+            verbosity_callback(mock_ctx, mock_param, 4)
 
 
 class TestChdir:

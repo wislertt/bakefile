@@ -20,6 +20,11 @@ from .utils import (
 )
 
 
+def command_not_available(command_name: str) -> None:
+    console.error(f"Command '{command_name}' is not available")
+    raise typer.Exit(1)
+
+
 class BaseSpace(CleanUtils, Bakebook):
     @property
     def _package_name(self) -> str:
@@ -96,8 +101,7 @@ class BaseSpace(CleanUtils, Bakebook):
             self._version = original_version
 
     def _command_not_available(self, command_name: str) -> None:
-        console.error(f"Command '{command_name}' is not available")
-        raise typer.Exit(1)
+        command_not_available(command_name)
 
     def _method_not_available(self, method_name: str) -> NoReturn:
         raise NotImplementedError(f"{self.__class__.__name__} must implement {method_name}()")

@@ -13,11 +13,14 @@ from bake.ui.logger.capsys import (
     parse_pretty_log,
     strip_ansi,
 )
+from bake.ui.logger.gcp import GCPJsonSink, GCPLogKey
 from bake.ui.logger.setup import setup_logging
 from bake.ui.logger.utils import UNPARSABLE_LINE, LogKey
 
 __all__ = [
     "UNPARSABLE_LINE",
+    "GCPJsonSink",
+    "GCPLogKey",
     "LogKey",
     "capsys_to_logs",
     "capsys_to_logs_pretty",
