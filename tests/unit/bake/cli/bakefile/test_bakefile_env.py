@@ -209,10 +209,10 @@ class TestEnvRuntimeError:
         mock_ctx.obj.bakebook = None
         mock_ctx.obj.get_bakebook = MagicMock()
 
-        from bake.cli.bakefile.env import env as env_cmd
+        from bake.cli.bakefile.env import env
 
-        with pytest.raises(RuntimeError, match="Bakebook not found"):
-            env_cmd(mock_ctx, var_names="NAME")
+        with pytest.raises(ValueError, match=r"called `unwrap\(\)` on a `None` value"):
+            env(mock_ctx, var_names="NAME")
 
 
 class TestEnvNoCommandAfterDash:

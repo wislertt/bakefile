@@ -30,6 +30,7 @@ from bake.utils.constants import (
     DEFAULT_BAKE_LOG_PRETTY,
     DEFAULT_BAKE_LOG_VERBOSITY,
 )
+from bake.utils.unwrap import unwrap
 
 __version__ = _get_version()
 
@@ -69,4 +70,5 @@ __all__ = [
     "setup_logging",
     "strip_ansi",
     "style",
+    "unwrap",
 ]

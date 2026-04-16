@@ -9,6 +9,7 @@ from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
 from bake.ui import console
 from bake.ui.run.main import run as _run
+from bake.utils.unwrap import unwrap
 
 from .export import _format_shell_value, _get_data
 
@@ -145,7 +146,4 @@ def env(
     if ctx.obj.bakebook is None:
         ctx.obj.get_bakebook(allow_missing=False, reinvoke_cli_module="bake.cli.bakefile")
 
-    if ctx.obj.bakebook is None:
-        raise RuntimeError("Bakebook not found.")
-
-    _env(bakebook=ctx.obj.bakebook, env_input=env_input)
+    _env(bakebook=unwrap(ctx.obj.bakebook), env_input=env_input)

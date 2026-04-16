@@ -372,10 +372,10 @@ class TestExportFormatter:
         mock_ctx.obj.get_bakebook = MagicMock()  # Does nothing, bakebook stays None
 
         # Import and call the export function directly
-        from bake.cli.bakefile.export import export as export_cmd
+        from bake.cli.bakefile.export import export
 
-        with pytest.raises(RuntimeError, match="Bakebook not found"):
-            export_cmd(mock_ctx, format="json")
+        with pytest.raises(ValueError, match=r"called `unwrap\(\)` on a `None` value"):
+            export(mock_ctx, format="json")
 
 
 class TestFilterData:
