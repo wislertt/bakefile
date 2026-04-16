@@ -5,6 +5,7 @@ from bake.utils.settings import (
     ENV_NO_COLOR,
     bake_settings,
 )
+from bake.utils.unwrap import unwrap
 
 __all__ = [
     "DEFAULT_BAKEBOOK_NAME",
@@ -14,4 +15,5 @@ __all__ = [
     "BakebookError",
     "BaseBakefileError",
     "bake_settings",
+    "unwrap",
 ]

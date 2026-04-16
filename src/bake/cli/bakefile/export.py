@@ -13,6 +13,7 @@ from pydantic.fields import FieldInfo
 from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
 from bake.ui import console
+from bake.utils.unwrap import unwrap
 
 ExportFormat = Literal["sh", "dotenv", "json", "yaml"]
 JsonValue = str | float | bool | None | list[Any] | dict[Hashable, Any]
@@ -258,11 +259,8 @@ def export(
     if ctx.obj.bakebook is None:
         ctx.obj.get_bakebook(allow_missing=False, reinvoke_cli_module="bake.cli.bakefile")
 
-    if ctx.obj.bakebook is None:
-        raise RuntimeError("Bakebook not found.")
-
     _export(
-        bakebook=ctx.obj.bakebook,
+        bakebook=unwrap(ctx.obj.bakebook),
         format=format,
         output=output,
         include=include,

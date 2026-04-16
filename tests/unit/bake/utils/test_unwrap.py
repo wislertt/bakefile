@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from bakelib.utils import unwrap
+from bake import unwrap
 
 
 class TestUnwrapBasicTypes:
@@ -82,7 +82,7 @@ class TestUnwrapEdgeCases:
             ValueError,
             match=(
                 r"called `unwrap\(\)` on a `None` value, "
-                r"tests[/\\]unit[/\\]bakelib[/\\]utils[/\\]test_unwrap\.py:\d+"
+                r"tests[/\\]unit[/\\]bake[/\\]utils[/\\]test_unwrap\.py:\d+"
             ),
         ):
             unwrap(my_none)
@@ -93,7 +93,7 @@ class TestUnwrapEdgeCases:
             ValueError,
             match=(
                 r"called `unwrap\(\)` on a `None` value, "
-                r"tests[/\\]unit[/\\]bakelib[/\\]utils[/\\]test_unwrap\.py:\d+"
+                r"tests[/\\]unit[/\\]bake[/\\]utils[/\\]test_unwrap\.py:\d+"
             ),
         ):
             unwrap(None)
@@ -163,7 +163,7 @@ class TestUnwrapInspection:
             ValueError,
             match=(
                 r"called `unwrap\(\)` on a `None` value, "
-                r"tests[/\\]unit[/\\]bakelib[/\\]utils[/\\]test_unwrap\.py:\d+"
+                r"tests[/\\]unit[/\\]bake[/\\]utils[/\\]test_unwrap\.py:\d+"
             ),
         ):
             demo.get_project()
@@ -222,7 +222,7 @@ class TestUnwrapManyVariables:
             ValueError,
             match=(
                 r"called `unwrap\(\)` on a `None` value, "
-                r"tests[/\\]unit[/\\]bakelib[/\\]utils[/\\]test_unwrap\.py:\d+"
+                r"tests[/\\]unit[/\\]bake[/\\]utils[/\\]test_unwrap\.py:\d+"
             ),
         ):
             config.get_url()
