@@ -1289,8 +1289,8 @@ class TestSigintGuard:
         mock_proc.poll.return_value = None
 
         with (
-            mock.patch("bake.ui.run.main._kill_process_tree") as mock_kill,
-            mock.patch("bake.ui.run.main.signal") as mock_signal,
+            mock.patch.object(main, "_kill_process_tree") as mock_kill,
+            mock.patch.object(main, "signal") as mock_signal,
         ):
             installed_handler = None
 
@@ -1314,7 +1314,7 @@ class TestSigintGuard:
         mock_proc = mock.Mock(spec=subprocess.Popen)
         mock_proc.poll.return_value = 0
 
-        with mock.patch("bake.ui.run.main.signal") as mock_signal:
+        with mock.patch.object(main, "signal") as mock_signal:
             installed_handler = None
 
             def capture_handler(sig, handler):
@@ -1338,7 +1338,7 @@ class TestSigintGuard:
             call_order.append(("install", sig, handler))
             return old_handler
 
-        with mock.patch("bake.ui.run.main.signal") as mock_signal:
+        with mock.patch.object(main, "signal") as mock_signal:
             mock_signal.SIGINT = signal.SIGINT
             mock_signal.signal.side_effect = mock_signal_fn
 
@@ -1353,7 +1353,7 @@ class TestSigintGuard:
         mock_proc = mock.Mock(spec=subprocess.Popen)
         old_handler = mock.Mock()
 
-        with mock.patch("bake.ui.run.main.signal") as mock_signal:
+        with mock.patch.object(main, "signal") as mock_signal:
             mock_signal.signal.return_value = old_handler
 
             with pytest.raises(RuntimeError), main._sigint_guard(mock_proc):
