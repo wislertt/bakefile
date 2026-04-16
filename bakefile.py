@@ -65,6 +65,16 @@ bakebook = MyBakebook()
 
 
 @bakebook.command()
+def test_child_kill():
+    """Reproduce Ctrl+C child process not being killed bug.
+
+    Runs _test_child_script.py via ctx.run(). Press Ctrl+C to test.
+    If [CHILD] lines keep appearing after [PARENT] exits, the bug exists.
+    """
+    bakebook.ctx.run("python _test_child_script.py")
+
+
+@bakebook.command()
 def uvx_install_bake():
     bakebook.ctx.run("uv tool install 'bakefile[lib]' --reinstall")
 

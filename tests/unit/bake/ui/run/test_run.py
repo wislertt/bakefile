@@ -1,6 +1,8 @@
+import contextlib
 import inspect
 import logging
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -1241,6 +1243,9 @@ class TestKeyboardInterrupt:
         with (
             mock.patch.object(main.subprocess, "Popen", return_value=mock_proc),
             mock.patch.object(main, "_kill_process_tree") as mock_kill,
+            mock.patch.object(
+                main, "_sigint_guard", side_effect=lambda _: contextlib.nullcontext()
+            ),
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=True, capture_output=True, echo=False)
@@ -1248,7 +1253,8 @@ class TestKeyboardInterrupt:
             mock_kill.assert_called_once_with(mock_proc)
 
     def test_ctrl_c_with_stream_false_kills_process_tree(self) -> None:
-        """Test that KeyboardInterrupt during run() with stream=False calls _kill_process_tree."""
+        """Test that KeyboardInterrupt during run() with stream=False
+        waits for proc and re-raises."""
         mock_proc = mock.Mock(spec=subprocess.Popen)
         mock_proc.communicate.side_effect = KeyboardInterrupt()
         mock_proc.pid = 12345
@@ -1258,9 +1264,193 @@ class TestKeyboardInterrupt:
         with (
             mock.patch.object(main.subprocess, "Popen", return_value=mock_proc),
             mock.patch.object(main, "_kill_process_tree") as mock_kill,
+            mock.patch.object(
+                main, "_sigint_guard", side_effect=lambda _: contextlib.nullcontext()
+            ),
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=False, capture_output=True, echo=False)
 
-            mock_kill.assert_called_once_with(mock_proc)
+            # _kill_process_tree is called by _sigint_guard's signal handler,
+            # not by the except block (which expects the guard to have done it).
+            # With passthrough guard, only proc.wait is called.
+            mock_kill.assert_not_called()
             mock_proc.wait.assert_called_once()
+
+
+# ============================================================================
+# _sigint_guard Tests
+# ============================================================================
+
+
+class TestSigintGuard:
+    def test_sigint_guard_calls_kill_process_tree(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+
+        with (
+            mock.patch("bake.ui.run.main._kill_process_tree") as mock_kill,
+            mock.patch("bake.ui.run.main.signal") as mock_signal,
+        ):
+            installed_handler = None
+
+            def capture_handler(sig, handler):
+                _ = sig
+                nonlocal installed_handler
+                installed_handler = handler
+                return mock.Mock()
+
+            mock_signal.signal.side_effect = capture_handler
+
+            with main._sigint_guard(mock_proc):
+                assert installed_handler is not None
+                with pytest.raises(KeyboardInterrupt):
+                    installed_handler(signal.SIGINT, None)
+
+            mock_kill.assert_called_once_with(mock_proc)
+            mock_signal.signal.assert_called()
+
+    def test_sigint_guard_idempotent_on_dead_process(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = 0
+
+        with mock.patch("bake.ui.run.main.signal") as mock_signal:
+            installed_handler = None
+
+            def capture_handler(sig, handler):
+                _ = sig
+                nonlocal installed_handler
+                installed_handler = handler
+                return mock.Mock()
+
+            mock_signal.signal.side_effect = capture_handler
+
+            with main._sigint_guard(mock_proc), pytest.raises(KeyboardInterrupt):
+                assert installed_handler is not None
+                installed_handler(signal.SIGINT, None)
+
+    def test_sigint_guard_restores_old_handler(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        old_handler = mock.Mock()
+        call_order = []
+
+        def mock_signal_fn(sig, handler):
+            call_order.append(("install", sig, handler))
+            return old_handler
+
+        with mock.patch("bake.ui.run.main.signal") as mock_signal:
+            mock_signal.SIGINT = signal.SIGINT
+            mock_signal.signal.side_effect = mock_signal_fn
+
+            with main._sigint_guard(mock_proc):
+                pass
+
+        assert call_order[0][0] == "install"
+        assert call_order[1][0] == "install"
+        assert call_order[1][2] is old_handler
+
+    def test_sigint_guard_restores_handler_on_exception(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        old_handler = mock.Mock()
+
+        with mock.patch("bake.ui.run.main.signal") as mock_signal:
+            mock_signal.signal.return_value = old_handler
+
+            with pytest.raises(RuntimeError), main._sigint_guard(mock_proc):
+                raise RuntimeError("test")
+
+            last_call = mock_signal.signal.call_args_list[-1]
+            assert last_call[0][1] is old_handler
+
+
+# ============================================================================
+# _kill_process_tree Tests
+# ============================================================================
+
+
+class TestKillProcessTree:
+    def test_returns_early_if_process_already_dead(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = 0
+
+        main._kill_process_tree(mock_proc)
+
+        mock_proc.kill.assert_not_called()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")
+    def test_unix_sends_sigterm_then_sigkill(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+        mock_proc.wait.side_effect = subprocess.TimeoutExpired("cmd", 5)
+
+        with (
+            mock.patch("os.getpgid", return_value=12345),
+            mock.patch("os.killpg") as mock_killpg,
+        ):
+            main._kill_process_tree(mock_proc)
+
+            assert mock_killpg.call_count == 2
+            mock_killpg.assert_any_call(12345, signal.SIGTERM)
+            mock_killpg.assert_any_call(12345, signal.SIGKILL)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")
+    def test_unix_no_sigkill_if_process_exits_gracefully(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+        mock_proc.wait.return_value = 0
+
+        with (
+            mock.patch("os.getpgid", return_value=12345),
+            mock.patch("os.killpg") as mock_killpg,
+        ):
+            main._kill_process_tree(mock_proc)
+
+            mock_killpg.assert_called_once_with(12345, signal.SIGTERM)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")
+    def test_unix_second_ctrl_c_escalates_to_sigkill(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+        mock_proc.wait.side_effect = KeyboardInterrupt()
+
+        with (
+            mock.patch("os.getpgid", return_value=12345),
+            mock.patch("os.killpg") as mock_killpg,
+        ):
+            main._kill_process_tree(mock_proc)
+
+            assert mock_killpg.call_count == 2
+            mock_killpg.assert_any_call(12345, signal.SIGTERM)
+            mock_killpg.assert_any_call(12345, signal.SIGKILL)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")
+    def test_unix_fallback_to_proc_kill_on_permission_error(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+
+        with mock.patch("os.getpgid", side_effect=ProcessLookupError):
+            main._kill_process_tree(mock_proc)
+            mock_proc.kill.assert_called_once()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")
+    def test_unix_sigkill_fallback_on_permission_error(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+        mock_proc.wait.side_effect = subprocess.TimeoutExpired("cmd", 5)
+
+        def killpg_side_effect(pgid, sig):
+            _ = pgid
+            if sig == signal.SIGKILL:
+                raise PermissionError("not allowed")
+
+        with (
+            mock.patch("os.getpgid", return_value=12345),
+            mock.patch("os.killpg", side_effect=killpg_side_effect),
+        ):
+            main._kill_process_tree(mock_proc)
+            mock_proc.kill.assert_called_once()

@@ -30,6 +30,7 @@ from bake.utils.constants import (
     DEFAULT_BAKE_LOG_PRETTY,
     DEFAULT_BAKE_LOG_VERBOSITY,
 )
+from bake.utils.settings import bake_settings
 from bake.utils.unwrap import unwrap
 
 __version__ = _get_version()
@@ -48,6 +49,7 @@ __all__ = [
     "LogKey",
     "__version__",
     "argv_to_multiline_cmd",
+    "bake_settings",
     "capsys_to_logs",
     "capsys_to_logs_pretty",
     "capture_to_logs",
