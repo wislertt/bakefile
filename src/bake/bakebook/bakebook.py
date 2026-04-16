@@ -144,6 +144,30 @@ class CommandGroup:
 bakebook_model_config_type = ClassVar[SettingsConfigDict]
 
 
+class BakebookMixin(BaseSettings):
+    """Base class for composable Bakebook mixins.
+
+    Use instead of inheriting from Bakebook when creating mixin classes.
+    Multiple BakebookMixin subclasses can be composed with a single Bakebook
+    subclass without MRO conflicts.
+
+    Supports ``@command()`` decorator for contributing commands.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        if not isinstance(self, Bakebook):
+            raise TypeError("BakebookMixin can only be used with Bakebook subclasses")
+        super().__init__(**kwargs)
+
+    @property
+    def ctx(self) -> Context:
+        if not isinstance(self, Bakebook):
+            raise TypeError(  # pragma: no cover
+                "BakebookMixin can only be used with Bakebook subclasses"
+            )
+        return Bakebook.ctx.fget(self)
+
+
 class Bakebook(BaseSettings):
     model_config: bakebook_model_config_type = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"

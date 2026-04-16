@@ -1,5 +1,5 @@
 from bake import _params as params
-from bake.bakebook.bakebook import Bakebook, GroupKwargs
+from bake.bakebook.bakebook import Bakebook, BakebookMixin, GroupKwargs
 from bake.bakebook.decorator import command
 from bake.bakebook.utils import parse_bake_log, serialize_bake_log
 from bake.cli.common.context import BakeCommand, Context, context
@@ -42,6 +42,7 @@ __all__ = [
     "UNPARSABLE_LINE",
     "BakeCommand",
     "Bakebook",
+    "BakebookMixin",
     "Context",
     "GCPJsonSink",
     "GCPLogKey",

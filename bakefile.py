@@ -5,9 +5,14 @@ from typing import Annotated
 
 import typer
 import zerv
-from pydantic import SecretBytes, SecretStr
 
-from bake import DEFAULT_BAKE_LOG, DEFAULT_BAKE_LOG_PRETTY, command, console, params
+from bake import (
+    DEFAULT_BAKE_LOG,
+    DEFAULT_BAKE_LOG_PRETTY,
+    command,
+    console,
+    params,
+)
 from bakelib import GitHubActionsTools, PythonLibSpace
 
 logger = logging.getLogger(__name__)
@@ -17,10 +22,6 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
     bake_log: str = DEFAULT_BAKE_LOG
     bake_log_verbosity: params.BakeLogVerbosityField = 3
     bake_log_pretty: bool = DEFAULT_BAKE_LOG_PRETTY
-
-    # Secret
-    some_secret_str: SecretStr = SecretStr("my_str_secret")
-    some_secret_bytes: SecretBytes = SecretBytes(b"my_bytes_secret")
 
     def _get_mise_tools(self) -> set[str]:
         mise_tools = super()._get_mise_tools()
@@ -62,16 +63,6 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
 
 
 bakebook = MyBakebook()
-
-
-@bakebook.command()
-def test_child_kill():
-    """Reproduce Ctrl+C child process not being killed bug.
-
-    Runs _test_child_script.py via ctx.run(). Press Ctrl+C to test.
-    If [CHILD] lines keep appearing after [PARENT] exits, the bug exists.
-    """
-    bakebook.ctx.run("python _test_child_script.py")
 
 
 @bakebook.command()
