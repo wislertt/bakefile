@@ -151,7 +151,9 @@ class BakebookMixin(BaseSettings):
     Multiple BakebookMixin subclasses can be composed with a single Bakebook
     subclass without MRO conflicts.
 
-    Supports ``@command()`` decorator for contributing commands.
+    Recommended usage: fields only — no methods. This keeps mixins simple
+    and avoids the need for typed access to base class attributes.
+    Use ``Bakebook`` subclasses for methods and ``@command()`` definitions.
     """
 
     def __init__(self, **kwargs: Any) -> None:
