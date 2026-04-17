@@ -10,12 +10,10 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 from bake.bakebook.bakebook import Bakebook
 from bakelib.environ import BaseEnv, EnvBakebook
 from bakelib.environ.bakebook import (
-    DevEnvBakebook,
-    ProdEnvBakebook,
-    StagingEnvBakebook,
     _ExcludeEnvFieldSource,
 )
 from bakelib.environ.presets import GcpLandingZoneEnv
+from tests.utils.bakebook import DevEnvBB, ProdEnvBB, StagingEnvBB
 
 
 class TestExcludeEnvFieldSource:
@@ -87,12 +85,10 @@ class TestEnvBakebook:
         bb_prod = EnvBakebook(env=BaseEnv("prod"))
         assert bb_dev.env < bb_prod.env
 
-        bb_dev = DevEnvBakebook()
-        bb_prod = ProdEnvBakebook()
-        assert bb_dev.env < bb_prod.env
+        assert DevEnvBB().env < ProdEnvBB().env
 
     def test_env_included_in_model_dump(self):
-        bb = DevEnvBakebook()
+        bb = DevEnvBB()
         dump = bb.model_dump()
 
         assert "env" in dump
@@ -104,15 +100,14 @@ class TestEnvSpecificBakebooks:
     @pytest.mark.parametrize(
         "bakebook_class,expected_env",
         [
-            (DevEnvBakebook, "dev"),
-            (StagingEnvBakebook, "staging"),
-            (ProdEnvBakebook, "prod"),
+            (DevEnvBB, "dev"),
+            (StagingEnvBB, "staging"),
+            (ProdEnvBB, "prod"),
         ],
     )
     def test_env_bakebook_defaults_to_correct_env(self, bakebook_class, expected_env):
         bb = bakebook_class()
         assert str(bb.env) == expected_env
-        assert isinstance(bb, EnvBakebook)
 
 
 class TestEnvBakebookEnvPrefix:

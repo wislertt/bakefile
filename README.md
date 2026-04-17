@@ -416,19 +416,31 @@ BaseSpace provides these tasks (override as needed):
 
 #### Multi-Environment Bakebooks
 
-For projects with multiple environments (dev, staging, prod), use environment bakebooks:
+For projects with multiple environments (dev, staging, prod), use environment mixins:
 
 ```python
 from bakelib.environ import (
-    DevEnvBakebook,
-    StagingEnvBakebook,
-    ProdEnvBakebook,
+    BaseEnv,
+    DevEnvMixin,
+    EnvBakebook,
+    ProdEnvMixin,
+    StagingEnvMixin,
     get_bakebook,
 )
 
-bakebook_dev = DevEnvBakebook()
-bakebook_staging = StagingEnvBakebook()
-bakebook_prod = ProdEnvBakebook()
+# Compose env mixins with EnvBakebook
+class DevBakebook(DevEnvMixin, EnvBakebook[BaseEnv]):
+    pass
+
+class StagingBakebook(StagingEnvMixin, EnvBakebook[BaseEnv]):
+    pass
+
+class ProdBakebook(ProdEnvMixin, EnvBakebook[BaseEnv]):
+    pass
+
+bakebook_dev = DevBakebook()
+bakebook_staging = StagingBakebook()
+bakebook_prod = ProdBakebook()
 
 # Select bakebook based on ENV environment variable
 bakebook = get_bakebook([bakebook_dev, bakebook_staging, bakebook_prod])
@@ -448,8 +460,8 @@ from bakelib.environ import BaseEnv, EnvBakebook
 class MyEnv(BaseEnv):
     ENV_ORDER = ["dev", "sit", "qa", "uat", "prod"]
 
-class MyEnvBakebook(EnvBakebook):
-    env_: MyEnv = MyEnv("local")
+class MyEnvBakebook(EnvBakebook[MyEnv]):
+    env: MyEnv = MyEnv("local")
 ```
 
 For more details, see the [bakelib source](https://github.com/wislertt/bakefile/tree/main/src/bakelib).

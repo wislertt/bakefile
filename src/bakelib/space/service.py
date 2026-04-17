@@ -1,8 +1,8 @@
-from bake import Bakebook, command, console
+from bake import BakebookMixin, command, console
 from bakelib.space.base import BaseSpace, command_not_available
 
 
-class ServiceSpaceMixin(Bakebook):
+class ServiceSpaceMixin(BakebookMixin):
     service_name: str | None = None
 
     @command(help="Build the service")

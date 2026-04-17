@@ -3,7 +3,7 @@ from typing import Any, Generic, TypeVar
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
-from bake.bakebook.bakebook import Bakebook
+from bake.bakebook.bakebook import Bakebook, BakebookMixin
 from bakelib.environ.base import BaseEnv
 
 E = TypeVar("E", bound=BaseEnv)
@@ -78,13 +78,13 @@ class EnvBakebook(Bakebook, Generic[E]):
         )
 
 
-class DevEnvBakebook(EnvBakebook[BaseEnv]):
+class DevEnvMixin(BakebookMixin):
     env: BaseEnv = BaseEnv("dev")
 
 
-class StagingEnvBakebook(EnvBakebook[BaseEnv]):
+class StagingEnvMixin(BakebookMixin):
     env: BaseEnv = BaseEnv("staging")
 
 
-class ProdEnvBakebook(EnvBakebook[BaseEnv]):
+class ProdEnvMixin(BakebookMixin):
     env: BaseEnv = BaseEnv("prod")
