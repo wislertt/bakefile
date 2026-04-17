@@ -2,9 +2,10 @@ from typing import ClassVar
 
 import pytest
 
-from bakelib.environ import DevEnvBakebook, EnvBakebook, ProdEnvBakebook, StagingEnvBakebook
+from bakelib.environ import EnvBakebook
 from bakelib.environ.base import BaseEnv
 from bakelib.environ.get import get_bakebook
+from tests.utils.bakebook import DevEnvBB, ProdEnvBB, StagingEnvBB
 
 
 class TestGetBakebook:
@@ -15,8 +16,8 @@ class TestGetBakebook:
     @pytest.mark.parametrize("env_value", ["dev", "prod"])
     def test_matches_exact_env_value(self, monkeypatch: pytest.MonkeyPatch, env_value: str):
         monkeypatch.setenv("ENV", env_value)
-        bb_dev = DevEnvBakebook()
-        bb_prod = ProdEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_prod = ProdEnvBB()
         assert str(bb_dev.env) == "dev"
         assert str(bb_prod.env) == "prod"
         bakebook_map = {"dev": bb_dev, "prod": bb_prod}
@@ -27,8 +28,8 @@ class TestGetBakebook:
         assert str(result.env) == env_value
 
     def test_falls_to_lowest_priority_when_env_unset(self):
-        bb_dev = DevEnvBakebook()
-        bb_prod = ProdEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_prod = ProdEnvBB()
 
         assert bb_dev.env < bb_prod.env
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
@@ -37,8 +38,8 @@ class TestGetBakebook:
 
     def test_raises_error_on_no_match(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("ENV", "staging")
-        bb_dev = DevEnvBakebook()
-        bb_prod = ProdEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_prod = ProdEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
 
         with pytest.raises(
@@ -49,17 +50,17 @@ class TestGetBakebook:
 
     def test_uses_custom_env_var_name(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("MY_ENV", "prod")
-        bb_dev = DevEnvBakebook()
-        bb_prod = ProdEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_prod = ProdEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_prod]
 
         result = get_bakebook(bbs, env_var_name="MY_ENV")
         assert result is bb_prod
 
     def test_handles_all_env_aware_bakebooks(self, monkeypatch: pytest.MonkeyPatch):
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
-        bb_prod = ProdEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
+        bb_prod = ProdEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging, bb_prod]
 
         # staging has higher priority (index 1) than prod (index 2)
@@ -74,8 +75,8 @@ class TestGetBakebook:
         assert str(result.env) == "staging"
 
     def test_raises_error_on_duplicate_env(self):
-        bb_dev1 = DevEnvBakebook()
-        bb_dev2 = DevEnvBakebook()
+        bb_dev1 = DevEnvBB()
+        bb_dev2 = DevEnvBB()
 
         with pytest.raises(ValueError, match="Duplicate env 'dev' found"):
             get_bakebook([bb_dev1, bb_dev2])
@@ -85,7 +86,7 @@ class TestGetBakebook:
             pass
 
         fake_bb = FakeBakebook()
-        bb_dev = DevEnvBakebook()
+        bb_dev = DevEnvBB()
 
         with pytest.raises(ValueError, match="All bakebooks must have an 'env' attribute"):
             get_bakebook([fake_bb, bb_dev])  # ty: ignore[invalid-argument-type]
@@ -95,7 +96,7 @@ class TestGetBakebookLazyInit:
     def test_lazy_init_called_by_default(self):
         """lazy_init is called by default when selecting bakebook."""
 
-        class CustomBakebook(DevEnvBakebook):
+        class CustomBakebook(DevEnvBB):
             lazy_init_called: ClassVar[bool] = False
 
             def lazy_init(self) -> None:
@@ -109,7 +110,7 @@ class TestGetBakebookLazyInit:
     def test_lazy_init_false_skips_call(self):
         """lazy_init=False skips the lazy_init call."""
 
-        class CustomBakebook(DevEnvBakebook):
+        class CustomBakebook(DevEnvBB):
             lazy_init_called: ClassVar[bool] = False
 
             def lazy_init(self) -> None:
@@ -123,13 +124,13 @@ class TestGetBakebookLazyInit:
     def test_lazy_init_called_with_exact_env_match(self, monkeypatch: pytest.MonkeyPatch):
         """lazy_init is called when exact env match is found."""
 
-        class CustomBakebook(ProdEnvBakebook):
+        class CustomBakebook(ProdEnvBB):
             lazy_init_called: ClassVar[bool] = False
 
             def lazy_init(self) -> None:
                 CustomBakebook.lazy_init_called = True
 
-        bb_dev = DevEnvBakebook()
+        bb_dev = DevEnvBB()
         bb_prod = CustomBakebook()
         monkeypatch.setenv("ENV", "prod")
 
@@ -141,14 +142,14 @@ class TestGetBakebookLazyInit:
     def test_lazy_init_called_with_fallback_to_lowest_priority(self):
         """lazy_init is called when falling back to lowest priority."""
 
-        class CustomBakebook(DevEnvBakebook):
+        class CustomBakebook(DevEnvBB):
             lazy_init_called: ClassVar[bool] = False
 
             def lazy_init(self) -> None:
                 CustomBakebook.lazy_init_called = True
 
         bb_dev = CustomBakebook()
-        bb_prod = ProdEnvBakebook()
+        bb_prod = ProdEnvBB()
 
         result = get_bakebook([bb_dev, bb_prod])
 
@@ -160,13 +161,13 @@ class TestGetBakebookLazyInit:
     ):
         """Only the selected bakebook has lazy_init called."""
 
-        class CustomDev(DevEnvBakebook):
+        class CustomDev(DevEnvBB):
             lazy_init_called: ClassVar[bool] = False
 
             def lazy_init(self) -> None:
                 CustomDev.lazy_init_called = True
 
-        class CustomProd(ProdEnvBakebook):
+        class CustomProd(ProdEnvBB):
             lazy_init_called: ClassVar[bool] = False
 
             def lazy_init(self) -> None:
@@ -186,8 +187,8 @@ class TestGetBakebookLazyInit:
 class TestGetBakebookFallbackEnv:
     def test_fallback_env_value_used_when_env_unset(self):
         """fallback_env_value is used when ENV is not set."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, fallback_env_value="staging")
@@ -196,8 +197,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_fallback_env_value_used_when_env_empty(self):
         """fallback_env_value is used when ENV is empty string."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value="", fallback_env_value="staging")
@@ -206,8 +207,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_env_value_takes_precedence_over_fallback(self):
         """env_value takes precedence over fallback_env_value."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value="dev", fallback_env_value="staging")
@@ -216,8 +217,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_env_var_takes_precedence_over_fallback(self, monkeypatch: pytest.MonkeyPatch):
         """ENV var takes precedence over fallback_env_value."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
         monkeypatch.setenv("ENV", "dev")
 
@@ -227,8 +228,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_both_fallback_and_env_none_uses_min(self):
         """When both env_value and fallback_env_value are None, uses min."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs)
@@ -237,8 +238,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_invalid_fallback_env_value_raises_error(self):
         """Invalid fallback_env_value raises ValueError."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         with pytest.raises(ValueError, match="No bakebook found with env='prod'"):
@@ -246,8 +247,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_fallback_chain_env_none_fallback_valid_uses_fallback(self):
         """env_value=None, valid fallback_env_value → uses fallback."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value=None, fallback_env_value="staging")
@@ -255,8 +256,8 @@ class TestGetBakebookFallbackEnv:
 
     def test_fallback_chain_env_empty_fallback_valid_uses_fallback(self):
         """env_value='', valid fallback_env_value → uses fallback."""
-        bb_dev = DevEnvBakebook()
-        bb_staging = StagingEnvBakebook()
+        bb_dev = DevEnvBB()
+        bb_staging = StagingEnvBB()
         bbs: list[EnvBakebook[BaseEnv]] = [bb_dev, bb_staging]
 
         result = get_bakebook(bbs, env_value="", fallback_env_value="staging")

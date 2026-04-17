@@ -1,5 +1,5 @@
 from bake import _params as params
-from bake.bakebook.bakebook import Bakebook, GroupKwargs
+from bake.bakebook.bakebook import Bakebook, BakebookMixin, GroupKwargs
 from bake.bakebook.decorator import command
 from bake.bakebook.utils import parse_bake_log, serialize_bake_log
 from bake.cli.common.context import BakeCommand, Context, context
@@ -30,6 +30,7 @@ from bake.utils.constants import (
     DEFAULT_BAKE_LOG_PRETTY,
     DEFAULT_BAKE_LOG_VERBOSITY,
 )
+from bake.utils.settings import bake_settings
 from bake.utils.unwrap import unwrap
 
 __version__ = _get_version()
@@ -41,6 +42,7 @@ __all__ = [
     "UNPARSABLE_LINE",
     "BakeCommand",
     "Bakebook",
+    "BakebookMixin",
     "Context",
     "GCPJsonSink",
     "GCPLogKey",
@@ -48,6 +50,7 @@ __all__ = [
     "LogKey",
     "__version__",
     "argv_to_multiline_cmd",
+    "bake_settings",
     "capsys_to_logs",
     "capsys_to_logs_pretty",
     "capture_to_logs",

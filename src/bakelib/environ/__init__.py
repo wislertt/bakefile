@@ -1,4 +1,4 @@
-from .bakebook import DevEnvBakebook, EnvBakebook, ProdEnvBakebook, StagingEnvBakebook
+from .bakebook import DevEnvMixin, EnvBakebook, ProdEnvMixin, StagingEnvMixin
 from .bakebooks import EnvBakebooks
 from .base import BaseEnv, BaseSubEnv, EnvPriorityOrderType
 from .get import get_bakebook
@@ -7,13 +7,13 @@ from .presets import GcpLandingZoneEnv, GcpLandingZoneSubEnv
 __all__ = [
     "BaseEnv",
     "BaseSubEnv",
-    "DevEnvBakebook",
+    "DevEnvMixin",
     "EnvBakebook",
     "EnvBakebooks",
     "EnvPriorityOrderType",
     "GcpLandingZoneEnv",
     "GcpLandingZoneSubEnv",
-    "ProdEnvBakebook",
-    "StagingEnvBakebook",
+    "ProdEnvMixin",
+    "StagingEnvMixin",
     "get_bakebook",
 ]

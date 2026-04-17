@@ -1,6 +1,6 @@
-from bake import Bakebook
+from bake import BakebookMixin
 
 
-class GitHubActionsEnvVars(Bakebook):
+class GitHubActionsEnvVars(BakebookMixin):
     ci: bool = False
     github_actions: bool = False

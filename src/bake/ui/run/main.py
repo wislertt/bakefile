@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, overload
@@ -599,13 +600,14 @@ def _run_with_split(
         **kwargs,
     )
 
-    try:
-        setup.proc.wait(timeout=timeout)
-    except (subprocess.TimeoutExpired, KeyboardInterrupt):
-        _kill_process_tree(setup.proc)
-        setup.proc.wait()
-        setup.splitter.finalize(setup.threads)
-        raise
+    with _sigint_guard(setup.proc):
+        try:
+            setup.proc.wait(timeout=timeout)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            _kill_process_tree(setup.proc)
+            setup.proc.wait()
+            setup.splitter.finalize(setup.threads)
+            raise
 
     setup.splitter.finalize(setup.threads)
 
@@ -613,10 +615,17 @@ def _run_with_split(
 
 
 def _kill_process_tree(proc: subprocess.Popen) -> None:
-    """Kill a process and all its children (cross-platform)."""
+    """Kill a process and all its children.
+
+    On Unix, sends SIGTERM to the process group (because ``sh -c`` does not
+    forward signals to children), then escalates to SIGKILL after 5s.
+    On Windows, uses ``taskkill /F /T`` to kill the process tree.
+    Idempotent — safe to call on already-dead processes.
+    """
+    if proc.poll() is not None:
+        return
+
     if sys.platform == "win32":
-        # On Windows, proc.kill() only kills the parent, not children.
-        # Use taskkill to kill the entire process tree.
         try:
             subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
@@ -626,20 +635,49 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
         except (subprocess.TimeoutExpired, FileNotFoundError):  # pragma: no cover
             proc.kill()  # pragma: no cover
     else:
-        # On Unix, kill the entire process group to handle grandchildren.
-        # The process group ID (PGID) is the same as the process ID for the leader.
         try:
             pgid = os.getpgid(proc.pid)
             os.killpg(pgid, signal.SIGTERM)
-            # Give processes a moment to terminate gracefully
-            time.sleep(0.01)
-            # If still running, force kill
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(pgid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
-            # Process already terminated or permission denied for process group.
-            # Fall back to killing the process directly.
             proc.kill()
+            return
+
+        try:
+            proc.wait(timeout=5)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        except KeyboardInterrupt:
+            pass
+
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+
+
+@contextlib.contextmanager
+def _sigint_guard(proc: subprocess.Popen):
+    """Install SIGINT handler to kill the process tree on Ctrl+C.
+
+    Needed because ``proc.wait()``/``proc.communicate()`` don't reliably
+    raise ``KeyboardInterrupt`` when ``capture_output=False``.
+    """
+
+    def _on_sigint(signum: int, frame: types.FrameType | None) -> None:
+        _ = signum, frame
+        _kill_process_tree(proc)
+        raise KeyboardInterrupt
+
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    old_handler = signal.signal(signal.SIGINT, _on_sigint)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, old_handler)
 
 
 def _run_without_split(
@@ -668,12 +706,17 @@ def _run_without_split(
             **kwargs,
         )
 
-    try:
-        stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
-    except (subprocess.TimeoutExpired, KeyboardInterrupt):
-        _kill_process_tree(proc)
-        proc.wait()
-        raise
+    with _sigint_guard(proc):
+        try:
+            stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_process_tree(proc)
+            proc.wait()
+            raise
+        except KeyboardInterrupt:
+            # SIGINT handler already called _kill_process_tree, just wait for proc.
+            proc.wait()
+            raise
 
     # Handle output based on capture_output and encoding
     if capture_output:
