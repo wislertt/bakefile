@@ -3,6 +3,7 @@ from loguru import logger
 from bake.ui.logger.capsys import (
     capsys_to_logs,
     capsys_to_logs_pretty,
+    capture_logs,
     capture_to_logs,
     capture_to_logs_pretty,
     count_message_in_logs,
@@ -10,6 +11,7 @@ from bake.ui.logger.capsys import (
     has_all_messages_in_logs,
     has_message_in_logs,
     has_messages_in_logs,
+    log_capture_to_logs,
     parse_pretty_log,
     strip_ansi,
 )
@@ -24,6 +26,7 @@ __all__ = [
     "LogKey",
     "capsys_to_logs",
     "capsys_to_logs_pretty",
+    "capture_logs",
     "capture_to_logs",
     "capture_to_logs_pretty",
     "count_message_in_logs",
@@ -31,6 +34,7 @@ __all__ = [
     "has_all_messages_in_logs",
     "has_message_in_logs",
     "has_messages_in_logs",
+    "log_capture_to_logs",
     "logger",
     "parse_pretty_log",
     "setup_logging",

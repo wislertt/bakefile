@@ -139,10 +139,6 @@ class InterceptHandler(logging.Handler):
         ).bind(**extra).log(level, record.getMessage())
 
 
-def to_json_serializable(data: Any) -> Any:
-    return orjson.dumps(data, default=str).decode()
-
-
 def flatten_extra(record_extra: dict[str, Any]) -> dict[str, Any]:
     # Maintain consistent extra= API between standard logging and Loguru
     # Flatten Loguru's nested structure to match logging module behavior
