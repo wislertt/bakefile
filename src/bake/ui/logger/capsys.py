@@ -1,10 +1,14 @@
 import json
 import re
+import sys
+from collections.abc import Generator
+from contextlib import contextmanager
+from io import StringIO
 from typing import TYPE_CHECKING, Any
 
 import orjson
 
-from bake.ui.logger.utils import UNPARSABLE_LINE, LogKey, LogType
+from bake.ui.logger.utils import UNPARSABLE_LINE, JsonSink, LogKey, LogType
 
 if TYPE_CHECKING:
     import _pytest.capture
@@ -88,7 +92,7 @@ def capture_to_logs(
     capture: "_pytest.capture.CaptureResult[str]", preserve_unparsable: bool = False
 ) -> list[LogType]:
     log_lines = capture.err.strip().split("\n")
-    parsed_logs = []
+    parsed_logs: list[LogType] = []
 
     for line in log_lines:
         if not line:
@@ -117,6 +121,11 @@ def capture_to_logs_pretty(capture: "_pytest.capture.CaptureResult[str]") -> lis
 def capsys_to_logs(
     capsys: "pytest.CaptureFixture[str]", preserve_unparsable: bool = False
 ) -> list[LogType]:
+    """Capture logs via pytest's capsys (suppresses terminal output).
+
+    Use this when you want clean test output. For capturing logs while still
+    showing them on terminal, see ``capture_loguru``.
+    """
     capture = capsys.readouterr()
     return capture_to_logs(capture=capture, preserve_unparsable=preserve_unparsable)
 
@@ -160,3 +169,37 @@ def find_log(logs: list[LogType], pattern: str, index: int = 0) -> LogType:
     for _ in range(index):
         next(matches)
     return next(matches)
+
+
+@contextmanager
+def capture_logs() -> Generator[StringIO, None, None]:
+    """Capture logs (loguru + stdlib logging) to a StringIO without suppressing terminal output.
+
+    Unlike ``capsys_to_logs``, logs still appear on stderr. Use this when you
+    want to inspect logs programmatically while keeping terminal output visible.
+    """
+    from loguru import logger as loguru_logger
+
+    sys.stderr.write("\n")
+    log_capture = StringIO()
+    sink_id = loguru_logger.add(JsonSink(stream=log_capture))
+    try:
+        yield log_capture
+    finally:
+        loguru_logger.remove(sink_id)
+
+
+def log_capture_to_logs(log_capture: StringIO) -> list[LogType]:
+    captured_logs = log_capture.getvalue().strip().split("\n")
+    parsed_logs: list[LogType] = []
+    for line in captured_logs:
+        if not line:
+            continue
+        try:
+            parsed_log = json.loads(line)
+            if not has_required_keys(parsed_log):
+                continue
+            parsed_logs.append(parsed_log)
+        except json.JSONDecodeError:
+            continue
+    return parsed_logs

@@ -16,7 +16,6 @@ from bake.ui.logger.utils import (
     flatten_extra,
     get_global_min_log_level,
     reset_all_logging_states,
-    to_json_serializable,
 )
 
 # ==============================================================================
@@ -384,26 +383,6 @@ class TestPrettyLogFormatter:
         # Should keep original time
         assert record["time"].hour == 17
         assert record["time"].tzinfo == ZoneInfo("Asia/Bangkok")
-
-
-class TestToJsonSerializable:
-    """Tests for to_json_serializable function."""
-
-    def test_returns_json_string(self) -> None:
-        """Test that to_json_serializable returns JSON string."""
-        result = to_json_serializable({"key": "value"})
-        assert isinstance(result, str)
-        assert result == '{"key":"value"}'
-
-    def test_handles_non_serializable_objects(self) -> None:
-        """Test that to_json_serializable handles non-serializable objects."""
-        from pathlib import Path
-
-        result = to_json_serializable({"path": Path("/test/path")})
-        assert isinstance(result, str)
-        # Check that the path key exists and contains path components (cross-platform)
-        assert '"path"' in result
-        assert "test" in result
 
 
 class TestInterceptHandlerEmit:

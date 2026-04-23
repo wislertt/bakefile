@@ -10,12 +10,14 @@ from bake.ui.logger import (
     UNPARSABLE_LINE,
     capsys_to_logs,
     capsys_to_logs_pretty,
+    capture_logs,
     capture_to_logs,
     capture_to_logs_pretty,
     count_message_in_logs,
     find_log,
     has_message_in_logs,
     has_messages_in_logs,
+    log_capture_to_logs,
     parse_pretty_log,
     setup_logging,
 )
@@ -269,3 +271,54 @@ def test_count_message_in_logs() -> None:
     assert count_message_in_logs(logs, "third") == 1
     assert count_message_in_logs(logs, "nonexistent") == 0
     assert count_message_in_logs(logs, "message") == 4  # regex match all
+
+
+def test_capture_logs_captures_json_logs() -> None:
+    # uv run pytest tests/unit/bake/ui/logger/test_capsys.py::test_capture_logs_captures_json_logs -v -s  # noqa: E501
+    stdlib_logger = logging.getLogger("stdlib")
+    setup_logging(
+        level_per_module={"": logging.INFO}, thread_local_context=None, is_pretty_log=True
+    )
+
+    with capture_logs() as log_capture:
+        loguru.logger.info("loguru_info")
+        loguru.logger.warning("loguru_warning")
+        stdlib_logger.info("stdlib_info")
+        stdlib_logger.warning("stdlib_warning")
+
+    logs = log_capture_to_logs(log_capture)
+    assert len(logs) == 4
+    assert all(has_required_keys(log) for log in logs)
+    messages = [log["message"] for log in logs]
+    assert "loguru_info" in messages
+    assert "loguru_warning" in messages
+    assert "stdlib_info" in messages
+    assert "stdlib_warning" in messages
+
+
+def test_capture_logs_cleans_up_sink_after_exit() -> None:
+    with capture_logs() as first_capture:
+        loguru.logger.info("first_batch")
+
+    with capture_logs() as second_capture:
+        loguru.logger.info("second_batch")
+
+    first_logs = log_capture_to_logs(first_capture)
+    second_logs = log_capture_to_logs(second_capture)
+    assert len(first_logs) == 1
+    assert first_logs[0]["message"] == "first_batch"
+    assert len(second_logs) == 1
+    assert second_logs[0]["message"] == "second_batch"
+
+
+def test_log_capture_to_logs_with_empty_capture() -> None:
+    from io import StringIO
+
+    assert log_capture_to_logs(StringIO()) == []
+
+
+def test_log_capture_to_logs_skips_invalid_lines() -> None:
+    from io import StringIO
+
+    log_capture = StringIO('{"level": "INFO"}\nnot json at all\n')
+    assert log_capture_to_logs(log_capture) == []
