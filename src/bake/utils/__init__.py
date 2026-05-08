@@ -3,6 +3,7 @@ from bake.utils.exceptions import BakebookError, BaseBakefileError
 from bake.utils.settings import (
     ENV__BAKE_REINVOKED,
     ENV_NO_COLOR,
+    PlatformType,
     bake_settings,
 )
 from bake.utils.unwrap import unwrap
@@ -14,6 +15,7 @@ __all__ = [
     "ENV__BAKE_REINVOKED",
     "BakebookError",
     "BaseBakefileError",
+    "PlatformType",
     "bake_settings",
     "unwrap",
 ]

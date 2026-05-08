@@ -1,8 +1,9 @@
 import logging
+from unittest.mock import patch
 
 import pytest
 
-from bake.utils.settings import BakeSettings
+from bake.utils.settings import BakeSettings, PlatformType, _detect_platform
 
 
 class TestSetupBakeLogging:
@@ -23,3 +24,22 @@ class TestSetupBakeLogging:
         captured = capsys.readouterr()
         assert "info should be suppressed" not in captured.err
         assert "warning should appear" in captured.err
+
+
+class TestDetectPlatform:
+    @pytest.mark.parametrize(
+        "sys_platform,expected",
+        [
+            ("darwin", "macos"),
+            ("linux", "linux"),
+            ("win32", "windows"),
+            ("unknown", "other"),
+        ],
+    )
+    def test_returns_correct_platform(self, sys_platform: str, expected: PlatformType) -> None:
+        with patch("bake.utils.settings.sys.platform", sys_platform):
+            assert _detect_platform() == expected
+
+    def test_settings_default_matches_sys_platform(self) -> None:
+        settings = BakeSettings()
+        assert settings.platform in ("macos", "linux", "windows", "other")

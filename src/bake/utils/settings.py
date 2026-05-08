@@ -1,7 +1,8 @@
 import logging
+import sys
 from contextvars import ContextVar
 from datetime import tzinfo
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,19 @@ from bake.ui.logger.utils import JsonSink, PrettyLogFormatter
 
 ENV_NO_COLOR = "NO_COLOR"
 ENV__BAKE_REINVOKED = "_BAKE_REINVOKED"
+
+PlatformType = Literal["macos", "linux", "windows", "other"]
+
+
+def _detect_platform() -> PlatformType:
+    if sys.platform == "darwin":
+        return "macos"
+    elif sys.platform == "linux":
+        return "linux"
+    elif sys.platform == "win32":
+        return "windows"
+    return "other"
+
 
 _VERBOSITY_TO_LOG_LEVEL: dict[int, int] = {
     0: logging.CRITICAL + 1,
@@ -33,6 +47,7 @@ class BakeSettings(BaseSettings):
     ci: bool = False
     github_actions: bool = False
     no_color: bool = False
+    platform: PlatformType = Field(default_factory=_detect_platform)
     bake_reinvoked: bool = Field(default=False, alias=ENV__BAKE_REINVOKED)
     _bake_logging_setup: bool = PrivateAttr(default=False)
 
