@@ -8,7 +8,6 @@ from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.space.utils import (
     check_rust_version_matches_stable,
-    get_platform,
     orjson_default,
     print_subprocess_output,
 )
@@ -27,24 +26,6 @@ class TestSetupFunctions:
         assert "brew cleanup" in captured.err
         assert "brew list" in captured.err
         assert "brew leaves" in captured.err
-
-
-class TestGetPlatform:
-    @pytest.mark.parametrize(
-        "sys_platform,expected",
-        [
-            ("linux", "linux"),
-            ("win32", "windows"),
-            ("unknown", "other"),
-        ],
-    )
-    @patch("bakelib.space.utils.sys.platform")
-    def test_returns_correct_platform(
-        self, _mock_platform: str, sys_platform: str, expected: str
-    ) -> None:
-        with patch("bakelib.space.utils.sys.platform", sys_platform):
-            result = get_platform()
-            assert result == expected
 
 
 class TestOrjsonDefault:

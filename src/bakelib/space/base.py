@@ -8,11 +8,10 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console, run
+from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
 from .utils import (
-    PlatformType,
-    get_platform,
     install_mise_tools,
     orjson_default,
     setup_brew,
@@ -191,7 +190,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
     @command(help="Setup development environment")
     def setup_dev(self) -> None:
-        platform = get_platform()
+        platform = bake_settings.platform
         console.echo(f"Detected platform: {platform}")
 
         if platform != "macos":
@@ -291,7 +290,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
     @command(help="Upgrade all dependencies")
     def update(self) -> None:
-        platform = get_platform()
+        platform = bake_settings.platform
         if platform == "macos":
             setup_brew(self.ctx)
         self.ctx.run("mise upgrade")

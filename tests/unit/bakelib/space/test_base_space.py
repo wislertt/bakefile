@@ -7,6 +7,7 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
+from bake.utils.settings import bake_settings
 from bakelib.space.base import BaseSpace
 
 
@@ -326,7 +327,7 @@ class TestSetupDev:
     ) -> None:
         base_space = MinimalTestSpace()
 
-        with patch("bakelib.space.base.get_platform", return_value="linux"), mock_ctx:
+        with patch.object(bake_settings, "platform", "linux"), mock_ctx:
             base_space.setup_dev()
 
         captured = capsys.readouterr()
@@ -390,7 +391,7 @@ class TestUpdate:
 
         with (
             mock_ctx,
-            patch("bakelib.space.base.get_platform", return_value="linux"),
+            patch.object(bake_settings, "platform", "linux"),
             patch.object(mock_ctx, "run", side_effect=capture_run),
             patch.object(
                 type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
@@ -413,7 +414,7 @@ class TestUpdate:
 
         with (
             mock_ctx,
-            patch("bakelib.space.base.get_platform", return_value="linux"),
+            patch.object(bake_settings, "platform", "linux"),
             patch.object(mock_ctx, "run", side_effect=capture_run),
             patch.object(
                 type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock

@@ -1,25 +1,11 @@
 import re
 import subprocess
-import sys
-from enum import Enum
 from pathlib import Path
-from typing import Literal
 
 from bake import Context, console
 from bake.ui.logger.capsys import strip_ansi
 
-
-class Platform(Enum):
-    MACOS = "macos"
-    LINUX = "linux"
-    WINDOWS = "windows"
-    OTHER = "other"
-
-
 VENV_BIN = Path.cwd() / ".venv" / "bin"
-
-
-PlatformType = Literal["macos", "linux", "windows", "other"]
 
 
 def orjson_default(obj):
@@ -36,16 +22,6 @@ def setup_brew(ctx: Context) -> None:
     ctx.run("brew cleanup")
     ctx.run("brew list")
     ctx.run("brew leaves")
-
-
-def get_platform() -> PlatformType:
-    if sys.platform == "darwin":
-        return Platform.MACOS.value
-    elif sys.platform == "linux":
-        return Platform.LINUX.value
-    elif sys.platform == "win32":
-        return Platform.WINDOWS.value
-    return Platform.OTHER.value
 
 
 def setup_mise(ctx: Context) -> None:
