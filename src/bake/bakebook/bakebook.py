@@ -141,9 +141,6 @@ class CommandGroup:
         return _get_registered_command_names(self.app)
 
 
-bakebook_model_config_type = ClassVar[SettingsConfigDict]
-
-
 class BakebookMixin(BaseSettings):
     """Base class for composable Bakebook mixins.
 
@@ -174,7 +171,7 @@ class BakebookMixin(BaseSettings):
 
 
 class Bakebook(BaseSettings):
-    model_config: bakebook_model_config_type = SettingsConfigDict(
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
