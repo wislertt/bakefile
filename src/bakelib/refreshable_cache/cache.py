@@ -92,8 +92,11 @@ class RefreshableCache(ABC, Generic[CachedT]):
         if self._is_expired(cached.timestamp):
             logger.debug(f"Cache expired for key '{self._key}', fetching fresh value")
             return self._fetch()
-        logger.debug(f"Cache hit for key '{self._key}'")
-        return cached.value
+        value = cached.value
+        type_name = type(value).__name__
+        detail = f", len={len(value)}" if isinstance(value, str) else ""
+        logger.debug(f"Cache hit for key '{self._key}' (type={type_name}{detail})")
+        return value
 
     def _fetch(self) -> CachedT:
         """Fetch value from source and cache it."""

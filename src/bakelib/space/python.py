@@ -130,7 +130,7 @@ class PythonSpace(BaseSpace):
         self,
         version: str | None,
         version_format: zerv.OutputFormat = "pep440",
-        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
+        schema: zerv.StandardSchema | None = None,
     ) -> str:
         return super()._determine_new_version(
             version=version, version_format=version_format, schema=schema

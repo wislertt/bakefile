@@ -25,6 +25,8 @@ def command_not_available(command_name: str) -> None:
 
 
 class BaseSpace(CleanUtils, Bakebook):
+    _version_schema: zerv.StandardSchema = "standard-base-prerelease-post-dev"
+
     @property
     def _package_name(self) -> str:
         self._method_not_available("_package_name")
@@ -58,12 +60,13 @@ class BaseSpace(CleanUtils, Bakebook):
         self,
         version: str | None,
         version_format: zerv.OutputFormat = "semver",
-        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
+        schema: zerv.StandardSchema | None = None,
     ) -> str:
+        effective_schema = schema or self._version_schema
         return (
             zerv.render(version=version, output_format=version_format)
             if version
-            else zerv.flow(schema=schema, output_format=version_format)
+            else zerv.flow(schema=effective_schema, output_format=version_format)
         )
 
     @contextmanager
@@ -87,7 +90,7 @@ class BaseSpace(CleanUtils, Bakebook):
         self,
         version: str | None,
         version_format: zerv.OutputFormat = "semver",
-        schema: zerv.StandardSchema = "standard-base-prerelease-post-dev",
+        schema: zerv.StandardSchema | None = None,
     ):
         original_version = self._version
         new_version = self._determine_new_version(

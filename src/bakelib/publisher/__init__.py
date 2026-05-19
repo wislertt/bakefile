@@ -97,11 +97,15 @@ class Publisher(ABC):
         """
         raise NotImplementedError(f"{cls.__name__}._pre_publish_setup() must be overridden")
 
+    def _is_dry_run(self, token: str | None, result: subprocess.CompletedProcess[str]) -> bool:
+        _ = result
+        return not token
+
     def _determine_publish_result(
         self, token: str | None, result: subprocess.CompletedProcess[str]
     ) -> PublishResult:
         """Determine the publish result status from the token and result."""
-        if not token:
+        if self._is_dry_run(token, result):
             status = PublishStatus.DRY_RUN
         elif self._is_already_exists_error(result):
             status = PublishStatus.ALREADY_EXISTS
