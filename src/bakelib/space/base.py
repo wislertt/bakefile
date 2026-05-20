@@ -11,6 +11,7 @@ from bake import Bakebook, command, console, run
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
+from .params import fast_bool_option
 from .utils import (
     install_mise_tools,
     orjson_default,
@@ -291,15 +292,27 @@ class BaseSpace(CleanUtils, Bakebook):
             console.start("Testing")
             self.test()
 
-    @command(help="Upgrade all dependencies")
-    def update(self) -> None:
+    def _update_tools(self) -> None:
         platform = bake_settings.platform
         if platform == "macos":
             setup_brew(self.ctx)
         self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
         self.ctx.run("uv tool upgrade --all")
+
+    def _update_project(self) -> None:
         self.ctx.run("pre-commit autoupdate")
         if self.ctx.obj.is_standalone_bakefile:
             self.ctx.run("bakefile lock --upgrade")
             self.ctx.run("bakefile sync")
+
+    @command(help="Upgrade all dependencies")
+    def update(
+        self,
+        fast: Annotated[bool, fast_bool_option(help="Skip platform tool upgrades")] = False,
+    ) -> None:
+        if not fast:
+            console.start("Upgrading platform tools")
+            self._update_tools()
+        console.start("Upgrading project dependencies")
+        self._update_project()

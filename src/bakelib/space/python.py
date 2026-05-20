@@ -91,8 +91,8 @@ class PythonSpace(BaseSpace):
         super().setup_project()
         self.ctx.run("uv sync --all-extras --all-groups --frozen")
 
-    def update(self) -> None:
-        super().update()
+    def _update_project(self) -> None:
+        super()._update_project()
         self.ctx.run("uv lock --upgrade")
         self.ctx.run("uv sync --all-extras --all-groups")
 
