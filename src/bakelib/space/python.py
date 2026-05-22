@@ -43,6 +43,8 @@ class PythonSpace(BaseSpace):
         verbose: bool = False,
         coverage_report: bool = True,
         coverage_path: str = "src",
+        markers: str | None = None,
+        extra_args: str = "",
     ) -> None:
         paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
 
@@ -56,6 +58,12 @@ class PythonSpace(BaseSpace):
 
         if verbose:
             cmd += " -s -v"
+
+        if markers:
+            cmd += f' -m "{markers}"'
+
+        if extra_args:
+            cmd += f" {extra_args}"
 
         self.ctx.run(cmd)
 
@@ -91,8 +99,8 @@ class PythonSpace(BaseSpace):
         super().setup_project()
         self.ctx.run("uv sync --all-extras --all-groups --frozen")
 
-    def update(self) -> None:
-        super().update()
+    def _update_project(self) -> None:
+        super()._update_project()
         self.ctx.run("uv lock --upgrade")
         self.ctx.run("uv sync --all-extras --all-groups")
 

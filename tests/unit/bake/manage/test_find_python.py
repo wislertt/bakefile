@@ -39,7 +39,10 @@ def test_find_python_with_inline_metadata_without_lock_and_venv(
     empty_project_folder: Path,
     capfd: pytest.CaptureFixture[str],
 ) -> None:
-    """Case: bakefile.py with inline metadata, no lock, no venv."""
+    """Case: bakefile.py with inline metadata, no lock, no venv.
+
+    If this test fails locally, try `uv cache clean` first.
+    """
     # Arrange ================
     setup_logging(
         level_per_module={"": logging.DEBUG},
@@ -117,7 +120,10 @@ def test_find_python_with_inline_metadata_with_lock_without_venv(
     empty_project_folder: Path,
     capfd: pytest.CaptureFixture[str],
 ) -> None:
-    """Case: bakefile.py with inline metadata, with lock but no venv."""
+    """Case: bakefile.py with inline metadata, with lock but no venv.
+
+    If this test fails locally, try `uv cache clean` first.
+    """
     # Arrange ================
     setup_logging(
         level_per_module={"": logging.DEBUG},

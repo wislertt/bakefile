@@ -28,8 +28,8 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
         mise_tools.remove("pipx:bakefile")
         return mise_tools
 
-    def update(self) -> None:
-        super().update()
+    def _update_project(self) -> None:
+        super()._update_project()
         self._update_examples()
         self._update_hooks()
 

@@ -92,8 +92,8 @@ class RustSpace(BaseSpace):
         self.ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
         self.ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")
 
-    def update(self) -> None:
-        super().update()
+    def _update_project(self) -> None:
+        super()._update_project()
         run_rustup_update(self.ctx.run)
         self.ctx.run("cargo update")
         check_rust_version_matches_stable(self.ctx)

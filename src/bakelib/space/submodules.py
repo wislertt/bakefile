@@ -25,8 +25,8 @@ class SubmodulesUtils(BaseSpace):
     ) -> None:
         self._sync_submodules(frozen=frozen)
 
-    def update(self) -> None:
-        super().update()
+    def _update_project(self) -> None:
+        super()._update_project()
         self._sync_submodules(frozen=False)
 
     def setup_tools(self) -> None:
