@@ -163,3 +163,38 @@ class TestPythonSpace:
         with mock_ctx:
             result = python_space._version
         assert result == "0.0.0"
+
+    def test_test_with_markers(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            python_space._test(tests_paths="tests/", markers="not slow")
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert '-m "not slow"' in capture_err
+
+    def test_test_with_extra_args(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            python_space._test(
+                tests_paths="tests/", extra_args="--cov-report=term --cov-report=xml"
+            )
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "--cov-report=term --cov-report=xml" in capture_err
+
+    def test_test_with_markers_and_extra_args(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            python_space._test(
+                tests_paths="tests/",
+                coverage_path="abcs_dk",
+                markers="not slow",
+                extra_args="--cov-report=term --cov-report=xml",
+            )
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "--cov=abcs_dk" in capture_err
+        assert '-m "not slow"' in capture_err
+        assert "--cov-report=term --cov-report=xml" in capture_err

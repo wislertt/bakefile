@@ -43,6 +43,8 @@ class PythonSpace(BaseSpace):
         verbose: bool = False,
         coverage_report: bool = True,
         coverage_path: str = "src",
+        markers: str | None = None,
+        extra_args: str = "",
     ) -> None:
         paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
 
@@ -56,6 +58,12 @@ class PythonSpace(BaseSpace):
 
         if verbose:
             cmd += " -s -v"
+
+        if markers:
+            cmd += f' -m "{markers}"'
+
+        if extra_args:
+            cmd += f" {extra_args}"
 
         self.ctx.run(cmd)
 
