@@ -17,13 +17,13 @@ def _resolve_python_env(bakefile_path) -> Path:
     return python_path.parent.parent
 
 
-def _handle_existing_venv(venv_path, force: bool) -> bool:
+def _handle_existing_venv(venv_path, force: bool) -> None:
     if not venv_path.exists() and not venv_path.is_symlink():
-        return False
+        return
 
     if force and venv_path.is_symlink():
         venv_path.unlink()
-        return False
+        return
 
     if venv_path.is_symlink():
         console.error(
