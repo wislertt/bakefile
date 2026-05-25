@@ -37,6 +37,7 @@ from .find_python import find_python
 from .init import init
 from .lint import lint
 from .run import run
+from .venv import venv
 
 
 def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
@@ -80,6 +81,7 @@ def main():
     bakefile_app.command()(add_inline)
     bakefile_app.command()(find_python)
     bakefile_app.command()(lint)
+    bakefile_app.command()(venv)
     bakefile_app.command()(export)
     bakefile_app.command(context_settings=pass_through_context_settings)(env)
     bakefile_app.command(context_settings=pass_through_context_settings)(uv.sync)
