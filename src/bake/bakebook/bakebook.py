@@ -5,11 +5,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any, ClassVar
 
-import click
 import typer
 from pydantic import Field, PrivateAttr, field_validator
 from pydantic.warnings import PydanticDeprecationWarning
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typer._click.globals import get_current_context
 from typer.core import TyperCommand, TyperGroup
 from typer.main import get_command_name
 from typer.models import CommandFunctionType, Default
@@ -221,7 +221,7 @@ class Bakebook(BaseSettings):
     @property
     def ctx(self) -> Context:
 
-        ctx = click.get_current_context(silent=True)
+        ctx = get_current_context(silent=True)
         if ctx is None:
             raise ContextNotAvailableError(
                 "Command context not available - "

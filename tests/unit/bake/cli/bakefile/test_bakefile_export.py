@@ -6,7 +6,6 @@ import uuid
 from pathlib import Path
 from typing import Any, cast
 
-import click
 import pytest
 import yaml
 from dotenv import dotenv_values
@@ -390,8 +389,10 @@ class TestFilterData:
         assert result == {"FOO": 1, "Bar": 2}
 
     def test_filter_data_unknown_keys_raises(self) -> None:
+        from typer._click.exceptions import BadParameter
+
         data = {"foo": 1}
-        with pytest.raises(click.BadParameter, match="Unknown keys"):
+        with pytest.raises(BadParameter, match="Unknown keys"):
             _filter_data(data, ["unknown"])
 
     def test_filter_data_preserves_original_key_casing(self) -> None:
@@ -429,8 +430,10 @@ class TestExportWithInclude:
         assert set(exported.keys()) == {"NAME", "Count"}
 
     def test_export_with_include_unknown_key_exits(self) -> None:
+        from typer._click.exceptions import BadParameter
+
         bakebook = ComplexVarsBakebook()
-        with pytest.raises(click.BadParameter, match="Unknown keys"):
+        with pytest.raises(BadParameter, match="Unknown keys"):
             _export(bakebook=bakebook, format="json", include=["nonexistent"])
 
 

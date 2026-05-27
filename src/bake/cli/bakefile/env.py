@@ -2,8 +2,8 @@ import sys
 from dataclasses import dataclass
 from typing import Annotated, Any
 
-import click
 import typer
+from typer._click.exceptions import BadArgumentUsage, NoSuchOption, UsageError
 
 from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
@@ -44,7 +44,7 @@ def _parse_env_input(reveal_secrets: bool = False) -> EnvInput:
         dash_idx = sys.argv.index("--")
         cmd = sys.argv[dash_idx + 1 :]
         if not cmd:
-            raise click.UsageError("No command specified after --.")
+            raise UsageError("No command specified after --.")
         raw_args = sys.argv[env_idx + 1 : dash_idx]
     else:
         cmd = None
@@ -54,7 +54,7 @@ def _parse_env_input(reveal_secrets: bool = False) -> EnvInput:
     for a in raw_args:
         if a.startswith("-"):
             if a not in KNOWN_OPTIONS:
-                raise click.NoSuchOption(a, possibilities=list(KNOWN_OPTIONS))
+                raise NoSuchOption(a, possibilities=list(KNOWN_OPTIONS))
         else:
             var_names.append(a)
 
@@ -101,7 +101,7 @@ def _env(bakebook: Bakebook, env_input: EnvInput) -> None:
     elif not env_input.var_names:
         raise typer.Exit(code=0)
     elif len(env_input.var_names) > 1:
-        raise click.BadArgumentUsage(
+        raise BadArgumentUsage(
             "Only one variable name allowed without --. "
             "Use `bakefile env VAR1 VAR2 -- command` to inject multiple vars.",
         )

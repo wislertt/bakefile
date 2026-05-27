@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import ClassVar
 from unittest.mock import patch
 
-import click
 import pytest
 import typer
 from pydantic_settings import SettingsConfigDict
@@ -314,12 +313,15 @@ class TestBakebookCtxProperty:
     def test_ctx_raises_when_wrong_context_type(self) -> None:
         bakebook = Bakebook()
 
-        # Create a plain click.Context (not bake.Context)
-        plain_ctx = click.Context(command=click.Command("test"))
+        # Create a plain typer._click.Context (not bake.Context)
+        from typer._click import Context as _PlainContext
+        from typer.core import TyperCommand
+
+        plain_ctx = _PlainContext(command=TyperCommand("test"))
 
         expected_msg = (
             r"Expected <class 'bake\.cli\.common\.context\.Context'>, "
-            r"got <class 'click\.core\.Context'>"
+            r"got <class 'typer\._click\.core\.Context'>"
         )
         with plain_ctx, pytest.raises(ContextNotAvailableError, match=expected_msg):
             _ = bakebook.ctx

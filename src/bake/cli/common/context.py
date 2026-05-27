@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, overload
 
-import click
 import typer
 from typer.core import TyperCommand
 
@@ -150,7 +149,7 @@ class Context(typer.Context):
 
 
 class BakeCommand(TyperCommand):
-    context_class: type[click.Context] = Context
+    context_class: type[Context] = Context
 
 
 def context(
@@ -164,4 +163,4 @@ def context(
         bake_log_verbosity=verbosity,
     )
 
-    return Context(command=click.Command(name=name), obj=obj, info_name=name)
+    return Context(command=TyperCommand(name=name), obj=obj, info_name=name)

@@ -1,8 +1,8 @@
 import errno
 from unittest.mock import patch
 
-import click
 import pytest
+from typer._click.exceptions import Abort, ClickException, Exit
 
 from bake.cli.common.exception_handler import typer_exception_handler
 
@@ -17,7 +17,7 @@ class TestTyperExceptionHandlerExceptions:
         [
             (EOFError(), 1),
             (KeyboardInterrupt(), 130),
-            (click.Abort(), 1),
+            (Abort(), 1),
             (OSError(errno.EPIPE, "EPIPE"), 1),
         ],
     )
@@ -37,10 +37,10 @@ class TestTyperExceptionHandlerExceptions:
 class TestTyperExceptionHandlerClickException:
     def test_non_standalone_reraises(self):
         with (
-            pytest.raises(click.ClickException, match="Test error"),
+            pytest.raises(ClickException, match="Test error"),
             typer_exception_handler(standalone_mode=False, rich_markup_mode=None),
         ):
-            raise click.ClickException("Test error")
+            raise ClickException("Test error")
 
     @pytest.mark.parametrize(
         ("has_rich", "markup_mode"),
@@ -51,7 +51,7 @@ class TestTyperExceptionHandlerClickException:
         side_effect=_mock_exit_with_system_exit,
     )
     def test_standalone_mode_exits_with_code(self, mock_exit, has_rich, markup_mode):
-        exc = click.ClickException("Test error")
+        exc = ClickException("Test error")
         with (
             patch("bake.cli.common.exception_handler.HAS_RICH", has_rich),
             pytest.raises(SystemExit),
@@ -71,25 +71,25 @@ class TestTyperExceptionHandlerExit:
             pytest.raises(SystemExit),
             typer_exception_handler(standalone_mode=True, rich_markup_mode=None),
         ):
-            raise click.exceptions.Exit(42)
+            raise Exit(42)
         mock_exit.assert_called_with(42)
 
     def test_non_standalone_reraises(self):
         with (
-            pytest.raises(click.exceptions.Exit) as exc_info,
+            pytest.raises(Exit) as exc_info,
             typer_exception_handler(standalone_mode=False, rich_markup_mode=None),
         ):
-            raise click.exceptions.Exit(42)
+            raise Exit(42)
         assert exc_info.value.exit_code == 42
 
 
 class TestTyperExceptionHandlerAbort:
     def test_non_standalone_reraises(self):
         with (
-            pytest.raises(click.Abort),
+            pytest.raises(Abort),
             typer_exception_handler(standalone_mode=False, rich_markup_mode=None),
         ):
-            raise click.Abort()
+            raise Abort()
 
     @patch(
         "bake.cli.common.exception_handler.sys.exit",
@@ -102,7 +102,7 @@ class TestTyperExceptionHandlerAbort:
             pytest.raises(SystemExit),
             typer_exception_handler(standalone_mode=True, rich_markup_mode=markup_mode),
         ):
-            raise click.Abort()
+            raise Abort()
         if not has_rich or markup_mode is None:
             assert "Aborted!" in capsys.readouterr().err
 
@@ -148,7 +148,7 @@ class TestTyperExceptionHandlerMarkupModes:
             patch("bake.cli.common.exception_handler.HAS_RICH", True),
             patch("typer.rich_utils.rich_format_error") as mock_rich,
         ):
-            exc = click.ClickException("Test error")
+            exc = ClickException("Test error")
             with (
                 pytest.raises(SystemExit),
                 typer_exception_handler(standalone_mode=True, rich_markup_mode=markup_mode),
