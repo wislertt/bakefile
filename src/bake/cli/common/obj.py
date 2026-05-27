@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import click
 import typer
 from pydantic import ValidationError
 from rich.traceback import Traceback
+from typer._click.utils import _expand_args
 from typer.core import MarkupMode
 from typer.main import get_command_from_info
 
@@ -162,7 +162,7 @@ def get_args(args: list[str] | None = None, windows_expand_args: bool = True) ->
 
         # Covered in Click tests
         if os.name == "nt" and windows_expand_args:  # pragma: no cover
-            args = click.utils._expand_args(args)
+            args = _expand_args(args)
     else:
         args = list(args)
 

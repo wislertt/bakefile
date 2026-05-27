@@ -4,8 +4,13 @@ from contextlib import contextmanager
 from gettext import gettext
 from typing import TextIO, cast
 
-import click
-from typer._click.exceptions import ClickException as _ClickException
+from typer._click import echo
+from typer._click.exceptions import (
+    Abort,
+    ClickException,
+    Exit,
+)
+from typer._click.utils import PacifyFlushWrapper
 from typer.core import HAS_RICH, MarkupMode
 
 
@@ -20,33 +25,33 @@ def typer_exception_handler(
         try:
             yield
         except EOFError as e:
-            click.echo(file=sys.stderr)
-            raise click.Abort() from e
+            echo(file=sys.stderr)
+            raise Abort() from e
         except KeyboardInterrupt as e:
-            raise click.exceptions.Exit(130) from e
-        except click.ClickException as e:
+            raise Exit(130) from e
+        except ClickException as e:
             if not standalone_mode:
                 raise
             if HAS_RICH and rich_markup_mode is not None:
                 import typer.rich_utils
 
-                typer.rich_utils.rich_format_error(cast(_ClickException, e))
+                typer.rich_utils.rich_format_error(e)
             else:
                 e.show()
             sys.exit(e.exit_code)
         except OSError as e:
             if e.errno == errno.EPIPE:
-                sys.stdout = cast(TextIO, click.utils.PacifyFlushWrapper(sys.stdout))
-                sys.stderr = cast(TextIO, click.utils.PacifyFlushWrapper(sys.stderr))
+                sys.stdout = cast(TextIO, PacifyFlushWrapper(sys.stdout))
+                sys.stderr = cast(TextIO, PacifyFlushWrapper(sys.stderr))
                 sys.exit(1)
             raise
-    except click.exceptions.Exit as e:
+    except Exit as e:
         if standalone_mode:
             sys.exit(e.exit_code)
         else:
             # return exit code to caller
             raise
-    except click.Abort:
+    except Abort:
         if not standalone_mode:
             raise
         if HAS_RICH and rich_markup_mode is not None:
@@ -54,5 +59,5 @@ def typer_exception_handler(
 
             typer.rich_utils.rich_abort_error()
         else:
-            click.echo(gettext("Aborted!"), file=sys.stderr)
+            echo(gettext("Aborted!"), file=sys.stderr)
         sys.exit(1)

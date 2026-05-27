@@ -44,7 +44,6 @@ version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautysh" },
-    { name = "click" },
     { name = "loguru" },
     { name = "orjson" },
     { name = "pydantic" },
@@ -82,7 +81,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "beautysh", specifier = ">=6.4.2" },
-    { name = "click", specifier = ">=8.3.1" },
     { name = "keyring", marker = "extra == 'lib'", specifier = ">=25.7.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "orjson", specifier = ">=3.11.5" },
