@@ -28,9 +28,9 @@ def typer_exception_handler(
             if not standalone_mode:
                 raise
             if HAS_RICH and rich_markup_mode is not None:
-                from typer import rich_utils
+                import typer.rich_utils
 
-                rich_utils.rich_format_error(cast(_ClickException, e))
+                typer.rich_utils.rich_format_error(cast(_ClickException, e))
             else:
                 e.show()
             sys.exit(e.exit_code)
@@ -50,9 +50,9 @@ def typer_exception_handler(
         if not standalone_mode:
             raise
         if HAS_RICH and rich_markup_mode is not None:
-            from typer import rich_utils
+            import typer.rich_utils
 
-            rich_utils.rich_abort_error()
+            typer.rich_utils.rich_abort_error()
         else:
             click.echo(gettext("Aborted!"), file=sys.stderr)
         sys.exit(1)

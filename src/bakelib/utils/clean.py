@@ -24,7 +24,9 @@ def _should_remove_path(path: Path, dry_run: bool) -> None:
     if dry_run:
         return
 
-    if path.is_dir():
+    if path.is_symlink():
+        path.unlink(missing_ok=True)
+    elif path.is_dir():
         shutil.rmtree(path)
     else:
         path.unlink(missing_ok=True)
