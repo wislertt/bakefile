@@ -3,12 +3,12 @@ from collections.abc import Callable, Hashable
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
-import click
 import orjson
 import typer
 import yaml
 from pydantic import SecretBytes, SecretStr
 from pydantic.fields import FieldInfo
+from typer._click.exceptions import BadParameter
 
 from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
@@ -117,7 +117,7 @@ def _filter_data(data: dict[str, Any], include: list[str]) -> dict[str, Any]:
     lower_map = {k.lower(): k for k in data}
     unknown = [i for i in include if i.lower() not in lower_map]
     if unknown:
-        raise click.BadParameter(f"Unknown keys: {', '.join(sorted(unknown))}")
+        raise BadParameter(f"Unknown keys: {', '.join(sorted(unknown))}")
     return {k: data[lower_map[k.lower()]] for k in include}
 
 

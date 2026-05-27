@@ -312,11 +312,11 @@ class TestEnvSecret:
 
 class TestEnvParseEnvInput:
     def test_unknown_option_exits(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import click
+        from typer._click.exceptions import NoSuchOption
 
         monkeypatch.setattr("sys.argv", ["bakefile", "env", "NAME", "-d"])
 
-        with pytest.raises(click.NoSuchOption):
+        with pytest.raises(NoSuchOption):
             from bake.cli.bakefile.env import _parse_env_input
 
             _parse_env_input()
@@ -341,13 +341,13 @@ class TestEnvParseEnvInput:
         assert result.var_names == ["bakefile", "NAME"]
 
     def test_double_dash_no_command_exits(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import click
+        from typer._click.exceptions import UsageError
 
         monkeypatch.setattr("sys.argv", ["bakefile", "env", "--"])
 
         from bake.cli.bakefile.env import _parse_env_input
 
-        with pytest.raises(click.UsageError):
+        with pytest.raises(UsageError):
             _parse_env_input()
 
     def test_double_dash_with_vars_and_command(self, monkeypatch: pytest.MonkeyPatch) -> None:

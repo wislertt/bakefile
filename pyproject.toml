@@ -20,7 +20,7 @@ dependencies = [
   "ruff>=0.14.10",
   "tomli>=2.0.0; python_version < '3.11'",
   "ty>=0.0.8",
-  "typer>=0.21.0",
+  "typer>=0.26.1",
   "uv>=0.9.20"
 ]
 

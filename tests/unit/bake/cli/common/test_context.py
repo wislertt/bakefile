@@ -1,8 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import click
 import pytest
+from typer.core import TyperCommand
 
 from bake import Context
 from bake.cli.common.obj import BakefileObject
@@ -36,7 +36,7 @@ class TestContextProperties:
 
     @pytest.fixture
     def ctx(self, obj: BakefileObject) -> Context:
-        return Context(command=click.Command("test"), obj=obj)
+        return Context(command=TyperCommand("test"), obj=obj)
 
     def test_dry_run(self, ctx: Context) -> None:
         assert ctx.dry_run is True
@@ -59,7 +59,7 @@ class TestContextRunMethod:
             bakebook_name="__bakebook__",
             dry_run=True,
         )
-        return Context(command=click.Command("test"), obj=obj)
+        return Context(command=TyperCommand("test"), obj=obj)
 
     def test_run_injects_dry_run(self, ctx: Context, monkeypatch: pytest.MonkeyPatch) -> None:
         spy_run = MagicMock(return_value=MagicMock())

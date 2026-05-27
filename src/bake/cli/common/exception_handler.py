@@ -5,6 +5,7 @@ from gettext import gettext
 from typing import TextIO, cast
 
 import click
+from typer._click.exceptions import ClickException as _ClickException
 from typer.core import HAS_RICH, MarkupMode
 
 
@@ -29,7 +30,7 @@ def typer_exception_handler(
             if HAS_RICH and rich_markup_mode is not None:
                 from typer import rich_utils
 
-                rich_utils.rich_format_error(e)
+                rich_utils.rich_format_error(cast(_ClickException, e))
             else:
                 e.show()
             sys.exit(e.exit_code)

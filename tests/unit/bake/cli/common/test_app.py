@@ -3,7 +3,6 @@ from importlib import reload
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import click
 import pytest
 import typer
 
@@ -34,7 +33,7 @@ class TestShowHelpIfNoCommand:
         mock_ctx.invoked_subcommand = None
         mock_ctx.get_help.return_value = "Help text"
 
-        with pytest.raises(click.exceptions.Exit):
+        with pytest.raises(RuntimeError):
             show_help_if_no_command(mock_ctx)
         mock_ctx.get_help.assert_called_once()
 
