@@ -163,4 +163,4 @@ def context(
         bake_log_verbosity=verbosity,
     )
 
-    return Context(command=TyperCommand(name=name), obj=obj, info_name=name)
+    return Context(command=BakeCommand(name=name), obj=obj, info_name=name)

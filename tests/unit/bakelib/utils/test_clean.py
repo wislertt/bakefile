@@ -32,6 +32,21 @@ class TestShouldRemovePath:
         assert "Would remove" in captured.out
         assert test_dir.exists()
 
+    def test_non_dry_run_removes_symlink(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        target = tmp_path / "target.txt"
+        target.write_text("content")
+        link = tmp_path / "link.txt"
+        link.symlink_to(target)
+
+        _should_remove_path(link, dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "Removing" in captured.out
+        assert not link.exists()
+        assert target.exists()
+
     def test_non_dry_run_removes_file(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -162,6 +177,24 @@ class TestRemoveGitCleanCandidates:
         captured = capsys.readouterr()
         assert "Removing" in captured.out
         assert not test_dir.exists()
+
+    def test_skips_excluded_patterns_non_dry_run(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        import os
+
+        os.chdir(tmp_path)
+        test_file = tmp_path / "test.log"
+        test_file.write_text("content")
+
+        rel_path = str(test_file.relative_to(tmp_path))
+        output = f"Would remove {rel_path}"
+
+        remove_git_clean_candidates(output, {"*.log"}, dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "Skipping" in captured.out
+        assert test_file.exists()
 
     def test_handles_multiple_lines(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         import os

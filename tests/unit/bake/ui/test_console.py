@@ -303,6 +303,17 @@ def test_github_action_add_mask_prints_to_stdout(capsys: pytest.CaptureFixture[s
         assert captured.err == ""
 
 
+class TestFlush:
+    def test_flush_calls_both_consoles(self) -> None:
+        with (
+            mock.patch.object(console.out.file, "flush") as mock_out_flush,
+            mock.patch.object(console.err.file, "flush") as mock_err_flush,
+        ):
+            console.flush()
+        mock_out_flush.assert_called_once()
+        mock_err_flush.assert_called_once()
+
+
 def test_github_action_add_mask_does_nothing_when_not_github_actions(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

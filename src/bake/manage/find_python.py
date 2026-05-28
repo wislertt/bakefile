@@ -34,6 +34,19 @@ def is_standalone_bakefile(bakefile_path: Path) -> bool:
     return True
 
 
+def _find_project_root(bakefile_path: Path) -> Path | None:
+    """Find directory containing pyproject.toml by searching up from bakefile's parent."""
+    current = bakefile_path.parent
+    if (current / "pyproject.toml").exists():
+        logger.debug(f"Found project root at {current}")
+        return current
+    for directory in current.parents:
+        if (directory / "pyproject.toml").exists():
+            logger.debug(f"Found project root at {directory}")
+            return directory
+    return None
+
+
 def _find_bakefile_lock(bakefile_path: Path) -> Path | None:
     """Find bakefile-level lock (<bakefile.py.lock>)."""
     lock_path = bakefile_path.with_suffix(bakefile_path.suffix + ".lock")
@@ -44,18 +57,11 @@ def _find_bakefile_lock(bakefile_path: Path) -> Path | None:
     return None
 
 
-def _find_project_lock(bakefile_path: Path) -> Path | None:
-    """Find project-level uv.lock by searching up directory tree."""
-    current_dir = bakefile_path.parent
-    for _ in range(10):  # Limit search depth
-        uv_lock = current_dir / "uv.lock"
-        if uv_lock.exists():
-            logger.debug(f"Found project lock at {uv_lock}")
-            return uv_lock
-        parent = current_dir.parent
-        if parent == current_dir:  # Reached root
-            break
-        current_dir = parent
+def _find_project_lock(project_root: Path) -> Path | None:
+    lock_path = project_root / "uv.lock"
+    if lock_path.exists():
+        logger.debug(f"Found project lock at {lock_path}")
+        return lock_path
     logger.debug("No project lock found")
     return None
 
@@ -88,7 +94,7 @@ def _find_bakefile_python(bakefile_path: Path) -> Path | None:
     return None
 
 
-def _find_project_python(bakefile_path: Path) -> Path | None:
+def _find_project_python(project_root: Path) -> Path | None:
     """Find Python from project-level venv using uv python find -v."""
     # References:
     #   https://github.com/astral-sh/uv/blob/543f1f3f5924d1d2734fd718381e6f0d0f6f70b5/crates/uv-python/src/discovery.rs#L795
@@ -96,7 +102,7 @@ def _find_project_python(bakefile_path: Path) -> Path | None:
     result = run_uv(
         ["python", "find", "-v"],
         check=False,
-        cwd=bakefile_path.parent,
+        cwd=project_root,
         echo=False,
     )
 
@@ -164,29 +170,21 @@ def _create_bakefile_venv(bakefile_path: Path) -> Path | None:
     return _find_bakefile_python(bakefile_path)
 
 
-def _create_project_venv(bakefile_path: Path) -> Path | None:
+def _create_project_venv(project_root: Path) -> Path | None:
     """Create project-level venv and return Python path."""
-    work_dir = bakefile_path.parent
-
-    # Check if pyproject.toml exists
-    pyproject = work_dir / "pyproject.toml"
-    if not pyproject.exists():
-        logger.debug("No pyproject.toml found, cannot create project venv")
-        return None
-
-    lock_path = _find_project_lock(bakefile_path)
+    lock_path = _find_project_lock(project_root)
 
     if lock_path:
         # Use frozen sync if lock exists
         logger.debug("Syncing project with frozen lock")
-        run_uv(["sync", "--frozen"], check=True, cwd=work_dir, echo=False)
+        run_uv(["sync", "--frozen"], check=True, cwd=project_root, echo=False)
     else:
         # Create new lock and sync
         logger.debug("Creating project lock and syncing")
-        run_uv(["lock"], check=True, cwd=work_dir, echo=False)
-        run_uv(["sync"], check=True, cwd=work_dir, echo=False)
+        run_uv(["lock"], check=True, cwd=project_root, echo=False)
+        run_uv(["sync"], check=True, cwd=project_root, echo=False)
 
-    return _find_project_python(bakefile_path)
+    return _find_project_python(project_root)
 
 
 def find_python_path(bakefile_path: Path | None) -> Path:
@@ -211,13 +209,21 @@ def find_python_path(bakefile_path: Path | None) -> Path:
     else:
         logger.debug("No inline metadata -> project-level Python")
 
+        # project_root = directory containing pyproject.toml
+        project_root = _find_project_root(bakefile_path)
+        if project_root is None:
+            raise PythonNotFoundError(
+                f"No pyproject.toml found in {bakefile_path.parent} or any parent directory. "
+                f"Create a pyproject.toml or run 'bakefile add-inline' for bakefile-level Python."
+            )
+
         # Step 1: Try to find existing project-level Python
-        python_path = _find_project_python(bakefile_path)
+        python_path = _find_project_python(project_root)
         if python_path:
             return python_path
 
         # Step 2: Create project-level venv
-        python_path = _create_project_venv(bakefile_path)
+        python_path = _create_project_venv(project_root)
         if python_path:
             return python_path
 

@@ -10,10 +10,11 @@
 
 import logging
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
-from bake import Bakebook, command, console
+from bake import Bakebook, command, console, params
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,11 @@ class MyBakebook(Bakebook):
         console.echo(f"Doing foo with {self.foo_url}")
 
     @command()
-    def update(self) -> None:
+    def update(
+        self,
+        fast: Annotated[bool, params.FastBoolOption] = False,
+    ) -> None:
+        _ = fast
         self.ctx.run("bakefile lock --upgrade")
         self.ctx.run("bakefile sync")
 

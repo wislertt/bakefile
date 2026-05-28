@@ -6,8 +6,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bake.manage.find_python import _find_project_python, find_python_path
-from bake.ui import run_uv
+from bake.manage.find_python import (
+    _find_project_python,
+    _find_project_root,
+    find_python_path,
+)
+from bake.ui import run, run_uv
 from bake.ui.logger import (
     capsys_to_logs,
     count_message_in_logs,
@@ -15,8 +19,9 @@ from bake.ui.logger import (
     setup_logging,
 )
 from bake.utils import BakebookError
-from bake.utils.constants import DEFAULT_FILE_NAME
+from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
 from bake.utils.exceptions import PythonNotFoundError
+from tests.utils.cli import RunCli
 
 
 def assert_bakefile_level_python_exe(python_path: Path):
@@ -282,17 +287,11 @@ def test_find_python_with_empty_project_no_inline_metadata(
         logs,
         [
             "No inline metadata -> project-level Python",
-            "No project Python found",
-            "No pyproject.toml found, cannot create project venv",
         ],
     )
     error_message = str(exc_info.value)
-    assert "Could not find Python for" in error_message
-    assert str(bakefile_path) in error_message
-    assert (
-        "Run 'bakefile add-inline' to add PEP 723 metadata for bakefile-level Python."
-        in error_message
-    )
+    assert "No pyproject.toml found in" in error_message
+    assert str(bakefile_path.parent) in error_message
 
 
 def test_find_python_with_invalid_inline(
@@ -349,12 +348,11 @@ class TestFindProjectPythonEdgeCases:
     """Tests for _find_project_python edge cases."""
 
     def test_find_project_python_returns_none_on_non_zero_returncode(
-        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: uv python find returns non-zero returncode."""
         # Arrange ================
         setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
 
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 1
@@ -364,7 +362,7 @@ class TestFindProjectPythonEdgeCases:
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
             _ = capfd.readouterr()
-            result = _find_project_python(bakefile_path)
+            result = _find_project_python(tmp_path)
 
             # Assert =================
             assert result is None
@@ -372,12 +370,11 @@ class TestFindProjectPythonEdgeCases:
             assert has_messages_in_logs(logs, ["No project Python found"])
 
     def test_find_project_python_returns_none_on_pattern_mismatch(
-        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: uv python find succeeds but stderr doesn't match expected pattern."""
         # Arrange ================
         setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
 
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
@@ -387,7 +384,7 @@ class TestFindProjectPythonEdgeCases:
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
             _ = capfd.readouterr()
-            result = _find_project_python(bakefile_path)
+            result = _find_project_python(tmp_path)
 
             # Assert =================
             assert result is None
@@ -395,12 +392,11 @@ class TestFindProjectPythonEdgeCases:
             assert has_messages_in_logs(logs, ["No project Python found"])
 
     def test_find_project_python_returns_none_on_source_mismatch(
-        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: stderr matches pattern but source is not virtual environment."""
         # Arrange ================
         setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
 
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
@@ -410,7 +406,7 @@ class TestFindProjectPythonEdgeCases:
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
             _ = capfd.readouterr()
-            result = _find_project_python(bakefile_path)
+            result = _find_project_python(tmp_path)
 
             # Assert =================
             assert result is None
@@ -418,12 +414,11 @@ class TestFindProjectPythonEdgeCases:
             assert has_messages_in_logs(logs, ["No project Python found"])
 
     def test_find_project_python_returns_none_on_path_mismatch(
-        self, empty_project_folder_no_inline: Path, capfd: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Case: Python path from stderr log doesn't match stdout (inconsistent output)."""
         # Arrange ================
         setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-        bakefile_path = empty_project_folder_no_inline / DEFAULT_FILE_NAME
 
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
@@ -435,7 +430,7 @@ class TestFindProjectPythonEdgeCases:
         with patch("bake.manage.find_python.run_uv", return_value=mock_result):
             # Act ====================
             _ = capfd.readouterr()
-            result = _find_project_python(bakefile_path)
+            result = _find_project_python(tmp_path)
 
             # Assert =================
             assert result is None
@@ -444,3 +439,174 @@ class TestFindProjectPythonEdgeCases:
                 logs,
                 ["Python path mismatch between log and stdout", "No project Python found"],
             )
+
+
+class TestFindProjectRoot:
+    """Tests for _find_project_root."""
+
+    def test_returns_parent_when_pyproject_adjacent(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text("")
+        (tmp_path / "bakefile.py").write_text("")
+        bakefile_path = tmp_path / "bakefile.py"
+
+        result = _find_project_root(bakefile_path)
+
+        assert result == tmp_path
+
+    def test_returns_ancestor_when_pyproject_in_parent(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text("")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        bakefile_path = sub / "bakefile.py"
+        bakefile_path.write_text("")
+
+        result = _find_project_root(bakefile_path)
+
+        assert result == tmp_path
+
+    def test_returns_nearest_pyproject_in_nested_structure(self, tmp_path: Path) -> None:
+        # Two pyproject.toml — should find the nearest one going up
+        (tmp_path / "pyproject.toml").write_text("")
+        mid = tmp_path / "mid"
+        mid.mkdir()
+        (mid / "pyproject.toml").write_text("")
+        sub = mid / "sub"
+        sub.mkdir()
+        bakefile_path = sub / "bakefile.py"
+        bakefile_path.write_text("")
+
+        result = _find_project_root(bakefile_path)
+
+        assert result == mid
+
+    def test_returns_none_when_no_pyproject(self, tmp_path: Path) -> None:
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        bakefile_path = sub / "bakefile.py"
+        bakefile_path.write_text("")
+
+        result = _find_project_root(bakefile_path)
+
+        assert result is None
+
+
+def test_find_python_project_root_subfolder_with_lock_and_venv(
+    uv_project_folder_without_dep: Path,
+    capfd: pytest.CaptureFixture[str],
+    isolate_virtual_env: None,
+) -> None:
+    """Case: bakefile in subfolder, pyproject.toml + uv.lock + .venv at root."""
+    _ = isolate_virtual_env
+    # Arrange ================
+    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+    # Move bakefile into subfolder
+    subfolder = uv_project_folder_without_dep / "sub"
+    subfolder.mkdir()
+    bakefile_src = uv_project_folder_without_dep / DEFAULT_FILE_NAME
+    bakefile_dst = subfolder / DEFAULT_FILE_NAME
+    bakefile_src.rename(bakefile_dst)
+    # Set up lock and venv at project root
+    run_uv(["add", "leetcode-py-sdk"], cwd=uv_project_folder_without_dep)
+
+    # Act ====================
+    _ = capfd.readouterr()
+    python_path = find_python_path(bakefile_dst)
+
+    # Assert =================
+    logs = capsys_to_logs(capfd)
+    assert has_messages_in_logs(
+        logs,
+        [
+            "No inline metadata -> project-level Python",
+            re.escape(f"Found project Python at {python_path} (source: virtual environment)"),
+        ],
+    )
+    assert assert_project_level_python_exe(python_path, uv_project_folder_without_dep)
+
+
+def test_find_python_project_root_subfolder_no_lock_no_venv(
+    uv_project_folder_without_dep: Path,
+    capfd: pytest.CaptureFixture[str],
+    isolate_virtual_env: None,
+) -> None:
+    """Case: bakefile in subfolder, pyproject.toml at root, no lock/venv."""
+    _ = isolate_virtual_env
+    # Arrange ================
+    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+    subfolder = uv_project_folder_without_dep / "sub"
+    subfolder.mkdir()
+    bakefile_src = uv_project_folder_without_dep / DEFAULT_FILE_NAME
+    bakefile_dst = subfolder / DEFAULT_FILE_NAME
+    bakefile_src.rename(bakefile_dst)
+
+    # Act ====================
+    _ = capfd.readouterr()
+    python_path = find_python_path(bakefile_dst)
+
+    # Assert =================
+    logs = capsys_to_logs(capfd)
+    assert has_messages_in_logs(
+        logs,
+        [
+            "No inline metadata -> project-level Python",
+            "No project Python found",
+            "No project lock found",
+            "Creating project lock and syncing",
+            re.escape(f"Found project Python at {python_path} (source: virtual environment)"),
+        ],
+    )
+    assert assert_project_level_python_exe(python_path, uv_project_folder_without_dep)
+
+
+def test_find_python_standalone_in_project_subfolder(
+    uv_project_folder_without_dep: Path,
+    run_cli: RunCli,
+) -> None:
+    """Case: standalone bakefile in subfolder with pyproject.toml in ancestor.
+
+    Should use bakefile-level Python (PEP 723), ignoring project root.
+    """
+    # Arrange ================
+    subfolder = uv_project_folder_without_dep / "sub"
+    subfolder.mkdir()
+    run_cli(
+        command=CMD_BAKEFILE,
+        dir_path=subfolder,
+        args=[CMD_INIT, "--inline"],
+    )
+    run(
+        ["bakefile", "add", f"bakefile @ {Path.cwd().as_posix()}"],
+        cwd=subfolder,
+    )
+    bakefile_path = subfolder / DEFAULT_FILE_NAME
+    run_uv(
+        ["add", "leetcode-py-sdk", "--script", str(bakefile_path.name)],
+        cwd=subfolder,
+    )
+
+    # Act ====================
+    python_path = find_python_path(bakefile_path)
+
+    # Assert =================
+    # Bakefile-level Python lives in uv cache, not in project .venv
+    assert assert_bakefile_level_python_exe(python_path)
+
+
+def test_find_python_project_venv_creation_fails(
+    uv_project_folder_without_dep: Path,
+    isolate_virtual_env: None,
+) -> None:
+    """Case: project root found, venv creation returns None -> final fallback error."""
+    _ = isolate_virtual_env
+    bakefile_path = uv_project_folder_without_dep / DEFAULT_FILE_NAME
+
+    with (
+        patch("bake.manage.find_python._find_project_python", return_value=None),
+        patch("bake.manage.find_python._create_project_venv", return_value=None),
+        pytest.raises(PythonNotFoundError) as exc_info,
+    ):
+        find_python_path(bakefile_path)
+
+    error_message = str(exc_info.value)
+    assert "Could not find Python for" in error_message
+    assert str(bakefile_path) in error_message

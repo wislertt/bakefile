@@ -200,6 +200,11 @@ def error(message: str, **kwargs) -> None:
         prefix_err(emoji=":x:", label="ERROR", style="bold red", message=message, **kwargs)
 
 
+def flush() -> None:
+    out.file.flush()
+    err.file.flush()
+
+
 def github_action_add_mask(value: str, **kwargs) -> None:
     if bake_settings.github_actions:
         out.print(f"::add-mask::{value}", **kwargs)
