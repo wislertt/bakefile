@@ -1,8 +1,7 @@
 import pytest
 import typer
 
-from bake import Context
-from bakelib.space import params
+from bake import Context, params
 from bakelib.space.service import BaseServiceSpace
 
 

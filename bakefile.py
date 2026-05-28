@@ -42,7 +42,7 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
             if not example_dir.is_dir():
                 continue
             console.start(f"Updating {example_dir}")
-            self.ctx.run("bake update", cwd=example_dir)
+            self.ctx.run("bake update --fast", cwd=example_dir)
 
     def _update_hooks(self) -> None:
         hooks_dir = Path(".claude/hooks")

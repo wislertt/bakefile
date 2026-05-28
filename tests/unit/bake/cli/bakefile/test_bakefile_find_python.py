@@ -113,4 +113,4 @@ def test_find_python_cli_error_no_inline_metadata_no_project(
 
     assert result.exit_code == 1
     assert get_error_label() in result.err
-    assert "Could not find Python for" in result.err
+    assert "No pyproject.toml found in" in result.err

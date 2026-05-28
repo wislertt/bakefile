@@ -1,5 +1,5 @@
 import functools
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -224,7 +224,7 @@ class BaseSubEnv(BaseEnv):
         """
         # Sort by length descending to match multi-char codes before single-char
         flat_envs = self.flattened_envs
-        main_codes = cast(list[str], sorted(flat_envs, key=len, reverse=True))
+        main_codes = sorted(flat_envs, key=len, reverse=True)
 
         for main in main_codes:
             if code == main:

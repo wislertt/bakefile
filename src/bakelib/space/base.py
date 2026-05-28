@@ -8,10 +8,10 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console, run
+from bake._params import fast_bool_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
-from .params import fast_bool_option
 from .utils import (
     install_mise_tools,
     orjson_default,
