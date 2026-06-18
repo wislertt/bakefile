@@ -32,7 +32,7 @@ jobs:
 
         steps:
             - name: checkout
-              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
               with:
                   fetch-depth: 0
 
@@ -75,7 +75,7 @@ jobs:
 
             - name: upload-coverage-reports-to-codecov
               if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-              uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+              uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
               with:
                   fail_ci_if_error: true
                   token: ${{ secrets.CODECOV_TOKEN }}
@@ -83,6 +83,6 @@ jobs:
 
             - name: sonarqube-scan
               if: matrix.os == 'ubuntu-latest' && matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
-              uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+              uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
               env:
                   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

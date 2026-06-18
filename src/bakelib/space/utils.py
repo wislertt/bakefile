@@ -18,7 +18,7 @@ def orjson_default(obj):
 
 def setup_brew(ctx: Context) -> None:
     ctx.run("brew update")
-    ctx.run("brew upgrade")
+    ctx.run("brew upgrade --yes")
     ctx.run("brew cleanup")
     ctx.run("brew list")
     ctx.run("brew leaves")
