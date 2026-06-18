@@ -14,9 +14,11 @@ from tests.conftest import RunCli
 class TestMain:
     @pytest.mark.parametrize(
         "dir_fixture,args",
-        itertools.product(
-            [None, "examples_simple_dir", "no_bakefile_dir"],
-            [[], ["--help"]],
+        list(
+            itertools.product(
+                [None, "examples_simple_dir", "no_bakefile_dir"],
+                [[], ["--help"]],
+            )
         ),
     )
     def test_main_shows_help(
@@ -44,9 +46,11 @@ class TestMain:
 
     @pytest.mark.parametrize(
         "dir_fixture,args",
-        itertools.product(
-            [None, "examples_simple_dir", "no_bakefile_dir"],
-            [["--version"]],
+        list(
+            itertools.product(
+                [None, "examples_simple_dir", "no_bakefile_dir"],
+                [["--version"]],
+            )
         ),
     )
     def test_main_shows_version(
