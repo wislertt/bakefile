@@ -26,7 +26,15 @@ from bake.ui.logger import (
     setup_logging,
     strip_ansi,
 )
-from bake.ui.run import run
+from bake.ui.run import (
+    CliTask,
+    CmdType,
+    report_completed_process,
+    report_completed_processes,
+    run,
+    run_concurrently,
+    run_concurrently_with_report,
+)
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
     DEFAULT_BAKE_LOG_PRETTY,
@@ -45,6 +53,8 @@ __all__ = [
     "BakeCommand",
     "Bakebook",
     "BakebookMixin",
+    "CliTask",
+    "CmdType",
     "Context",
     "GCPJsonSink",
     "GCPLogKey",
@@ -71,7 +81,11 @@ __all__ = [
     "params",
     "parse_bake_log",
     "parse_pretty_log",
+    "report_completed_process",
+    "report_completed_processes",
     "run",
+    "run_concurrently",
+    "run_concurrently_with_report",
     "run_script",
     "serialize_bake_log",
     "setup_logging",

@@ -18,6 +18,7 @@ from rich.text import Text
 
 from bake.ui import console
 from bake.ui.run.splitter import OutputSplitter
+from bake.ui.style import code
 from bake.utils.settings import ENV__BAKE_REINVOKED
 
 # Import pty on Unix systems for color-preserving PTY support
@@ -425,6 +426,37 @@ def _dry_run_result(
     )
 
 
+def _separator() -> None:
+    console.err.print("[dim]" + "─" * 28 + "[/dim]")
+
+
+def _labeled_separator(label: str) -> None:
+    console.err.print(f"[dim]{'─' * 10} {label} {'─' * 10}[/dim]")
+
+
+def _cmd_name(cmd_str: str) -> str:
+    max_len = 50
+    if len(cmd_str) > max_len:
+        return cmd_str[: max_len - 3] + "..."
+    return cmd_str
+
+
+def _dump_output(
+    result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None],
+    name: str,
+) -> None:
+    if result.stdout or result.stderr:
+        if result.stdout:
+            _labeled_separator("stdout")
+            console.err.print(Text.from_ansi(result.stdout.rstrip()), highlight=False)
+        if result.stderr:
+            _labeled_separator("stderr")
+            console.err.print(Text.from_ansi(result.stderr.rstrip()), highlight=False)
+    else:
+        # No captured output: identify the failing command (truncated).
+        console.error(f"Command {code(name)} failed with exit code {result.returncode}")
+
+
 def _check_exit_code(
     result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None],
     check: bool,
@@ -442,19 +474,7 @@ def _check_exit_code(
         )
         # Show output if not streamed (user hasn't seen it)
         if not stream:
-            if result.stderr:
-                console.err.print(result.stderr, end="")
-            elif result.stdout:
-                console.err.print(result.stdout, end="")
-            else:
-                # Truncate long commands with ellipsis
-                max_len = 50
-                if len(cmd_str_for_display) > max_len:
-                    truncated = cmd_str_for_display[: max_len - 3] + "..."
-                else:
-                    truncated = cmd_str_for_display
-                cmd_text = Text(truncated, no_wrap=True)
-                console.error(f"Command '{cmd_text}' failed with exit code {result.returncode}")
+            _dump_output(result, _cmd_name(cmd_str_for_display))
         raise typer.Exit(result.returncode)
 
 
