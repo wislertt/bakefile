@@ -125,6 +125,7 @@ def report_completed_process(
     if not summary and (result.stdout or result.stderr):
         _dump_output(result, name)
         _separator()
+        console.err.print()
     return True
 
 
