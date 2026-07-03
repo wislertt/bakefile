@@ -1,7 +1,9 @@
 import importlib
+import os
 import subprocess
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 import typer
@@ -14,6 +16,7 @@ from bake.ui.run.concurrent import (
     report_completed_processes,
     run_concurrently,
     run_concurrently_with_report,
+    spawn_env,
 )
 
 # Grab the module object (not the same-named function re-exported into the
@@ -76,34 +79,25 @@ class TestRunConcurrently:
         for item in completed:
             assert item.result.returncode == 0
 
-    def test_forwards_dry_run_and_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_forwards_dry_run_and_task_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls: list[dict] = []
         monkeypatch.setattr(rc, "run", _make_fake_run(calls))
 
         run_concurrently(
-            [CliTask(name="t", command=["c"], cwd="d")],
+            [CliTask(name="t", command=["c"], cwd="d", env={"VIRTUAL_ENV": ""})],
             dry_run=True,
-            env={"VIRTUAL_ENV": ""},
         )
 
         assert calls[0]["dry_run"] is True
         assert calls[0]["env"] == {"VIRTUAL_ENV": ""}
 
-    def test_task_env_overrides_function_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_task_without_env_forwards_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls: list[dict] = []
         monkeypatch.setattr(rc, "run", _make_fake_run(calls))
 
-        run_concurrently(
-            [
-                CliTask(name="default", command=["c0"], cwd=None),
-                CliTask(name="override", command=["c1"], cwd=None, env={"FOO": "bar"}),
-            ],
-            env={"VIRTUAL_ENV": ""},
-        )
+        run_concurrently([CliTask(name="t", command=["c"], cwd="d")])
 
-        envs = {c["cmd"][0]: c["env"] for c in calls}
-        assert envs["c0"] == {"VIRTUAL_ENV": ""}
-        assert envs["c1"] == {"FOO": "bar"}
+        assert calls[0]["env"] is None
 
     def test_enforces_concurrency_safe_run_options(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls: list[dict] = []
@@ -115,6 +109,14 @@ class TestRunConcurrently:
         assert calls[0]["capture_output"] is True
         assert calls[0]["check"] is False
         assert calls[0]["echo"] is False
+
+    def test_task_echo_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls: list[dict] = []
+        monkeypatch.setattr(rc, "run", _make_fake_run(calls))
+
+        run_concurrently([CliTask(name="t", command=["c"], cwd=None, echo=True)])
+
+        assert calls[0]["echo"] is True
 
     def test_default_max_workers_clamped_to_task_count(
         self, monkeypatch: pytest.MonkeyPatch
@@ -182,11 +184,11 @@ class TestReportCompletedProcess:
         assert " stdout " in combined and "out blob" in combined
         assert " stderr " in combined and "err blob" in combined
 
-    def test_summary_suppresses_dump(self, capsys: pytest.CaptureFixture) -> None:
+    def test_show_fail_output_false_suppresses_dump(self, capsys: pytest.CaptureFixture) -> None:
         failed = report_completed_process(
             "boom",
             _result(returncode=3, stdout="out blob", stderr="err blob"),
-            summary=True,
+            show_fail_output=False,
         )
 
         assert failed is True
@@ -197,6 +199,24 @@ class TestReportCompletedProcess:
         assert "err blob" not in combined
         assert " stdout " not in combined
         assert " stderr " not in combined
+
+    def test_success_output_hidden_by_default(self, capsys: pytest.CaptureFixture) -> None:
+        report_completed_process("ok", _result(returncode=0, stdout="out blob", stderr="err blob"))
+        captured = capsys.readouterr()
+        combined = strip_ansi(captured.out + captured.err)
+        assert "out blob" not in combined
+        assert "err blob" not in combined
+
+    def test_show_success_output_dumps_on_success(self, capsys: pytest.CaptureFixture) -> None:
+        report_completed_process(
+            "ok",
+            _result(returncode=0, stdout="out blob", stderr="err blob"),
+            show_success_output=True,
+        )
+        captured = capsys.readouterr()
+        combined = strip_ansi(captured.out + captured.err)
+        assert "out blob" in combined
+        assert "err blob" in combined
 
 
 class TestReportCompletedProcesses:
@@ -227,14 +247,16 @@ class TestReportCompletedProcesses:
         assert " stdout " in combined and "out blob" in combined
         assert " stderr " in combined and "err blob" in combined
 
-    def test_summary_suppresses_dump_but_raises(self, capsys: pytest.CaptureFixture) -> None:
+    def test_show_fail_output_false_suppresses_dump_but_raises(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         completed = [
             _completed(name="ok"),
             _completed(name="boom", returncode=2, stdout="out blob", stderr="err blob"),
         ]
 
         with pytest.raises(typer.Exit) as exc:
-            report_completed_processes(completed, summary=True)
+            report_completed_processes(completed, show_fail_output=False)
 
         assert exc.value.exit_code == 1
         captured = capsys.readouterr()
@@ -274,3 +296,39 @@ class TestRunConcurrentlyWithReport:
             run_concurrently_with_report([CliTask(name="boom", command=["c"])])
 
         assert exc.value.exit_code == 1
+
+
+class TestSpawnEnv:
+    def test_no_args_clears_virtual_env_only(self) -> None:
+        assert spawn_env() == {"VIRTUAL_ENV": ""}
+
+    def test_clears_virtual_env_by_default(self) -> None:
+        assert spawn_env("some/dir") == {"VIRTUAL_ENV": ""}
+
+    def test_no_path_key_when_not_prepend(self) -> None:
+        assert "PATH" not in spawn_env("proj")
+
+    def test_prepend_venv_prepends_child_bin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PATH", "/usr/bin:/bin")
+        env = spawn_env("proj", prepend_venv=True)
+
+        venv_bin = os.path.join(os.path.abspath("proj"), ".venv", "bin")
+        assert env["PATH"] == f"{venv_bin}:/usr/bin:/bin"
+
+    def test_prepend_venv_with_none_cwd_uses_getcwd(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("PATH", "/usr/bin")
+        monkeypatch.chdir(tmp_path)
+        env = spawn_env(prepend_venv=True)
+
+        assert env["PATH"].startswith(str(tmp_path / ".venv" / "bin"))
+
+    def test_prepend_venv_resolves_relative_cwd_to_absolute(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PATH", "/usr/bin")
+        env = spawn_env(tmp_path, prepend_venv=True)
+
+        assert env["PATH"].startswith(str(tmp_path / ".venv" / "bin"))
+        assert not str(tmp_path / ".venv" / "bin").startswith(".")

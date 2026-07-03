@@ -6,6 +6,7 @@ from bake.ui.run.concurrent import (
     report_completed_processes,
     run_concurrently,
     run_concurrently_with_report,
+    spawn_env,
 )
 from bake.ui.run.main import CmdType, OutputSplitter, run
 from bake.ui.run.script import run_script
@@ -24,4 +25,5 @@ __all__ = [
     "run_concurrently_with_report",
     "run_script",
     "run_uv",
+    "spawn_env",
 ]

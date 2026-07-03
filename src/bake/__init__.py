@@ -34,6 +34,7 @@ from bake.ui.run import (
     run,
     run_concurrently,
     run_concurrently_with_report,
+    spawn_env,
 )
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
@@ -89,6 +90,7 @@ __all__ = [
     "run_script",
     "serialize_bake_log",
     "setup_logging",
+    "spawn_env",
     "strip_ansi",
     "style",
     "unwrap",
