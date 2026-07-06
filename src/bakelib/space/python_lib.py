@@ -15,7 +15,7 @@ class PythonLibSpace(PythonSpace, BaseLibSpace):
 
     def get_publisher(self, registry: str) -> PyPIPublisher:
         """Return the PyPI publisher instance for the given registry."""
-        return PyPIPublisher(self.ctx, registry)
+        return PyPIPublisher(registry)
 
     def publish(
         self,

@@ -30,7 +30,7 @@ class Publisher(ABC):
 
     valid_registries: tuple[str, ...]
 
-    def __init__(self, ctx: "Context", registry: str) -> None:
+    def __init__(self, registry: str) -> None:
         from bake import console
 
         super().__init__()
@@ -39,7 +39,6 @@ class Publisher(ABC):
                 f"Invalid registry: {registry!r}. Expected one of {self.valid_registries}."
             )
             raise typer.Exit(1)
-        self.ctx: Context = ctx
         self.registry = registry
         self._dummy_publish_token: str = "dummy-token-for-dry-run"
 
@@ -49,11 +48,11 @@ class Publisher(ABC):
         ...
 
     @abstractmethod
-    def _build_for_publish(self):
+    def _build_for_publish(self, ctx: "Context"):
         """Build the package for publishing."""
         ...
 
-    def _publish_with_token(self, token: str | None) -> PublishResult:
+    def _publish_with_token(self, ctx: "Context", token: str | None) -> PublishResult:
         """Publish with the given token."""
         env: dict[str, str] = {}
         # Convert empty string to None, then use dummy token for both None and empty string cases
@@ -63,7 +62,7 @@ class Publisher(ABC):
         )
         self._setup_token_env(env, effective_token)
 
-        result = self._execute_publish_command(env, effective_token)
+        result = self._execute_publish_command(ctx, env, effective_token)
 
         return self._determine_publish_result(token=token, result=result)
 
@@ -74,7 +73,7 @@ class Publisher(ABC):
 
     @abstractmethod
     def _execute_publish_command(
-        self, env: dict[str, str], token: str | None
+        self, ctx: "Context", env: dict[str, str], token: str | None
     ) -> subprocess.CompletedProcess[str]:
         """Execute the publish command."""
         ...

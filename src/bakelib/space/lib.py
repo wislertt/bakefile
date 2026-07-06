@@ -88,7 +88,7 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
         self._pre_publish_setup()
 
         with self._version_bump_context(version):
-            self._publisher._build_for_publish()
+            self._publisher._build_for_publish(self.ctx)
             publish_result = self._execute_publish(cached_publish_token=cached_publish_token)
 
         self._handle_publish_result(publish_result=publish_result)
@@ -114,7 +114,7 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
                 raise ValueError("_publisher is not set. Call `get_publisher` first.")
 
             token_value = cached_publish_token.get_value()
-            publish_result = self._publisher._publish_with_token(token=token_value)
+            publish_result = self._publisher._publish_with_token(self.ctx, token=token_value)
 
             if publish_result.status == PublishStatus.AUTH_FAILED:
                 raise cached_publish_token.RefreshNeededError

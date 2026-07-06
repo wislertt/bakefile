@@ -15,7 +15,7 @@ class RustLibSpace(RustSpace, BaseLibSpace):
 
     def get_publisher(self, registry: str) -> CratesPublisher:
         """Return the Crates publisher instance for the given registry."""
-        return CratesPublisher(self.ctx, registry)
+        return CratesPublisher(registry)
 
     def publish(
         self,
