@@ -454,6 +454,15 @@ class TestBaseLibSpaceSecretIntegration:
         # No token and no publisher
         assert space._get_publish_token() is None
 
+    def test_get_publish_token_delegates_to_publisher_when_no_local_token(
+        self, mock_ctx: Context
+    ) -> None:
+        with mock_ctx:
+            space = MinimalTestLibSpace()
+            space._publisher = space.get_publisher("test-pypi")
+        # bake_publish_token is None, so falls through to publisher
+        assert space._get_publish_token() is None
+
     def test_pre_publish_setup_raises_when_publisher_not_set(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
