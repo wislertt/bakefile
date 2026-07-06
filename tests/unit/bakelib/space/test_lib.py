@@ -1,5 +1,6 @@
 import subprocess
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 import pytest
 import typer
@@ -8,7 +9,13 @@ from pydantic import SecretStr
 from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.publisher import Publisher
-from bakelib.refreshable_cache import ChainedCache, KeyringCache, NullCache, RefreshableCache
+from bakelib.refreshable_cache import (
+    ChainedCache,
+    FetchFn,
+    KeyringCache,
+    NullCache,
+    RefreshableCache,
+)
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import BaseLibSpace, PublishResult, PublishStatus
 
@@ -427,21 +434,15 @@ class TestBaseLibSpaceGetRequiredCliTools:
 class TestBaseLibSpaceSecretIntegration:
     """Tests for BaseLibSpace secret-related methods."""
 
-    def test_get_secret_keys_includes_publish_keys(self) -> None:
+    def test_vault_includes_publish_keys_after_access(self) -> None:
         class LibSpaceWithRegistries(MinimalTestLibSpace):
             def get_publish_registries(self) -> set[str]:
                 return {"pypi", "test-pypi"}
 
         space = LibSpaceWithRegistries()
-        keys = space.get_secret_keys()
-        assert "publish-token-pypi" in keys
-        assert "publish-token-test-pypi" in keys
-
-    def test_get_fetch_fn_returns_super_for_non_publish_keys(self) -> None:
-        space = MinimalTestLibSpace()
-        fetch_fn = space._get_fetch_fn("other-key")
-        # Should return null_fetch_fn from parent
-        assert fetch_fn() is None
+        vault = space.vault()
+        assert "publish-token-pypi" in vault
+        assert "publish-token-test-pypi" in vault
 
     def test_get_publish_token_returns_token_when_set(self) -> None:
         space = MinimalTestLibSpace()
@@ -475,3 +476,49 @@ class TestBaseLibSpaceSecretIntegration:
         )
         with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
             space._execute_publish(cached_publish_token=cache)
+
+
+# --- Demo: user fetches non-publish secrets from a remote secret manager ---
+
+
+@dataclass(frozen=True)
+class GCPSecretFetchFn(FetchFn[str | None]):
+    project_id: str
+    secret_id: str
+
+    def __call__(self) -> str | None:
+        return f"sm://{self.project_id}/{self.secret_id}"
+
+
+class GCPLibSpace(MinimalTestLibSpace):
+    """Demo: app secret fetched from remote SM; publish tokens stay local."""
+
+    def get_secret_fetch_fns(self) -> tuple[FetchFn[str | None], ...]:
+        return (
+            GCPSecretFetchFn("api-key", "my-proj", "api-key-id"),
+            *super().get_secret_fetch_fns(),
+        )
+
+
+class TestBaseLibSpaceRemoteSecretManager:
+    """Demo: per-key fetch strategy — remote SM secret + local publish tokens in one vault."""
+
+    def test_non_publish_secret_fetches_from_remote(self) -> None:
+        space = GCPLibSpace()
+        assert space.get_secret("api-key") == "sm://my-proj/api-key-id"
+
+    def test_publish_token_key_registered_alongside_remote_secret(self) -> None:
+        space = GCPLibSpace()
+        # inherited publish-token fns are plain SecretFetchFn (null fetch);
+        # they coexist with the remote secret in the same vault.
+        vault = space.vault()
+        assert "api-key" in vault
+        assert "publish-token-test-pypi" in vault
+
+    def test_publish_token_path_overrides_with_explicit_fetch_fn(self, mock_ctx: Context) -> None:
+        with mock_ctx:
+            space = GCPLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            space._publisher = publisher
+            cached = space._get_cached_publish_token(token="local-token", registry="test-pypi")
+        assert cached.get_value() == "local-token"

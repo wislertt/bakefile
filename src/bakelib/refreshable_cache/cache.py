@@ -3,7 +3,7 @@ import inspect
 import logging
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, ParamSpec, TypeVar
 
 import keyring as kr
@@ -11,7 +11,7 @@ from keyring.errors import PasswordDeleteError
 from pydantic import BaseModel, TypeAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
-from bakelib.refreshable_cache.exceptions import RefreshNeededError
+from bakelib.refreshable_cache.utils import FetchFn, RefreshNeededError
 
 if TYPE_CHECKING:
     from tenacity.stop import StopBaseT
@@ -44,7 +44,7 @@ class RefreshableCache(ABC, Generic[CachedT]):
     def __init__(
         self,
         key: str,
-        fetch_fn: Callable[[], CachedT],
+        fetch_fn: "Callable[[], CachedT] | FetchFn[CachedT]",
         ttl: float | None = None,
         namespace: str | None = None,
         stop: "StopBaseT | None" = None,
@@ -98,6 +98,9 @@ class RefreshableCache(ABC, Generic[CachedT]):
         logger.debug(f"Cache hit for key '{self._key}' (type={type_name}{detail})")
         return value
 
+    def has_value(self) -> bool:
+        return self._get_entry() is not None
+
     def _fetch(self) -> CachedT:
         """Fetch value from source and cache it."""
         logger.debug(f"Fetching value for key '{self._key}'")
@@ -121,6 +124,25 @@ class RefreshableCache(ABC, Generic[CachedT]):
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             try:
                 return func(*args, **kwargs)
+            except self.RefreshNeededError:
+                self.delete()
+                raise
+
+        return wrapper
+
+    def acatch_refresh(
+        self, func: Callable[P, Awaitable[T]]
+    ) -> Callable[P, Coroutine[Any, Any, T]]:
+        @functools.wraps(func)
+        @retry(
+            stop=self._stop,
+            wait=self._wait,
+            retry=retry_if_exception_type(self.RefreshNeededError),
+            reraise=True,
+        )
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            try:
+                return await func(*args, **kwargs)
             except self.RefreshNeededError:
                 self.delete()
                 raise
@@ -261,7 +283,7 @@ class ChainedCache(RefreshableCache[CachedT]):
         self,
         backends: list[type[RefreshableCache[CachedT]]],
         key: str,
-        fetch_fn: Callable[[], CachedT],
+        fetch_fn: "Callable[[], CachedT] | FetchFn[CachedT]",
         ttl: float | None = None,
         namespace: str | None = None,
         stop: "StopBaseT | None" = None,

@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -8,7 +7,7 @@ from tenacity import stop_after_attempt
 
 from bake import command, console
 from bakelib.publisher import PublishResult, PublishStatus
-from bakelib.refreshable_cache import ChainedCache
+from bakelib.refreshable_cache import FetchFn, NullFetchFn, RefreshableCache
 from bakelib.utils.secret import SecretUtils
 
 from .base import BaseSpace
@@ -21,9 +20,16 @@ if TYPE_CHECKING:
 PUBLISH_TOKEN_KEY_PREFIX = "publish-token-"
 
 
-class BaseLibSpace(SecretUtils, BaseSpace):
+class BaseLibSpace(SecretUtils[str | None], BaseSpace):
     bake_publish_token: SecretStr | None = None
     _publisher: "Publisher | None" = None
+
+    def get_secret_fetch_fns(self) -> tuple[FetchFn[str | None], ...]:
+        publish_fns = tuple(
+            NullFetchFn[str | None](f"{PUBLISH_TOKEN_KEY_PREFIX}{r}")
+            for r in self.get_publish_registries()
+        )
+        return (*super().get_secret_fetch_fns(), *publish_fns)
 
     def get_secret_namespace(self) -> str:
         return self._package_name
@@ -33,19 +39,10 @@ class BaseLibSpace(SecretUtils, BaseSpace):
         """Return the set of valid publish registries for this library."""
         ...
 
-    def get_secret_keys(self) -> set[str]:
-        publish_keys = {f"{PUBLISH_TOKEN_KEY_PREFIX}{r}" for r in self.get_publish_registries()}
-        return super().get_secret_keys() | publish_keys
-
     @abstractmethod
     def get_publisher(self, registry: str) -> "Publisher":
         """Return the Publisher instance for the given registry after validation."""
         ...
-
-    def _get_fetch_fn(self, key: str) -> Callable[[], str | None]:
-        if key.startswith(PUBLISH_TOKEN_KEY_PREFIX):
-            return self._get_publish_token
-        return super()._get_fetch_fn(key)
 
     def _get_publish_token(self) -> str | None:
         if self.bake_publish_token:
@@ -56,14 +53,20 @@ class BaseLibSpace(SecretUtils, BaseSpace):
 
     def _get_cached_publish_token(
         self, token: str | None, registry: str
-    ) -> ChainedCache[str | None]:
+    ) -> RefreshableCache[str | None]:
         if token:
             self.bake_publish_token = SecretStr(token)
 
         key = f"{PUBLISH_TOKEN_KEY_PREFIX}{registry}"
         stop = stop_after_attempt(1) if self.bake_publish_token else None
 
-        cached_publish_token = self.get_secret_cache(key, stop=stop)
+        vault = self.vault()
+        if key in vault and stop is not None:
+            vault.unregister(key)
+        if key not in vault:
+            vault.register(key, fetch_fn=self._get_publish_token, stop=stop)
+
+        cached_publish_token = vault.cache(key)
 
         if self.bake_publish_token is not None:
             cached_publish_token.set(self.bake_publish_token.get_secret_value())
@@ -102,7 +105,7 @@ class BaseLibSpace(SecretUtils, BaseSpace):
 
     def _execute_publish(
         self,
-        cached_publish_token: ChainedCache[str | None],
+        cached_publish_token: RefreshableCache[str | None],
     ) -> PublishResult:
 
         @cached_publish_token.catch_refresh
