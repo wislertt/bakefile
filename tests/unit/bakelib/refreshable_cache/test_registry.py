@@ -95,7 +95,7 @@ class TestRegistryRegister:
                 return f"v-{self.key}"
 
         registry = make_registry("reg-key-mismatch")
-        with pytest.raises(ValueError, match="does not match register key"):
+        with pytest.raises(ValueError, match="does not match key"):
             registry.register("slot-a", fetch_fn=KeyedFetch(key="slot-b"))
 
 

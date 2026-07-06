@@ -51,6 +51,8 @@ class RefreshableCache(ABC, Generic[CachedT]):
         wait: "WaitBaseT | None" = None,
         cached_type: Any = None,
     ) -> None:
+        if isinstance(fetch_fn, FetchFn) and fetch_fn.key != key:
+            raise ValueError(f"fetch_fn.key '{fetch_fn.key}' does not match key '{key}'")
         self._key = key
         self._fetch_fn = fetch_fn
         self._ttl = ttl

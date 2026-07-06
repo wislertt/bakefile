@@ -63,9 +63,6 @@ class RefreshableCacheRegistry(Generic[T]):
             raise ValueError(msg)
         if fetch_fn is None:
             fetch_fn = NullFetchFn(key)
-        elif isinstance(fetch_fn, FetchFn) and fetch_fn.key != key:
-            msg = f"fetch_fn key '{fetch_fn.key}' does not match register key '{key}'"
-            raise ValueError(msg)
         cache = self._build_cache(
             key=key, fetch_fn=fetch_fn, ttl=ttl, stop=stop, wait=wait, cached_type=cached_type
         )
