@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 import typer
 
+from bakelib.refreshable_cache import CallableFetchFn
+
 if TYPE_CHECKING:
     from bake.cli.common.context import Context
 
@@ -46,6 +48,16 @@ class Publisher(ABC):
     def _get_publish_token_from_remote(self) -> str | None:
         """Get the publish token from a remote source."""
         ...
+
+    def create_publish_token_fetch_fn(
+        self, key: str, local_token: str | None = None
+    ) -> CallableFetchFn[str | None]:
+        def fetch() -> str | None:
+            if local_token:
+                return local_token
+            return self._get_publish_token_from_remote()
+
+        return CallableFetchFn(key=key, fetch=fetch)
 
     @abstractmethod
     def _build_for_publish(self, ctx: "Context"):

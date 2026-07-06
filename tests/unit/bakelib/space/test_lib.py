@@ -1,11 +1,9 @@
 import subprocess
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 
 import pytest
 import typer
-from pydantic import SecretStr
 
 from bake import Context
 from bake.ui.logger import strip_ansi
@@ -20,7 +18,6 @@ from bakelib.refreshable_cache import (
 )
 from bakelib.space.base import BaseSpace
 from bakelib.space.lib import (
-    PUBLISH_TOKEN_KEY_PREFIX,
     BaseLibSpace,
     PublishResult,
     PublishStatus,
@@ -451,25 +448,6 @@ class TestBaseLibSpaceSecretIntegration:
         assert "publish-token-pypi" in vault
         assert "publish-token-test-pypi" in vault
 
-    def test_get_publish_token_returns_token_when_set(self) -> None:
-        space = MinimalTestLibSpace()
-        space.bake_publish_token = SecretStr("my-token")
-        assert space._get_publish_token() == "my-token"
-
-    def test_get_publish_token_returns_none_when_nothing_set(self) -> None:
-        space = MinimalTestLibSpace()
-        # No token and no publisher
-        assert space._get_publish_token() is None
-
-    def test_get_publish_token_delegates_to_publisher_when_no_local_token(
-        self, mock_ctx: Context
-    ) -> None:
-        with mock_ctx:
-            space = MinimalTestLibSpace()
-            space._publisher = space.get_publisher("test-pypi")
-        # bake_publish_token is None, so falls through to publisher
-        assert space._get_publish_token() is None
-
     def test_pre_publish_setup_raises_when_publisher_not_set(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
@@ -552,35 +530,7 @@ class RemoteTokenPublisher(MinimalTestPublisher):
         return f"remote-token-{self.remote_call_count}"
 
 
-@dataclass(frozen=True)
-class PublishTokenFetchFn(FetchFn[str | None]):
-    fetch: Callable[[], str | None]
-
-    def __call__(self) -> str | None:
-        return self.fetch()
-
-
 class RemoteTokenLibSpace(MinimalTestLibSpace):
-    # Publish tokens tracked with their real fetcher: replace the NullFetchFn
-    # placeholder inherited from BaseLibSpace with _get_publish_token (-> publisher
-    # remote). Key stays tracked; only the fetcher is upgraded.
-    # (Contrast GlzPythonLibSpace, which DROPS publish-token keys entirely because
-    # GCP Artifact Registry uses service-account auth and needs no token.)
-    def get_secret_fetch_fns(self) -> tuple[FetchFn[str | None], ...]:
-        non_publish = tuple(
-            fn
-            for fn in super().get_secret_fetch_fns()
-            if not fn.key.startswith(PUBLISH_TOKEN_KEY_PREFIX)
-        )
-        publish = tuple(
-            PublishTokenFetchFn(
-                key=f"{PUBLISH_TOKEN_KEY_PREFIX}{registry}",
-                fetch=self._get_publish_token,
-            )
-            for registry in self.get_publish_registries()
-        )
-        return (*non_publish, *publish)
-
     def get_publisher(self, registry: str) -> RemoteTokenPublisher:
         return RemoteTokenPublisher(registry)
 
@@ -611,6 +561,27 @@ class TestRemotePublishToken:
     @staticmethod
     def _success() -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=["publish"], returncode=0, stdout="", stderr="")
+
+    def test_vault_returns_remote_token_directly(self) -> None:
+        space = RemoteTokenLibSpace()
+        vault = space.vault()
+        keys = sorted(vault.keys())
+        assert len(keys) == 3
+        assert keys == ["publish-token-crates", "publish-token-pypi", "publish-token-test-pypi"]
+        values = [space.get_secret(k) for k in keys]
+        assert values == ["remote-token-1", "remote-token-1", "remote-token-1"]
+
+    def test_local_token_survives_refresh(self, mock_ctx: Context) -> None:
+        with mock_ctx:
+            space = RemoteTokenLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            space._publisher = publisher
+            cached = space._get_cached_publish_token(token="local-token", registry="test-pypi")
+
+            assert cached.get_value() == "local-token"
+            assert cached.refresh() == "local-token"
+
+        assert publisher.remote_call_count == 0
 
     def test_remote_token_flows_to_publisher(
         self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
@@ -647,7 +618,7 @@ class TestRemotePublishToken:
 
             def mock_publish(_ctx: Context, token: str | None) -> PublishResult:
                 received.append(token)
-                if len(received) == 1:
+                if token == "remote-token-1":
                     return PublishResult(result=None, status=PublishStatus.AUTH_FAILED)
                 return PublishResult(result=self._success(), status=PublishStatus.SUCCESS)
 
@@ -657,6 +628,28 @@ class TestRemotePublishToken:
         assert result.status == PublishStatus.SUCCESS
         assert received == ["remote-token-1", "remote-token-2"]
         assert publisher.remote_call_count == 2
+
+    def test_local_token_auth_failure_does_not_retry(
+        self, mock_ctx: Context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        with mock_ctx:
+            space = RemoteTokenLibSpace()
+            publisher = space.get_publisher("test-pypi")
+            space._publisher = publisher
+            cached = space._get_cached_publish_token(token="local-token", registry="test-pypi")
+
+            received: list[str | None] = []
+
+            def mock_publish(_ctx: Context, token: str | None) -> PublishResult:
+                received.append(token)
+                return PublishResult(result=None, status=PublishStatus.AUTH_FAILED)
+
+            monkeypatch.setattr(publisher, "_publish_with_token", mock_publish)
+            result = space._execute_publish(cached_publish_token=cached)
+
+        assert result.status == PublishStatus.AUTH_FAILED
+        assert received == ["local-token"]
+        assert publisher.remote_call_count == 0
 
     def test_publish_e2e_uses_remote_token(
         self,

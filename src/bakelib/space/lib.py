@@ -7,7 +7,7 @@ from tenacity import stop_after_attempt
 
 from bake import command, console
 from bakelib.publisher import PublishResult, PublishStatus
-from bakelib.refreshable_cache import FetchFn, NullFetchFn, RefreshableCache
+from bakelib.refreshable_cache import FetchFn, RefreshableCache
 from bakelib.utils.secret import SecretUtils
 
 from .base import BaseSpace
@@ -25,11 +25,17 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
     _publisher: "Publisher | None" = None
 
     def get_secret_fetch_fns(self) -> tuple[FetchFn[str | None], ...]:
+        local_token = self._local_publish_token()
         publish_fns = tuple(
-            NullFetchFn[str | None](f"{PUBLISH_TOKEN_KEY_PREFIX}{r}")
+            self.get_publisher(r).create_publish_token_fetch_fn(
+                f"{PUBLISH_TOKEN_KEY_PREFIX}{r}", local_token=local_token
+            )
             for r in self.get_publish_registries()
         )
         return (*super().get_secret_fetch_fns(), *publish_fns)
+
+    def _local_publish_token(self) -> str | None:
+        return self.bake_publish_token.get_secret_value() if self.bake_publish_token else None
 
     def get_secret_namespace(self) -> str:
         return self._package_name
@@ -44,34 +50,28 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
         """Return the Publisher instance for the given registry after validation."""
         ...
 
-    def _get_publish_token(self) -> str | None:
-        if self.bake_publish_token:
-            return self.bake_publish_token.get_secret_value()
-        if self._publisher:
-            return self._publisher._get_publish_token_from_remote()
-        return None
-
     def _get_cached_publish_token(
         self, token: str | None, registry: str
     ) -> RefreshableCache[str | None]:
         if token:
             self.bake_publish_token = SecretStr(token)
+        if self._publisher is None:
+            raise ValueError("_publisher is not set. Call `get_publisher` first.")
 
         key = f"{PUBLISH_TOKEN_KEY_PREFIX}{registry}"
-        stop = stop_after_attempt(1) if self.bake_publish_token else None
+        local_token = self._local_publish_token()
+        stop = stop_after_attempt(1) if local_token else None
 
         vault = self.vault()
-        if key in vault and stop is not None:
+        if key in vault:
             vault.unregister(key)
-        if key not in vault:
-            vault.register(key, fetch_fn=self._get_publish_token, stop=stop)
+        vault.register(
+            key,
+            fetch_fn=self._publisher.create_publish_token_fetch_fn(key, local_token=local_token),
+            stop=stop,
+        )
 
-        cached_publish_token = vault.cache(key)
-
-        if self.bake_publish_token is not None:
-            cached_publish_token.set(self.bake_publish_token.get_secret_value())
-
-        return cached_publish_token
+        return vault.cache(key)
 
     @command(help="Build and publish the package")
     def publish(

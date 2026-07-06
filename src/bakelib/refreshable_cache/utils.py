@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar, cast
 
@@ -43,3 +44,18 @@ class NullFetchFn(FetchFn[T]):
 
     def __call__(self) -> T:
         return cast(T, None)
+
+
+@dataclass(frozen=True)
+class CallableFetchFn(FetchFn[T]):
+    """FetchFn that delegates to an arbitrary callable.
+
+    Generic over T: subscript to declare the cached value type, e.g.
+    ``CallableFetchFn[str | None](key, fetch=some_callable)``. The callable is
+    invoked (no args) on every cache fill.
+    """
+
+    fetch: Callable[[], T]
+
+    def __call__(self) -> T:
+        return self.fetch()
