@@ -450,7 +450,7 @@ class TestBaseLibSpaceSecretIntegration:
 
     def test_pre_publish_setup_raises_when_publisher_not_set(self, mock_ctx: Context) -> None:
         space = MinimalTestLibSpace()
-        with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
+        with mock_ctx, pytest.raises(ValueError, match=r"called `unwrap"):
             space._pre_publish_setup()
 
     def test_execute_publish_raises_when_publisher_not_set(self, mock_ctx: Context) -> None:
@@ -467,7 +467,7 @@ class TestBaseLibSpaceSecretIntegration:
             key="test-key",
             fetch_fn=fetch_fn,
         )
-        with mock_ctx, pytest.raises(ValueError, match="_publisher is not set"):
+        with mock_ctx, pytest.raises(ValueError, match=r"called `unwrap"):
             space._execute_publish(cached_publish_token=cache)
 
 

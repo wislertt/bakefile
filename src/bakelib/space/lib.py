@@ -5,7 +5,7 @@ import typer
 from pydantic import SecretStr
 from tenacity import stop_after_attempt
 
-from bake import command, console
+from bake import command, console, unwrap
 from bakelib.publisher import PublishResult, PublishStatus
 from bakelib.refreshable_cache import FetchFn, RefreshableCache
 from bakelib.utils.secret import SecretUtils
@@ -55,8 +55,7 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
     ) -> RefreshableCache[str | None]:
         if token:
             self.bake_publish_token = SecretStr(token)
-        if self._publisher is None:
-            raise ValueError("_publisher is not set. Call `get_publisher` first.")
+        publisher = unwrap(self._publisher)
 
         key = f"{PUBLISH_TOKEN_KEY_PREFIX}{registry}"
         local_token = self._local_publish_token()
@@ -67,7 +66,7 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
             vault.unregister(key)
         vault.register(
             key,
-            fetch_fn=self._publisher.create_publish_token_fetch_fn(key, local_token=local_token),
+            fetch_fn=publisher.create_publish_token_fetch_fn(key, local_token=local_token),
             stop=stop,
         )
 
@@ -99,9 +98,7 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
         Subclasses can override this to add custom setup before/after
         calling the publisher's setup.
         """
-        if self._publisher is None:
-            raise ValueError("_publisher is not set. Call `get_publisher` first.")
-        self._publisher._pre_publish_setup(self.ctx)
+        unwrap(self._publisher)._pre_publish_setup(self.ctx)
 
     def _execute_publish(
         self,
@@ -110,11 +107,9 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
 
         @cached_publish_token.catch_refresh
         def _publish() -> PublishResult:
-            if self._publisher is None:
-                raise ValueError("_publisher is not set. Call `get_publisher` first.")
-
+            publisher = unwrap(self._publisher)
             token_value = cached_publish_token.get_value()
-            publish_result = self._publisher._publish_with_token(self.ctx, token=token_value)
+            publish_result = publisher._publish_with_token(self.ctx, token=token_value)
 
             if publish_result.status == PublishStatus.AUTH_FAILED:
                 raise cached_publish_token.RefreshNeededError
