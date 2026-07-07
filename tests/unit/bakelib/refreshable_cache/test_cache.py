@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import logging
 import sys
@@ -16,6 +17,7 @@ from bake.ui.logger import (
 )
 from bakelib.refreshable_cache import (
     ChainedCache,
+    FetchFn,
     KeyringCache,
     MemoryCache,
     NullCache,
@@ -53,6 +55,10 @@ KEY_DECORATOR = "test-cache-decorator"
 KEY_DELETE = "test-cache-delete"
 KEY_DECORATOR_ONCE = "test-cache-once"
 KEY_DECORATOR_CACHE_DELETE = "test-cache-cache-delete"
+KEY_ASYNC_DECORATOR = "test-cache-async-decorator"
+KEY_ASYNC_NO_ERROR = "test-cache-async-no-error"
+KEY_ASYNC_ONCE = "test-cache-async-once"
+KEY_ASYNC_CACHE_DELETE = "test-cache-async-cache-delete"
 KEY_PERSIST = "test-cache-persist"
 KEY_CACHED_TYPE_TEST = "test-cache-cached-type-test"
 KEY_NO_TYPE = "test-cache-no-type"
@@ -320,6 +326,115 @@ class TestDecorator:
 
         with pytest.raises(cache.RefreshNeededError):
             operation()
+
+        assert cache._get_entry() is None
+
+
+class TestAsyncDecorator:
+    """Tests for @cache.acatch_refresh async decorator."""
+
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
+    def test_acatch_refresh_retries_on_error(self, cache_class: type[RefreshableCache]):
+        # Ensure clean state for KeyringCache
+        if cache_class == KeyringCache:
+            cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_ASYNC_DECORATOR)])
+
+        call_count = 0
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "fresh-value"
+
+        cache = cache_class(KEY_ASYNC_DECORATOR, fetch_value)
+
+        @cache.acatch_refresh
+        async def api_call(should_fail_first: bool = False) -> str:
+            nonlocal call_count
+            call_count += 1
+            value = cache.get_value()
+            if should_fail_first and call_count == 1:
+                raise cache.RefreshNeededError("Value expired")
+            return f"success-{value}"
+
+        result = asyncio.run(api_call(should_fail_first=True))
+        assert result == "success-fresh-value"
+        assert call_count == 2
+        assert fetch_count == 2
+
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
+    def test_acatch_refresh_no_error(self, cache_class: type[RefreshableCache]):
+        # Ensure clean state for KeyringCache
+        if cache_class == KeyringCache:
+            cleanup_keyring_keys([("bakelib.refreshable_cache", KEY_ASYNC_NO_ERROR)])
+
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return "value"
+
+        cache = cache_class(KEY_ASYNC_NO_ERROR, fetch_value)
+
+        @cache.acatch_refresh
+        async def api_call() -> str:
+            return f"success-{cache.get_value()}"
+
+        result = asyncio.run(api_call())
+        assert result == "success-value"
+        assert fetch_count == 1
+
+    def test_acatch_refresh_only_retries_once(self):
+        call_count = 0
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return f"v{fetch_count}"
+
+        cache = MemoryCache(KEY_ASYNC_ONCE, fetch_value)
+
+        @cache.acatch_refresh
+        async def operation() -> str:
+            nonlocal call_count
+            call_count += 1
+            raise cache.RefreshNeededError("Always fail")
+
+        with pytest.raises(cache.RefreshNeededError):
+            asyncio.run(operation())
+
+        assert call_count == 2
+        assert fetch_count == 0
+
+    @pytest.mark.parametrize(
+        "cache_class", [MemoryCache] + ([KeyringCache] if keyring_backend_available() else [])
+    )
+    def test_acatch_refresh_deletes_cache_after_last_retry_fails(
+        self,
+        cache_class: type[RefreshableCache],
+    ):
+        fetch_count = 0
+
+        def fetch_value() -> str:
+            nonlocal fetch_count
+            fetch_count += 1
+            return f"value-{fetch_count}"
+
+        cache = cache_class(KEY_ASYNC_CACHE_DELETE, fetch_value)
+
+        @cache.acatch_refresh
+        async def operation() -> str:
+            raise cache.RefreshNeededError("Always fail")
+
+        with pytest.raises(cache.RefreshNeededError):
+            asyncio.run(operation())
 
         assert cache._get_entry() is None
 
@@ -637,6 +752,62 @@ class TestNullCache:
 
         cache.get_value()
         assert fetch_count == 2
+
+
+class TestFetchFnAsCache:
+    """Tests for using FetchFn instances directly as fetch_fn."""
+
+    def test_fetch_fn_instance_used_as_fetch_fn(self):
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class PrefixFetch(FetchFn[str]):
+            prefix: str
+
+            def __call__(self) -> str:
+                return f"{self.prefix}-value"
+
+        cache = MemoryCache("fetch-fn-basic", PrefixFetch(key="fetch-fn-basic", prefix="hello"))
+        assert cache.get_value() == "hello-value"
+
+    def test_fetch_fn_instance_caches_result(self):
+        from dataclasses import dataclass
+
+        calls: list[int] = []
+
+        @dataclass(frozen=True)
+        class CountingFetch(FetchFn[str]):
+            name: str
+
+            def __call__(self) -> str:
+                calls.append(1)
+                return f"v{len(calls)}-{self.name}"
+
+        cache = MemoryCache(
+            "fetch-fn-caches", CountingFetch(key="fetch-fn-caches", name="k"), cached_type=str
+        )
+        assert cache.get_value() == "v1-k"
+        assert cache.get_value() == "v1-k"
+        assert len(calls) == 1
+
+    def test_fetch_fn_instance_with_chained_cache(self):
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class PrefixFetch(FetchFn[str]):
+            prefix: str
+
+            def __call__(self) -> str:
+                return f"{self.prefix}-chained"
+
+        backends: list[type[RefreshableCache[str]]] = [MemoryCache]
+        cache = ChainedCache(
+            backends=backends,
+            key="fetch-fn-chained",
+            fetch_fn=PrefixFetch(key="fetch-fn-chained", prefix="test"),
+            cached_type=str,
+        )
+        assert cache.get_value() == "test-chained"
 
 
 class FaultyCache(RefreshableCache):

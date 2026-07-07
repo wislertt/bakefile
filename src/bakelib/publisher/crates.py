@@ -18,20 +18,20 @@ class CratesPublisher(Publisher):
     def _get_publish_token_from_remote(self) -> str | None:
         return None
 
-    def _build_for_publish(self):
+    def _build_for_publish(self, ctx: "Context"):
         # cargo publish handles compilation automatically
-        pass
+        _ = ctx
 
     def _setup_token_env(self, env: dict[str, str], token: str) -> None:
         env["CARGO_REGISTRY_TOKEN"] = token
 
     def _execute_publish_command(
-        self, env: dict[str, str], token: str | None
+        self, ctx: "Context", env: dict[str, str], token: str | None
     ) -> subprocess.CompletedProcess[str]:
         dry_run_flag = "" if token is not None else "--dry-run "
         command = f"cargo publish --allow-dirty {dry_run_flag}"
 
-        return self.ctx.run(command, stream=True, env=env, check=False, capture_output=True)
+        return ctx.run(command, stream=True, env=env, check=False, capture_output=True)
 
     def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
         already_exists_msg = "already exists on crates.io"

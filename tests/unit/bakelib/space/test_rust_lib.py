@@ -153,7 +153,7 @@ class TestCratesPublisher:
                 return failed_result
 
             monkeypatch.setattr(mock_ctx, "run", mock_run)
-            result = publisher._publish_with_token(token="test-token")
+            result = publisher._publish_with_token(mock_ctx, token="test-token")
 
         # Verify the result indicates already exists (idempotent publish)
         assert result.result is not None

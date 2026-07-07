@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 import typer
 
+from bakelib.refreshable_cache import CallableFetchFn
+
 if TYPE_CHECKING:
     from bake.cli.common.context import Context
 
@@ -30,7 +32,7 @@ class Publisher(ABC):
 
     valid_registries: tuple[str, ...]
 
-    def __init__(self, ctx: "Context", registry: str) -> None:
+    def __init__(self, registry: str) -> None:
         from bake import console
 
         super().__init__()
@@ -39,7 +41,6 @@ class Publisher(ABC):
                 f"Invalid registry: {registry!r}. Expected one of {self.valid_registries}."
             )
             raise typer.Exit(1)
-        self.ctx: Context = ctx
         self.registry = registry
         self._dummy_publish_token: str = "dummy-token-for-dry-run"
 
@@ -48,12 +49,22 @@ class Publisher(ABC):
         """Get the publish token from a remote source."""
         ...
 
+    def create_publish_token_fetch_fn(
+        self, key: str, local_token: str | None = None
+    ) -> CallableFetchFn[str | None]:
+        def fetch() -> str | None:
+            if local_token:
+                return local_token
+            return self._get_publish_token_from_remote()
+
+        return CallableFetchFn(key=key, fetch=fetch)
+
     @abstractmethod
-    def _build_for_publish(self):
+    def _build_for_publish(self, ctx: "Context"):
         """Build the package for publishing."""
         ...
 
-    def _publish_with_token(self, token: str | None) -> PublishResult:
+    def _publish_with_token(self, ctx: "Context", token: str | None) -> PublishResult:
         """Publish with the given token."""
         env: dict[str, str] = {}
         # Convert empty string to None, then use dummy token for both None and empty string cases
@@ -63,7 +74,7 @@ class Publisher(ABC):
         )
         self._setup_token_env(env, effective_token)
 
-        result = self._execute_publish_command(env, effective_token)
+        result = self._execute_publish_command(ctx, env, effective_token)
 
         return self._determine_publish_result(token=token, result=result)
 
@@ -74,7 +85,7 @@ class Publisher(ABC):
 
     @abstractmethod
     def _execute_publish_command(
-        self, env: dict[str, str], token: str | None
+        self, ctx: "Context", env: dict[str, str], token: str | None
     ) -> subprocess.CompletedProcess[str]:
         """Execute the publish command."""
         ...
