@@ -158,17 +158,6 @@ class BakebookMixin(BaseSettings):
             raise TypeError("BakebookMixin can only be used with Bakebook subclasses")
         super().__init__(**kwargs)
 
-    # NOTE: ctx is intentionally not defined here — when composed with
-    # Bakebook, self.ctx resolves to Bakebook.ctx via MRO. Revisit if
-    # a standalone ctx access pattern is needed outside composition.
-    # @property
-    # def ctx(self) -> Context:
-    #     if not isinstance(self, Bakebook):
-    #         raise TypeError(  # pragma: no cover
-    #             "BakebookMixin can only be used with Bakebook subclasses"
-    #         )
-    #     return Bakebook.ctx.fget(self)
-
 
 class Bakebook(BaseSettings):
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(

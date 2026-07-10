@@ -60,18 +60,20 @@ def remove_git_clean_candidates(
 
 
 class CleanUtils(Bakebook):
+    def _get_default_exclude_patterns(self) -> set[str]:
+        return {".env", ".cache"}
+
     def _clean(
         self,
         exclude_patterns: list[str] | None,
         default_excludes: bool,
-        default_exclude_patterns: set[str],
     ):
         results = self.ctx.run("git clean -fdX -n", stream=False, echo=True, capture_output=True)
 
         exclude_patterns: set[str] = set(exclude_patterns if exclude_patterns else [])
 
         if default_excludes:
-            exclude_patterns |= default_exclude_patterns
+            exclude_patterns |= self._get_default_exclude_patterns()
 
         console.err.print(f"Exclude pattens: {exclude_patterns}")
 
@@ -100,7 +102,6 @@ class CleanUtils(Bakebook):
         self._clean(
             exclude_patterns=exclude_patterns,
             default_excludes=default_excludes,
-            default_exclude_patterns={".env", ".cache"},
         )
 
     @command(help="Clean all gitignored files")

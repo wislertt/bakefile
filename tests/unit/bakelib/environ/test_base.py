@@ -166,7 +166,7 @@ class TestBaseEnvPydanticIntegration:
         class Model(BaseModel):
             env: BaseEnv
 
-        m = Model(env="dev")  # ty: ignore[invalid-argument-type]
+        m = Model(env="dev")
         assert isinstance(m.env, BaseEnv)
         assert str(m.env) == "dev"
 
@@ -182,7 +182,7 @@ class TestBaseEnvPydanticIntegration:
             env: BaseEnv
 
         with pytest.raises(ValidationError):
-            Model(env="invalid")  # ty: ignore[invalid-argument-type]
+            Model(env="invalid")
 
     def test_pydantic_optional_env_field(self):
         class Model(BaseModel):
@@ -191,14 +191,14 @@ class TestBaseEnvPydanticIntegration:
         m1 = Model()
         assert m1.env is None
 
-        m2 = Model(env="dev")  # ty: ignore[invalid-argument-type]
+        m2 = Model(env="dev")
         assert str(m2.env) == "dev"
 
     def test_pydantic_model_dump(self):
         class Model(BaseModel):
             env: BaseEnv
 
-        m = Model(env="dev")  # ty: ignore[invalid-argument-type]
+        m = Model(env="dev")
 
         assert m.model_dump() == {"env": BaseEnv("dev")}
         assert m.model_dump() != {"env": "dev"}
@@ -241,7 +241,7 @@ class TestBaseEnvInheritance:
         class Model(BaseModel):
             env: TestBaseEnvInheritance.CustomBaseEnv
 
-        m = Model(env="dev")  # ty: ignore[invalid-argument-type]
+        m = Model(env="dev")
         assert isinstance(m.env, TestBaseEnvInheritance.CustomBaseEnv)
 
 
