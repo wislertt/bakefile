@@ -275,6 +275,62 @@ class TestJsonSink:
         assert result["timestamp"].hour == 17
         assert result["timestamp"].tzinfo == ZoneInfo("Asia/Bangkok")
 
+    def test_json_sink_unset_context_var_does_not_raise(self) -> None:
+        """Unset ContextVar (no default) logs as None instead of raising LookupError."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        unset_var = ContextVar("unset_var")  # no default, never .set()
+        sink = JsonSink(thread_local_context={"unset_var": unset_var})
+
+        record = {
+            "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "module": "test_module",
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        result = sink.json_formatter(record)  # ty: ignore[invalid-argument-type]
+
+        assert result["unset_var"] == str(None)
+
+    def test_json_sink_context_var_creation_default_preserved(self) -> None:
+        """ContextVar.get() returns creation default when unset (not overridden by None)."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        task_var = ContextVar("task", default="unknown")
+        sink = JsonSink(thread_local_context={"task": task_var})
+
+        record = {
+            "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "module": "test_module",
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        result = sink.json_formatter(record)  # ty: ignore[invalid-argument-type]
+
+        assert result["task"] == "unknown"
+
 
 class TestPrettyLogFormatter:
     """Tests for PrettyLogFormatter class."""

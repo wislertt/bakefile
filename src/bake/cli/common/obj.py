@@ -142,14 +142,17 @@ class BakefileObject:
         if self.bakebook is not None:
             bake_log = self.bakebook.bake_log
             bake_log_pretty = self.bakebook.bake_log_pretty
+            thread_local_context = self.bakebook.get_bake_log_thread_local_context()
         else:
             bake_log = self.bake_log
             bake_log_pretty = self.bake_log_pretty
+            thread_local_context = {}
 
         bake_settings.setup_bake_logging(
             bake_log=bake_log,
             verbosity=self.bake_log_verbosity,
             bake_log_pretty=bake_log_pretty,
+            thread_local_context=thread_local_context,
         )
 
 

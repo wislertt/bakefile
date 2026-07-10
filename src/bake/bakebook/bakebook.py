@@ -2,6 +2,7 @@ import logging
 import types
 import warnings
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Annotated, Any, ClassVar
 
@@ -29,7 +30,8 @@ logger = logging.getLogger(__name__)
 # A function or method that can be used as a command
 CommandFunction = types.FunctionType | types.MethodType
 
-# Type alias for bake_log_verbosity field
+# Type alias for bake_log_verbosity field.
+# 0 = silent, 1 = WARNING+, 2 = INFO+, 3 = DEBUG+ (global log-level floor).
 BakeLogVerbosityField = Annotated[int, Field(ge=0, le=3)]
 
 
@@ -176,6 +178,7 @@ class Bakebook(BaseSettings):
         DEFAULT_BAKE_LOG
     )
     bake_log_verbosity: BakeLogVerbosityField = (
+        # Global log-level floor: 0 = silent, 1 = WARNING+, 2 = INFO+, 3 = DEBUG+.
         # Only affects non-CLI entry (e.g. `uv run test.py`).
         # CLI entry is fully controlled by `-v`/`-vv`/`-vvv` flags (CLI initial setup).
         DEFAULT_BAKE_LOG_VERBOSITY
@@ -329,11 +332,16 @@ class Bakebook(BaseSettings):
         """Override to configure command groups. Key is group name."""
         return {}
 
+    def get_bake_log_thread_local_context(self) -> dict[str, ContextVar[Any]]:
+        """Override to inject ContextVars into bake's logger output."""
+        return {}
+
     def setup_logging(self) -> None:
         bake_settings.setup_bake_logging(
             bake_log=self.bake_log,
             verbosity=self.bake_log_verbosity,
             bake_log_pretty=self.bake_log_pretty,
+            thread_local_context=self.get_bake_log_thread_local_context(),
         )
 
     def command(

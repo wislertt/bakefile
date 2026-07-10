@@ -5,7 +5,7 @@
     "": {
       "name": "claude-hooks",
       "dependencies": {
-        "@types/node": "^26.1.0",
+        "@types/node": "^26.1.1",
         "tsx": "^4.23.0",
         "typescript": "^6.0.3",
       },
