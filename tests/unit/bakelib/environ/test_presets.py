@@ -417,7 +417,7 @@ class TestGcpLandingZoneSubEnvPydanticIntegration:
         class Model(BaseModel):
             env: GcpLandingZoneSubEnv
 
-        m = Model(env="d1")  # ty: ignore[invalid-argument-type]
+        m = Model(env="d1")
         assert isinstance(m.env, GcpLandingZoneSubEnv)
         assert str(m.env) == "d1"
 
@@ -428,7 +428,7 @@ class TestGcpLandingZoneSubEnvPydanticIntegration:
             env: GcpLandingZoneSubEnv
 
         with pytest.raises(ValidationError):
-            Model(env="x1")  # ty: ignore[invalid-argument-type]
+            Model(env="x1")
 
 
 class TestGcpLandingZoneSubEnvEdgeCases:

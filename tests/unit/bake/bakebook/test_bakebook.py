@@ -374,6 +374,42 @@ class TestSetupLogging:
         assert "test debug suppressed" not in captured.err
         assert "test warning appears" in captured.err
 
+    def test_setup_logging_passes_default_thread_local_context(self) -> None:
+        from bake.utils.settings import BakeSettings
+
+        fresh_settings = BakeSettings()
+        with (
+            patch("bake.bakebook.bakebook.bake_settings", fresh_settings),
+            patch.object(BakeSettings, "setup_bake_logging") as mock_setup,
+        ):
+            bb = Bakebook()
+            bb.setup_logging()
+
+        mock_setup.assert_called_once()
+        assert mock_setup.call_args.kwargs["thread_local_context"] == {}
+
+    def test_setup_logging_passes_overridden_thread_local_context(self) -> None:
+        from contextvars import ContextVar
+
+        from bake.utils.settings import BakeSettings
+
+        user_var: ContextVar[str | None] = ContextVar("user_var", default=None)
+
+        class MyBakebook(Bakebook):
+            def get_bake_log_thread_local_context(self) -> dict[str, ContextVar]:
+                return {"user_var": user_var}
+
+        fresh_settings = BakeSettings()
+        with (
+            patch("bake.bakebook.bakebook.bake_settings", fresh_settings),
+            patch.object(BakeSettings, "setup_bake_logging") as mock_setup,
+        ):
+            bb = MyBakebook()
+            bb.setup_logging()
+
+        mock_setup.assert_called_once()
+        assert mock_setup.call_args.kwargs["thread_local_context"] == {"user_var": user_var}
+
 
 class TestBakeLogValidation:
     @pytest.mark.parametrize(

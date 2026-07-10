@@ -459,6 +459,7 @@ class TestBakefileObjectSetupLogging:
             bake_log="warning,bake=debug,bakelib=debug,bakefile=debug",
             verbosity=verbosity,
             bake_log_pretty=True,
+            thread_local_context={},
         )
 
     @pytest.mark.parametrize("verbosity", [0, 1, 2, 3])
@@ -475,6 +476,7 @@ class TestBakefileObjectSetupLogging:
         mock_bakebook = MagicMock(spec=Bakebook)
         mock_bakebook.bake_log = "warning,bake=debug,bakelib=debug,bakefile=debug"
         mock_bakebook.bake_log_pretty = True
+        mock_bakebook.get_bake_log_thread_local_context.return_value = {}
         obj.bakebook = mock_bakebook
 
         obj.setup_logging()
@@ -483,6 +485,7 @@ class TestBakefileObjectSetupLogging:
             bake_log="warning,bake=debug,bakelib=debug,bakefile=debug",
             verbosity=verbosity,
             bake_log_pretty=True,
+            thread_local_context={},
         )
 
     @patch("bake.cli.common.obj.bake_settings")
@@ -501,6 +504,7 @@ class TestBakefileObjectSetupLogging:
             bake_log="info,myapp=debug",
             verbosity=2,
             bake_log_pretty=True,
+            thread_local_context={},
         )
 
     @patch("bake.cli.common.obj.bake_settings")
@@ -519,6 +523,7 @@ class TestBakefileObjectSetupLogging:
             bake_log="warning,bake=debug,bakelib=debug,bakefile=debug",
             verbosity=2,
             bake_log_pretty=False,
+            thread_local_context={},
         )
 
     @patch("bake.cli.common.obj.bake_settings")
@@ -536,6 +541,7 @@ class TestBakefileObjectSetupLogging:
             bake_log="debug",
             verbosity=2,
             bake_log_pretty=False,
+            thread_local_context={},
         )
 
 

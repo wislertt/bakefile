@@ -164,7 +164,11 @@ class PrettyLogFormatter:
 
         thread_local_extra: dict[str, Any] = {}
         for context_var_name, context_var in self.thread_local_context.items():
-            thread_local_extra[context_var_name] = str(context_var.get())
+            try:
+                value: Any = context_var.get()
+            except LookupError:
+                value = None
+            thread_local_extra[context_var_name] = str(value)
 
         record["extra"] = flatten_extra(record["extra"])
         record["extra"] = {**thread_local_extra, **record["extra"]}
@@ -231,8 +235,12 @@ class JsonSink(StreamSink):
             LogKey.THREAD_NAME.value: record["thread"].name,
         }
 
-        for context_var_name, context_vars in self.thread_local_context.items():
-            log_entry[context_var_name] = str(context_vars.get())
+        for context_var_name, context_var in self.thread_local_context.items():
+            try:
+                value: Any = context_var.get()
+            except LookupError:
+                value = None
+            log_entry[context_var_name] = str(value)
 
         if record["exception"] is not None:
             log_entry[LogKey.EXCEPTION.value] = "".join(

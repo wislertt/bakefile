@@ -2,9 +2,10 @@ import contextlib
 import logging
 import os
 import sys
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import typer
 from pydantic import ValidationError
@@ -142,14 +143,17 @@ class BakefileObject:
         if self.bakebook is not None:
             bake_log = self.bakebook.bake_log
             bake_log_pretty = self.bakebook.bake_log_pretty
+            thread_local_context = self.bakebook.get_bake_log_thread_local_context()
         else:
             bake_log = self.bake_log
             bake_log_pretty = self.bake_log_pretty
+            thread_local_context: dict[str, ContextVar[Any]] = {}
 
         bake_settings.setup_bake_logging(
             bake_log=bake_log,
             verbosity=self.bake_log_verbosity,
             bake_log_pretty=bake_log_pretty,
+            thread_local_context=thread_local_context,
         )
 
 

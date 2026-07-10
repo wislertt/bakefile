@@ -172,3 +172,94 @@ class TestBakebookConfigIntegration:
         assert "custom debug appears" in captured.err
         assert "other debug hidden" not in captured.err
         assert "other info appears" in captured.err
+
+    def test_cli_setup_logging_passes_bakebook_thread_local_context(self) -> None:
+        """BakefileObject.setup_logging() forwards bakebook's thread_local_context (CLI path)."""
+        from contextvars import ContextVar
+
+        user_var: ContextVar[str | None] = ContextVar("user_var", default=None)
+
+        class MyBakebook(Bakebook):
+            def get_bake_log_thread_local_context(self) -> dict[str, ContextVar]:
+                return {"user_var": user_var}
+
+        bb = MyBakebook()
+        obj = _make_obj(bake_log_verbosity=3, bakebook=bb)
+        with (
+            patch("bake.cli.common.obj.bake_settings", BakeSettings()),
+            patch.object(BakeSettings, "setup_bake_logging") as mock_setup,
+        ):
+            obj.setup_logging()
+
+        mock_setup.assert_called_once()
+        assert mock_setup.call_args.kwargs["thread_local_context"] == {"user_var": user_var}
+
+    def test_cli_setup_logging_thread_local_context_empty_without_bakebook(self) -> None:
+        """BakefileObject.setup_logging() uses {} thread_local_context when no bakebook."""
+        obj = _make_obj(bake_log_verbosity=3, bakebook=None)
+        with (
+            patch("bake.cli.common.obj.bake_settings", BakeSettings()),
+            patch.object(BakeSettings, "setup_bake_logging") as mock_setup,
+        ):
+            obj.setup_logging()
+
+        mock_setup.assert_called_once()
+        assert mock_setup.call_args.kwargs["thread_local_context"] == {}
+
+
+class TestThreadLocalContextEndToEnd:
+    """End-to-end: user's ContextVar flows through bakebook hook into actual log output."""
+
+    def test_user_context_var_appears_in_log_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """ContextVar registered via hook shows its key+value in logs when set."""
+        from contextvars import ContextVar
+
+        from bake import capsys_to_logs
+        from bake.ui.logger import LogKey
+
+        task_id: ContextVar[str | None] = ContextVar("task_id", default=None)
+
+        class MyBakebook(Bakebook):
+            def get_bake_log_thread_local_context(self) -> dict[str, ContextVar]:
+                return {"task_id": task_id}
+
+        fresh_settings = BakeSettings()
+        with patch("bake.bakebook.bakebook.bake_settings", fresh_settings):
+            bb = MyBakebook(bake_log="debug", bake_log_verbosity=3, bake_log_pretty=False)
+            bb.setup_logging()
+
+            task_id.set("build-42")
+            logging.getLogger("myapp").info("starting build")
+
+        log = capsys_to_logs(capsys)[0]
+        assert log[LogKey.MESSAGE.value] == "starting build"
+        assert log["task_id"] == "build-42"
+
+    def test_log_does_not_crash_when_context_var_unset(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Log fired before ContextVar is set logs key with None value, no LookupError."""
+        from contextvars import ContextVar
+
+        from bake import capsys_to_logs
+        from bake.ui.logger import LogKey
+
+        task_id = ContextVar("task_id")  # no default, never set
+
+        class MyBakebook(Bakebook):
+            def get_bake_log_thread_local_context(self) -> dict[str, ContextVar]:
+                return {"task_id": task_id}
+
+        fresh_settings = BakeSettings()
+        with patch("bake.bakebook.bakebook.bake_settings", fresh_settings):
+            bb = MyBakebook(bake_log="debug", bake_log_verbosity=3, bake_log_pretty=False)
+            bb.setup_logging()
+
+            # Fires before task_id ever .set() -> would raise LookupError without the guard
+            logging.getLogger("myapp").info("startup before context set")
+
+        log = capsys_to_logs(capsys)[0]
+        assert log[LogKey.MESSAGE.value] == "startup before context set"
+        assert log["task_id"] == str(None)

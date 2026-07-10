@@ -74,7 +74,7 @@ class TestEnvBakebook:
 
     def test_create_env_bakebook_without_env_raises_error(self):
         with pytest.raises(ValueError):
-            EnvBakebook()  # ty: ignore[missing-argument]
+            EnvBakebook()
 
     def test_env_bakebook_inherits_from_bakebook(self):
         assert issubclass(EnvBakebook, Bakebook)
