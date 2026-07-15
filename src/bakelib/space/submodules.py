@@ -29,8 +29,8 @@ class SubmodulesUtils(BaseSpace):
         super()._update_project()
         self._sync_submodules(frozen=False)
 
-    def setup_tools(self) -> None:
-        super().setup_tools()
+    def _setup_tools(self) -> None:
+        super()._setup_tools()
         self._sync_submodules(frozen=True)
 
     def _assert_tools(self) -> None:

@@ -78,12 +78,12 @@ class TestRustSpace:
         result = cargo_toml.read_text()
         assert 'version = "2.0.0"' in result
 
-    def test_setup_tools_runs_rustup_update(
+    def test__setup_tools_runs_rustup_update(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = RustSpace()
         with mock_ctx:
-            space.setup_tools()
+            space._setup_tools()
         captured = capsys.readouterr()
         assert "rustup update" in captured.err
 

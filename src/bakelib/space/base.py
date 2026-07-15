@@ -1,4 +1,5 @@
 import shutil
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, NoReturn
@@ -138,10 +139,28 @@ class BaseSpace(CleanUtils, Bakebook):
     def test_all(self) -> None:
         self._command_not_available("test_all")
 
-    def setup_tool_managers(self, platform: PlatformType) -> None:
+    def _get_supported_platforms(self) -> set[PlatformType]:
+        return {"macos"}
+
+    @contextmanager
+    def _platform_tools_context(self) -> Generator[PlatformType]:
+        platform = bake_settings.platform
+        console.echo(f"Detected platform: {platform}")
+        if platform not in self._get_supported_platforms():
+            console.warning(
+                f"Platform '{platform}' is not officially supported. "
+                "Platform tool setup will run in dry-run mode."
+            )
+            overridden_dry_run = True
+        else:
+            overridden_dry_run = self.ctx.dry_run
+
+        with self.ctx.override_dry_run(overridden_dry_run):
+            yield platform
+
+    def _setup_platform_tools(self, platform: PlatformType) -> None:
         _ = platform
         setup_brew(self.ctx)
-        setup_mise(self.ctx)
 
     def _get_mise_tools(self) -> set[str]:
         return {
@@ -165,7 +184,7 @@ class BaseSpace(CleanUtils, Bakebook):
             "zerv": None,
         }
 
-    def add_mise_tools(self) -> None:
+    def _add_mise_tools(self) -> None:
         result = run(
             "mise list --local --current --json", stream=False, echo=False, capture_output=True
         )
@@ -183,41 +202,33 @@ class BaseSpace(CleanUtils, Bakebook):
         for tool in missing_tools:
             self.ctx.run(f"mise use {tool}")
 
-    def setup_tools(self) -> None:
-        self.add_mise_tools()
+    def _setup_tools(self) -> None:
+        setup_mise(self.ctx)
+        self._add_mise_tools()
         install_mise_tools(self.ctx)
 
-    def setup_project(self) -> None:
+    def _setup_project(self) -> None:
+        console.start("Cleaning")
+        self.clean(exclude_patterns=None, default_excludes=True)
         self.ctx.run("pre-commit install")
         if self.ctx.obj.is_standalone_bakefile:
             self.ctx.run("bakefile sync --frozen")
 
     @command(help="Setup development environment")
-    def setup_dev(self) -> None:
-        platform = bake_settings.platform
-        console.echo(f"Detected platform: {platform}")
+    def setup_dev(
+        self,
+        fast: Annotated[bool, fast_bool_option(help="Skip tool setup")] = False,
+    ) -> None:
+        if not fast:
+            console.start("Setting up platform tools")
+            with self._platform_tools_context() as platform:
+                self._setup_platform_tools(platform)
 
-        if platform != "macos":
-            console.warning(
-                f"Platform '{platform}' is not officially supported. "
-                "Tool manager setup will run in dry-run mode."
-            )
-            overridden_dry_run = True
-        else:
-            overridden_dry_run = self.ctx.dry_run
-
-        console.start("Cleaning")
-        self.clean(exclude_patterns=None, default_excludes=True)
-
-        with self.ctx.override_dry_run(overridden_dry_run):
-            console.start("Setting up tool managers")
-            self.setup_tool_managers(platform=platform)
-
-        console.start("Setting up tools")
-        self.setup_tools()
+            console.start("Setting up tools")
+            self._setup_tools()
 
         console.start("Setting up project")
-        self.setup_project()
+        self._setup_project()
 
     def _assert_which_path(
         self,
@@ -292,10 +303,11 @@ class BaseSpace(CleanUtils, Bakebook):
             console.start("Testing")
             self.test()
 
+    def _update_platform_tools(self, platform: PlatformType) -> None:
+        _ = platform
+        setup_brew(self.ctx)
+
     def _update_tools(self) -> None:
-        platform = bake_settings.platform
-        if platform == "macos":
-            setup_brew(self.ctx)
         self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
         self.ctx.run("uv tool upgrade --all")
@@ -313,6 +325,10 @@ class BaseSpace(CleanUtils, Bakebook):
     ) -> None:
         if not fast:
             console.start("Upgrading platform tools")
+            with self._platform_tools_context() as platform:
+                self._update_platform_tools(platform)
+
+            console.start("Upgrading tools")
             self._update_tools()
-        console.start("Upgrading project dependencies")
+        console.start("Upgrading project")
         self._update_project()

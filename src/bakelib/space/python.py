@@ -91,12 +91,12 @@ class PythonSpace(BaseSpace):
         else:
             self._command_not_available("test_all")
 
-    def setup_tools(self) -> None:
-        super().setup_tools()
+    def _setup_tools(self) -> None:
+        super()._setup_tools()
         self.ctx.run("uv python upgrade")
 
-    def setup_project(self) -> None:
-        super().setup_project()
+    def _setup_project(self) -> None:
+        super()._setup_project()
         self.ctx.run("uv sync --all-extras --all-groups --frozen")
 
     def _update_project(self) -> None:

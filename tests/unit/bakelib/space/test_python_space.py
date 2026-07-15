@@ -54,7 +54,7 @@ class TestPythonSpace:
     ) -> None:
         python_space = PythonSpace()
         with mock_ctx:
-            python_space.setup_project()
+            python_space._setup_project()
         captured = capsys.readouterr()
         capture_err = strip_ansi(captured.err)
         assert "uv sync" in capture_err

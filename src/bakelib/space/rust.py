@@ -79,8 +79,8 @@ class RustSpace(BaseSpace):
         tools["cargo-tarpaulin"] = None
         return tools
 
-    def setup_tools(self) -> None:
-        super().setup_tools()
+    def _setup_tools(self) -> None:
+        super()._setup_tools()
         run_rustup_update(self.ctx.run)
         self.ctx.run("rustup install stable")
 

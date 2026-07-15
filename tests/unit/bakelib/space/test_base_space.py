@@ -1,4 +1,4 @@
-from contextlib import suppress
+from contextlib import nullcontext, suppress
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -7,7 +7,7 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bake.utils.settings import bake_settings
+from bake.utils.settings import PlatformType, bake_settings
 from bakelib.space.base import BaseSpace
 
 
@@ -334,6 +334,36 @@ class TestSetupDev:
         err = strip_ansi(captured.err)
         assert "dry-run mode" in err.lower()
 
+    def test_setup_dev_with_fast_skips_tool_setup(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+
+        with (
+            mock_ctx,
+            patch.object(bake_settings, "platform", "macos"),
+            patch.object(type(base_space), "_setup_platform_tools") as mock_managers,
+            patch.object(type(base_space), "_setup_tools") as mock_tools,
+            patch.object(type(base_space), "_setup_project") as mock_project,
+        ):
+            base_space.setup_dev(fast=True)
+
+        mock_managers.assert_not_called()
+        mock_tools.assert_not_called()
+        mock_project.assert_called_once()
+
+    def test_setup_dev_without_fast_runs_tool_setup(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+
+        with (
+            mock_ctx,
+            patch.object(bake_settings, "platform", "macos"),
+            patch.object(type(base_space), "_setup_platform_tools") as mock_managers,
+            patch.object(type(base_space), "_setup_tools") as mock_tools,
+        ):
+            base_space.setup_dev(fast=False)
+
+        mock_managers.assert_called_once()
+        mock_tools.assert_called_once()
+
 
 class TestLint:
     def test_lint_runs_bakefile_lint_when_standalone(self, mock_ctx: Context) -> None:
@@ -426,6 +456,18 @@ class TestUpdate:
         assert "bakefile lock --upgrade" not in run_calls
         assert "bakefile sync" not in run_calls
 
+    def test_update_shows_warning_on_non_macos(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        base_space = MinimalTestSpace()
+
+        with patch.object(bake_settings, "platform", "linux"), mock_ctx:
+            base_space.update()
+
+        captured = capsys.readouterr()
+        err = strip_ansi(captured.err)
+        assert "dry-run mode" in err.lower()
+
 
 class TestSetupProject:
     def test_setup_project_runs_bakefile_sync_when_standalone(self, mock_ctx: Context) -> None:
@@ -440,12 +482,13 @@ class TestSetupProject:
         with (
             mock_ctx,
             patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(type(base_space), "clean"),
             patch.object(
                 type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
             ) as mock_prop,
         ):
             mock_prop.return_value = True
-            base_space.setup_project()
+            base_space._setup_project()
 
         assert "pre-commit install" in run_calls
         assert "bakefile sync --frozen" in run_calls
@@ -462,12 +505,13 @@ class TestSetupProject:
         with (
             mock_ctx,
             patch.object(mock_ctx, "run", side_effect=capture_run),
+            patch.object(type(base_space), "clean"),
             patch.object(
                 type(mock_ctx.obj), "is_standalone_bakefile", new_callable=PropertyMock
             ) as mock_prop,
         ):
             mock_prop.return_value = False
-            base_space.setup_project()
+            base_space._setup_project()
 
         assert "pre-commit install" in run_calls
         assert "bakefile sync --frozen" not in run_calls
@@ -515,3 +559,74 @@ class TestChildVersionSetterExtensibility:
                 assert child._extra_tag == "tag-1.0.0"
 
         assert child._version == "1.0.0"
+
+
+class TestPlatformToolsExtension:
+    def test_get_supported_platforms_defaults_to_macos(self) -> None:
+        base_space = MinimalTestSpace()
+        assert base_space._get_supported_platforms() == {"macos"}
+
+    def test_supported_platform_skips_warning(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        class LinuxSpace(MinimalTestSpace):
+            def _get_supported_platforms(self) -> set[PlatformType]:
+                return super()._get_supported_platforms() | {"linux"}
+
+        space = LinuxSpace()
+
+        with patch.object(bake_settings, "platform", "linux"), mock_ctx:
+            space.setup_dev()
+
+        err = strip_ansi(capsys.readouterr().err)
+        assert "dry-run mode" not in err.lower()
+
+    def test_setup_platform_tools_receives_platform(self, mock_ctx: Context) -> None:
+        received: list[str] = []
+
+        class RecordingSpace(MinimalTestSpace):
+            def _setup_platform_tools(self, platform: PlatformType) -> None:
+                received.append(platform)
+
+        space = RecordingSpace()
+
+        with patch.object(bake_settings, "platform", "linux"), mock_ctx:
+            space.setup_dev()
+
+        assert received == ["linux"]
+
+    def test_update_platform_tools_receives_platform(self, mock_ctx: Context) -> None:
+        received: list[str] = []
+
+        class RecordingSpace(MinimalTestSpace):
+            def _update_platform_tools(self, platform: PlatformType) -> None:
+                received.append(platform)
+
+        space = RecordingSpace()
+
+        with patch.object(bake_settings, "platform", "linux"), mock_ctx:
+            space.update()
+
+        assert received == ["linux"]
+
+    def test_unsupported_platform_forces_dry_run(self, mock_ctx: Context) -> None:
+        mock_ctx.dry_run = False
+        forced: list[bool] = []
+
+        def capture_override(dry_run: bool):
+            forced.append(dry_run)
+            return nullcontext()
+
+        space = MinimalTestSpace()
+
+        with (
+            patch.object(bake_settings, "platform", "linux"),
+            mock_ctx,
+            patch.object(mock_ctx, "override_dry_run", side_effect=capture_override),
+            patch.object(type(space), "_setup_platform_tools"),
+            patch.object(type(space), "_setup_tools"),
+            patch.object(type(space), "_setup_project"),
+        ):
+            space.setup_dev()
+
+        assert forced == [True]
