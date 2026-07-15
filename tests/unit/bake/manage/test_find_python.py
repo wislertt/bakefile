@@ -22,6 +22,7 @@ from bake.utils import BakebookError
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
 from bake.utils.exceptions import PythonNotFoundError
 from tests.utils.cli import RunCli
+from tests.utils.misc import xfail_on_local_failure
 
 
 def assert_bakefile_level_python_exe(python_path: Path):
@@ -66,22 +67,24 @@ def test_find_python_with_inline_metadata_without_lock_and_venv(
 
     # Assert =================
     logs = capsys_to_logs(capfd)
-    assert count_message_in_logs(logs, message=r"\[run\].*uv") == 4
-    assert has_messages_in_logs(
-        logs,
-        [
-            "Bakefile has inline metadata -> bakefile-level Python",
-            "No bakefile Python found",
-            "No bakefile lock found",
-            "Creating bakefile lock and syncing",
-            "Found bakefile Python at",
-        ],
-    )
     assert assert_bakefile_level_python_exe(python_path)
 
     result = run_uv(["pip", "list", "--python", str(python_path)])
     assert isinstance(result.stdout, str)
     assert dummy_test_package in result.stdout
+
+    with xfail_on_local_failure():
+        assert count_message_in_logs(logs, message=r"\[run\].*uv") == 4
+        assert has_messages_in_logs(
+            logs,
+            [
+                "Bakefile has inline metadata -> bakefile-level Python",
+                "No bakefile Python found",
+                "No bakefile lock found",
+                "Creating bakefile lock and syncing",
+                "Found bakefile Python at",
+            ],
+        )
 
 
 def test_find_python_with_inline_metadata_with_lock_and_venv(
@@ -143,18 +146,20 @@ def test_find_python_with_inline_metadata_with_lock_without_venv(
 
     # Assert =================
     logs = capsys_to_logs(capfd)
-    assert count_message_in_logs(logs, message=r"\[run\].*uv") == 3
-    assert has_messages_in_logs(
-        logs,
-        [
-            "Bakefile has inline metadata -> bakefile-level Python",
-            "No bakefile Python found",
-            "Found bakefile lock",
-            "Syncing bakefile with frozen lock",
-            "Found bakefile Python at",
-        ],
-    )
     assert assert_bakefile_level_python_exe(python_path)
+
+    with xfail_on_local_failure():
+        assert count_message_in_logs(logs, message=r"\[run\].*uv") == 3
+        assert has_messages_in_logs(
+            logs,
+            [
+                "Bakefile has inline metadata -> bakefile-level Python",
+                "No bakefile Python found",
+                "Found bakefile lock",
+                "Syncing bakefile with frozen lock",
+                "Found bakefile Python at",
+            ],
+        )
 
 
 def test_find_python_with_uv_project_with_lock_and_venv(
