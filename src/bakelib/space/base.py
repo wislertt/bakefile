@@ -1,4 +1,6 @@
+import os
 import shutil
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, NoReturn
@@ -8,7 +10,7 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console, run
-from bake._params import fast_bool_option
+from bake._params import fast_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
@@ -23,6 +25,16 @@ from .utils import (
 def command_not_available(command_name: str) -> None:
     console.error(f"Command '{command_name}' is not available")
     raise typer.Exit(1)
+
+
+def _global_keyring_env() -> dict[str, str]:
+    # Prepend the global `keyring` dir so uv's subprocess provider resolves it
+    # instead of the backend-less copy in a project/dev venv (via bakefile[lib]).
+    path = os.environ.get("PATH", "")
+    for entry in path.split(os.pathsep):
+        if entry and "/.venv/bin" not in entry and (Path(entry) / "keyring").exists():
+            return {"PATH": f"{entry}{os.pathsep}{path}"}
+    return {}
 
 
 class BaseSpace(CleanUtils, Bakebook):
@@ -138,10 +150,28 @@ class BaseSpace(CleanUtils, Bakebook):
     def test_all(self) -> None:
         self._command_not_available("test_all")
 
-    def setup_tool_managers(self, platform: PlatformType) -> None:
+    def _get_supported_platforms(self) -> set[PlatformType]:
+        return {"macos"}
+
+    @contextmanager
+    def _platform_tools_context(self) -> Generator[PlatformType]:
+        platform = bake_settings.platform
+        console.echo(f"Detected platform: {platform}")
+        if platform not in self._get_supported_platforms():
+            console.warning(
+                f"Platform '{platform}' is not officially supported. "
+                "Platform tool setup will run in dry-run mode."
+            )
+            overridden_dry_run = True
+        else:
+            overridden_dry_run = self.ctx.dry_run
+
+        with self.ctx.override_dry_run(overridden_dry_run):
+            yield platform
+
+    def _setup_platform_tools(self, platform: PlatformType) -> None:
         _ = platform
         setup_brew(self.ctx)
-        setup_mise(self.ctx)
 
     def _get_mise_tools(self) -> set[str]:
         return {
@@ -165,7 +195,7 @@ class BaseSpace(CleanUtils, Bakebook):
             "zerv": None,
         }
 
-    def add_mise_tools(self) -> None:
+    def _add_mise_tools(self) -> None:
         result = run(
             "mise list --local --current --json", stream=False, echo=False, capture_output=True
         )
@@ -183,41 +213,35 @@ class BaseSpace(CleanUtils, Bakebook):
         for tool in missing_tools:
             self.ctx.run(f"mise use {tool}")
 
-    def setup_tools(self) -> None:
-        self.add_mise_tools()
+    def _setup_tools(self) -> None:
+        setup_mise(self.ctx)
+        self._add_mise_tools()
         install_mise_tools(self.ctx)
 
-    def setup_project(self) -> None:
+    def _setup_project(self) -> None:
+        console.start("Cleaning")
+        self.clean(exclude_patterns=None, default_excludes=True)
         self.ctx.run("pre-commit install")
         if self.ctx.obj.is_standalone_bakefile:
             self.ctx.run("bakefile sync --frozen")
 
     @command(help="Setup development environment")
-    def setup_dev(self) -> None:
-        platform = bake_settings.platform
-        console.echo(f"Detected platform: {platform}")
-
-        if platform != "macos":
-            console.warning(
-                f"Platform '{platform}' is not officially supported. "
-                "Tool manager setup will run in dry-run mode."
-            )
-            overridden_dry_run = True
-        else:
-            overridden_dry_run = self.ctx.dry_run
-
-        console.start("Cleaning")
-        self.clean(exclude_patterns=None, default_excludes=True)
-
-        with self.ctx.override_dry_run(overridden_dry_run):
-            console.start("Setting up tool managers")
-            self.setup_tool_managers(platform=platform)
-
-        console.start("Setting up tools")
-        self.setup_tools()
-
+    def setup_dev(
+        self,
+        fast: Annotated[
+            int,
+            fast_option(help="Skip steps: -f skips platform tools, -ff also skips tools"),
+        ] = 0,
+    ) -> None:
+        if fast < 1:
+            console.start("Setting up platform tools")
+            with self._platform_tools_context() as platform:
+                self._setup_platform_tools(platform)
+        if fast < 2:
+            console.start("Setting up tools")
+            self._setup_tools()
         console.start("Setting up project")
-        self.setup_project()
+        self._setup_project()
 
     def _assert_which_path(
         self,
@@ -275,12 +299,7 @@ class BaseSpace(CleanUtils, Bakebook):
         self,
         fast: Annotated[
             int,
-            typer.Option(
-                "--fast",
-                "-f",
-                count=True,
-                help="Skip steps: -f skips tests, -ff skips tests and lint",
-            ),
+            fast_option(help="Skip steps: -f skips tests, -ff skips tests and lint"),
         ] = 0,
     ) -> None:
         self._assert_tools()
@@ -292,13 +311,14 @@ class BaseSpace(CleanUtils, Bakebook):
             console.start("Testing")
             self.test()
 
+    def _update_platform_tools(self, platform: PlatformType) -> None:
+        _ = platform
+        setup_brew(self.ctx)
+
     def _update_tools(self) -> None:
-        platform = bake_settings.platform
-        if platform == "macos":
-            setup_brew(self.ctx)
         self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
-        self.ctx.run("uv tool upgrade --all")
+        self.ctx.run("uv tool upgrade --all", env=_global_keyring_env())
 
     def _update_project(self) -> None:
         self.ctx.run("pre-commit autoupdate")
@@ -309,10 +329,19 @@ class BaseSpace(CleanUtils, Bakebook):
     @command(help="Upgrade all dependencies")
     def update(
         self,
-        fast: Annotated[bool, fast_bool_option(help="Skip platform tool upgrades")] = False,
+        fast: Annotated[
+            int,
+            fast_option(
+                help="Skip steps: -f skips platform tool upgrades, -ff also skips tool upgrades"
+            ),
+        ] = 0,
     ) -> None:
-        if not fast:
+        if fast < 1:
             console.start("Upgrading platform tools")
+            with self._platform_tools_context() as platform:
+                self._update_platform_tools(platform)
+        if fast < 2:
+            console.start("Upgrading tools")
             self._update_tools()
-        console.start("Upgrading project dependencies")
+        console.start("Upgrading project")
         self._update_project()

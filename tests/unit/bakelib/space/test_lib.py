@@ -401,18 +401,18 @@ class TestBaseLibSpace:
 
 
 class TestBaseLibSpaceSetupTools:
-    """Tests for BaseLibSpace.setup_tools method."""
+    """Tests for BaseLibSpace._setup_tools method."""
 
-    def test_setup_tools_calls_parent_and_rustup_zerv(
+    def test__setup_tools_calls_parent_and_rustup_zerv(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         space = MinimalTestLibSpace()
         with mock_ctx:
-            space.setup_tools()
+            space._setup_tools()
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
 
-        # Parent setup_tools calls setup_mise, install_mise_tools
+        # Parent _setup_tools calls setup_mise, install_mise_tools
         assert "mise install" in err
         assert "mise doctor" in err
 

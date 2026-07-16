@@ -4,12 +4,14 @@ from bake.ui import run
 from bake.ui.logger import strip_ansi
 from tests.utils.fixtures import get_project_env
 
+BAKE = "bake"
+
 
 def test_python_package(examples_python_package_dir: Path) -> None:
     env = get_project_env(examples_python_package_dir)
 
     result = run(
-        ["bake", "setup-dev"],
+        [BAKE, "setup-dev"],
         cwd=examples_python_package_dir,
         env=env,
         check=False,
@@ -22,7 +24,7 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     assert "packages" in stderr
 
     result = run(
-        ["bake", "update"],
+        [BAKE, "update"],
         cwd=examples_python_package_dir,
         env=env,
         capture_output=True,
@@ -33,7 +35,7 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     assert "packages" in stderr
 
     result = run(
-        ["bake", "assert-setup-dev"],
+        [BAKE, "assert-setup-dev"],
         cwd=examples_python_package_dir,
         env=env,
         capture_output=True,

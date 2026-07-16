@@ -440,6 +440,33 @@ class TestPrettyLogFormatter:
         assert record["time"].hour == 17
         assert record["time"].tzinfo == ZoneInfo("Asia/Bangkok")
 
+    def test_pretty_log_formatter_unset_context_var_does_not_raise(self) -> None:
+        """Unset ContextVar (no default) logs as None instead of raising LookupError."""
+        import multiprocessing
+        import pathlib
+        import threading
+
+        unset_var = ContextVar("unset_var")  # no default, never .set()
+        formatter = PrettyLogFormatter(thread_local_context={"unset_var": unset_var})
+
+        record = {
+            "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
+            "level": loguru.logger.level("INFO"),
+            "message": "Test message",
+            "name": "test",
+            "process": multiprocessing.current_process(),
+            "file": pathlib.Path(__file__),
+            "function": "test_function",
+            "line": 42,
+            "thread": threading.current_thread(),
+            "extra": {},
+            "exception": None,
+        }
+
+        formatter(record)  # ty: ignore[invalid-argument-type]
+
+        assert record["extra"]["unset_var"] == str(None)
+
 
 class TestInterceptHandlerEmit:
     """Tests for InterceptHandler.emit method edge cases."""

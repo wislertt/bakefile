@@ -65,12 +65,12 @@ class TestUpdate:
 
 
 class TestSetupTools:
-    def test_setup_tools_calls_sync_submodules_frozen(
+    def test__setup_tools_calls_sync_submodules_frozen(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
         utils = SubmodulesUtils()
         with mock_ctx:
-            utils.setup_tools()
+            utils._setup_tools()
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
         # Should contain submodule command without --remote
