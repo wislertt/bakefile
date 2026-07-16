@@ -334,7 +334,7 @@ class TestSetupDev:
         err = strip_ansi(captured.err)
         assert "dry-run mode" in err.lower()
 
-    def test_setup_dev_with_fast_skips_tool_setup(self, mock_ctx: Context) -> None:
+    def test_setup_dev_fast_2_skips_platform_and_tools(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
 
         with (
@@ -344,10 +344,26 @@ class TestSetupDev:
             patch.object(type(base_space), "_setup_tools") as mock_tools,
             patch.object(type(base_space), "_setup_project") as mock_project,
         ):
-            base_space.setup_dev(fast=True)
+            base_space.setup_dev(fast=2)
 
         mock_managers.assert_not_called()
         mock_tools.assert_not_called()
+        mock_project.assert_called_once()
+
+    def test_setup_dev_fast_1_skips_platform_only(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+
+        with (
+            mock_ctx,
+            patch.object(bake_settings, "platform", "macos"),
+            patch.object(type(base_space), "_setup_platform_tools") as mock_managers,
+            patch.object(type(base_space), "_setup_tools") as mock_tools,
+            patch.object(type(base_space), "_setup_project") as mock_project,
+        ):
+            base_space.setup_dev(fast=1)
+
+        mock_managers.assert_not_called()
+        mock_tools.assert_called_once()
         mock_project.assert_called_once()
 
     def test_setup_dev_without_fast_runs_tool_setup(self, mock_ctx: Context) -> None:
@@ -359,7 +375,7 @@ class TestSetupDev:
             patch.object(type(base_space), "_setup_platform_tools") as mock_managers,
             patch.object(type(base_space), "_setup_tools") as mock_tools,
         ):
-            base_space.setup_dev(fast=False)
+            base_space.setup_dev(fast=0)
 
         mock_managers.assert_called_once()
         mock_tools.assert_called_once()

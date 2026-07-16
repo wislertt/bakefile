@@ -9,7 +9,7 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console, run
-from bake._params import fast_bool_option
+from bake._params import fast_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
@@ -217,16 +217,18 @@ class BaseSpace(CleanUtils, Bakebook):
     @command(help="Setup development environment")
     def setup_dev(
         self,
-        fast: Annotated[bool, fast_bool_option(help="Skip tool setup")] = False,
+        fast: Annotated[
+            int,
+            fast_option(help="Skip steps: -f skips platform tools, -ff also skips tools"),
+        ] = 0,
     ) -> None:
-        if not fast:
+        if fast < 1:
             console.start("Setting up platform tools")
             with self._platform_tools_context() as platform:
                 self._setup_platform_tools(platform)
-
+        if fast < 2:
             console.start("Setting up tools")
             self._setup_tools()
-
         console.start("Setting up project")
         self._setup_project()
 
@@ -286,12 +288,7 @@ class BaseSpace(CleanUtils, Bakebook):
         self,
         fast: Annotated[
             int,
-            typer.Option(
-                "--fast",
-                "-f",
-                count=True,
-                help="Skip steps: -f skips tests, -ff skips tests and lint",
-            ),
+            fast_option(help="Skip steps: -f skips tests, -ff skips tests and lint"),
         ] = 0,
     ) -> None:
         self._assert_tools()
@@ -321,13 +318,18 @@ class BaseSpace(CleanUtils, Bakebook):
     @command(help="Upgrade all dependencies")
     def update(
         self,
-        fast: Annotated[bool, fast_bool_option(help="Skip platform tool upgrades")] = False,
+        fast: Annotated[
+            int,
+            fast_option(
+                help="Skip steps: -f skips platform tool upgrades, -ff also skips tool upgrades"
+            ),
+        ] = 0,
     ) -> None:
-        if not fast:
+        if fast < 1:
             console.start("Upgrading platform tools")
             with self._platform_tools_context() as platform:
                 self._update_platform_tools(platform)
-
+        if fast < 2:
             console.start("Upgrading tools")
             self._update_tools()
         console.start("Upgrading project")
