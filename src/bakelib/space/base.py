@@ -1,3 +1,4 @@
+import os
 import shutil
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -24,6 +25,16 @@ from .utils import (
 def command_not_available(command_name: str) -> None:
     console.error(f"Command '{command_name}' is not available")
     raise typer.Exit(1)
+
+
+def _global_keyring_env() -> dict[str, str]:
+    # Prepend the global `keyring` dir so uv's subprocess provider resolves it
+    # instead of the backend-less copy in a project/dev venv (via bakefile[lib]).
+    path = os.environ.get("PATH", "")
+    for entry in path.split(os.pathsep):
+        if entry and "/.venv/bin" not in entry and (Path(entry) / "keyring").exists():
+            return {"PATH": f"{entry}{os.pathsep}{path}"}
+    return {}
 
 
 class BaseSpace(CleanUtils, Bakebook):
@@ -307,7 +318,7 @@ class BaseSpace(CleanUtils, Bakebook):
     def _update_tools(self) -> None:
         self.ctx.run("mise upgrade")
         self.ctx.run("uv python upgrade")
-        self.ctx.run("uv tool upgrade --all")
+        self.ctx.run("uv tool upgrade --all", env=_global_keyring_env())
 
     def _update_project(self) -> None:
         self.ctx.run("pre-commit autoupdate")
