@@ -698,7 +698,7 @@ def _assert_pydantic_can_consume(
         # All other types: pass string directly to model (Pydantic handles coercion)
         # Create model lazily if not provided
         model = value_model or create_model("ValueModel", value=(value_type, ...))
-        parsed_model = model(value=env_value)
+        parsed_model = model.model_validate({"value": env_value})
         if value_type not in (SecretStr, SecretBytes):
             # Use model_dump() to extract value (type-safe for any BaseModel with 'value' field)
             assert parsed_model.model_dump()["value"] == expected_value

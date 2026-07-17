@@ -412,7 +412,7 @@ class TestBaseLibSpaceSetupTools:
         captured = capsys.readouterr()
         err = strip_ansi(captured.err)
 
-        # Parent _setup_tools calls setup_mise, install_mise_tools
+        # Parent _setup_tools runs mise use (add) + install_mise_tools
         assert "mise install" in err
         assert "mise doctor" in err
 
