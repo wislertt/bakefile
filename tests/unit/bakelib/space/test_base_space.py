@@ -1,3 +1,4 @@
+import os
 from contextlib import nullcontext, suppress
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -8,7 +9,7 @@ import typer
 from bake import Context
 from bake.ui.logger import strip_ansi
 from bake.utils.settings import PlatformType, bake_settings
-from bakelib.space.base import BaseSpace
+from bakelib.space.base import BaseSpace, _global_keyring_env
 
 
 class MinimalTestSpace(BaseSpace):
@@ -646,3 +647,30 @@ class TestPlatformToolsExtension:
             space.setup_dev()
 
         assert forced == [True]
+
+
+class TestGlobalKeyringEnv:
+    def test_prepends_first_non_venv_keyring_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        global_dir = tmp_path / "global-bin"
+        global_dir.mkdir()
+        (global_dir / "keyring").touch()
+        venv_dir = tmp_path / "proj" / ".venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "keyring").touch()
+
+        base_path = f"{venv_dir}{os.pathsep}{global_dir}{os.pathsep}/usr/bin"
+        monkeypatch.setenv("PATH", base_path)
+
+        assert _global_keyring_env() == {"PATH": f"{global_dir}{os.pathsep}{base_path}"}
+
+    def test_returns_empty_when_only_venv_keyring(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        venv_dir = tmp_path / ".venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "keyring").touch()
+        monkeypatch.setenv("PATH", f"{venv_dir}{os.pathsep}/usr/bin")
+
+        assert _global_keyring_env() == {}

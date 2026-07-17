@@ -9,7 +9,7 @@ import orjson
 import typer
 import zerv
 
-from bake import Bakebook, command, console, run
+from bake import Bakebook, command, console
 from bake._params import fast_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
@@ -32,7 +32,13 @@ def _global_keyring_env() -> dict[str, str]:
     # instead of the backend-less copy in a project/dev venv (via bakefile[lib]).
     path = os.environ.get("PATH", "")
     for entry in path.split(os.pathsep):
-        if entry and "/.venv/bin" not in entry and (Path(entry) / "keyring").exists():
+        if not entry:
+            continue
+        # Skip any directory inside a `.venv` (.venv/bin on POSIX,
+        # .venv/Scripts on Windows) so we don't pick the venv-local keyring.
+        if any(part == ".venv" for part in Path(entry).parts):
+            continue
+        if (Path(entry) / "keyring").exists():
             return {"PATH": f"{entry}{os.pathsep}{path}"}
     return {}
 
@@ -172,6 +178,7 @@ class BaseSpace(CleanUtils, Bakebook):
     def _setup_platform_tools(self, platform: PlatformType) -> None:
         _ = platform
         setup_brew(self.ctx)
+        setup_mise(self.ctx)
 
     def _get_mise_tools(self) -> set[str]:
         return {
@@ -196,7 +203,7 @@ class BaseSpace(CleanUtils, Bakebook):
         }
 
     def _add_mise_tools(self) -> None:
-        result = run(
+        result = self.ctx.run(
             "mise list --local --current --json", stream=False, echo=False, capture_output=True
         )
         current_tools: set[str] = set()
@@ -214,7 +221,6 @@ class BaseSpace(CleanUtils, Bakebook):
             self.ctx.run(f"mise use {tool}")
 
     def _setup_tools(self) -> None:
-        setup_mise(self.ctx)
         self._add_mise_tools()
         install_mise_tools(self.ctx)
 

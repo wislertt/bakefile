@@ -589,7 +589,7 @@ class TestFormatShellValueUnit:
             value=(value_type, ...),
         )
 
-        model = value_model(value=value)
+        model = value_model.model_validate({"value": value})
         json_output = model.model_dump(mode="json")
 
         result = _format_shell_value(json_output["value"])
@@ -803,7 +803,7 @@ class TestFormatDotEnvValueUnit:
             value=(value_type, ...),
         )
 
-        model = value_model(value=value)
+        model = value_model.model_validate({"value": value})
         json_output = model.model_dump(mode="json")
 
         result = _format_dotenv_value(json_output["value"])
