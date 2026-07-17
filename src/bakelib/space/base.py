@@ -32,7 +32,13 @@ def _global_keyring_env() -> dict[str, str]:
     # instead of the backend-less copy in a project/dev venv (via bakefile[lib]).
     path = os.environ.get("PATH", "")
     for entry in path.split(os.pathsep):
-        if entry and "/.venv/bin" not in entry and (Path(entry) / "keyring").exists():
+        if not entry:
+            continue
+        # Skip any directory inside a `.venv` (.venv/bin on POSIX,
+        # .venv/Scripts on Windows) so we don't pick the venv-local keyring.
+        if any(part == ".venv" for part in Path(entry).parts):
+            continue
+        if (Path(entry) / "keyring").exists():
             return {"PATH": f"{entry}{os.pathsep}{path}"}
     return {}
 
