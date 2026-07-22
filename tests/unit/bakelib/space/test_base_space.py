@@ -3,6 +3,7 @@ from contextlib import nullcontext, suppress
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch
 
+import orjson
 import pytest
 import typer
 
@@ -674,3 +675,36 @@ class TestGlobalKeyringEnv:
         monkeypatch.setenv("PATH", f"{venv_dir}{os.pathsep}/usr/bin")
 
         assert _global_keyring_env() == {}
+
+    def test_skips_empty_path_entries(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        global_dir = tmp_path / "global-bin"
+        global_dir.mkdir()
+        (global_dir / "keyring").touch()
+
+        # leading separator yields an empty first entry, which must be skipped
+        base_path = f"{os.pathsep}{global_dir}{os.pathsep}/usr/bin"
+        monkeypatch.setenv("PATH", base_path)
+
+        assert _global_keyring_env() == {"PATH": f"{global_dir}{os.pathsep}{base_path}"}
+
+
+class TestAddMiseTools:
+    def test_parses_current_tools_and_installs_missing(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+
+        mock_result = MagicMock()
+        mock_result.stdout = orjson.dumps({"bun": {}, "uv": {}})
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> object:
+            run_calls.append(cmd)
+            return mock_result
+
+        with mock_ctx, patch.object(mock_ctx, "run", side_effect=capture_run):
+            base_space._add_mise_tools()
+
+        assert run_calls[0] == "mise list --local --current --json"
+        missing = sorted(base_space._get_mise_tools() - {"bun", "uv"})
+        assert run_calls[1:] == [f"mise use {tool}" for tool in missing]
