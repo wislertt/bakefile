@@ -1,4 +1,5 @@
 import functools
+import inspect
 from dataclasses import dataclass
 
 import pytest
@@ -97,6 +98,46 @@ class TestRegistryRegister:
         registry = make_registry("reg-key-mismatch")
         with pytest.raises(ValueError, match="does not match key"):
             registry.register("slot-a", fetch_fn=KeyedFetch(key="slot-b"))
+
+
+class TestRegistryGetOrRegister:
+    def test_registers_when_absent(self):
+        registry = make_registry("reg-gor-absent")
+        cache = registry.get_or_register("k", fetch_fn=lambda: "v-k")
+        assert "k" in registry
+        assert registry.get("k") == "v-k"
+        assert registry.cache("k") is cache
+
+    def test_returns_existing_when_present(self):
+        registry = make_registry("reg-gor-existing")
+        first = registry.register("k", fetch_fn=lambda: "first")
+        again = registry.get_or_register("k", fetch_fn=lambda: "second")
+        assert again is first
+
+    def test_idempotent_returns_same_instance(self):
+        registry = make_registry("reg-gor-idempotent")
+        a = registry.get_or_register("k", fetch_fn=lambda: "v")
+        b = registry.get_or_register("k", fetch_fn=lambda: "v")
+        assert a is b
+
+    def test_existing_fetch_fn_preserved(self):
+        registry = make_registry("reg-gor-preserve")
+        registry.register("k", fetch_fn=lambda: "first")
+        registry.get_or_register("k", fetch_fn=lambda: "second")
+        assert registry.get("k") == "first"
+
+    def test_preserves_subclass_fetch_fn_default(self):
+        # _KeyRegistry injects a key-derived fetch_fn inside register();
+        # get_or_register must forward absent kwargs as absent (not fetch_fn=None),
+        # else the subclass default is shadowed.
+        registry = make_registry("reg-gor-subclass")
+        registry.get_or_register("k")
+        assert registry.get("k") == "val-k"
+
+    def test_signature_matches_register(self):
+        assert inspect.signature(RefreshableCacheRegistry.get_or_register) == inspect.signature(
+            RefreshableCacheRegistry.register
+        )
 
 
 class TestRegistryPolicy:

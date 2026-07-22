@@ -69,6 +69,32 @@ class RefreshableCacheRegistry(Generic[T]):
         self._caches[key] = cache
         return cache
 
+    def get_or_register(
+        self,
+        key: str,
+        *,
+        fetch_fn: Callable[[], T] | FetchFn[T] | None = None,
+        ttl: float | None = None,
+        stop: "StopBaseT | None" = None,
+        wait: "WaitBaseT | None" = None,
+        cached_type: Any = None,
+    ) -> RefreshableCache[T]:
+        existing = self._caches.get(key)
+        if existing is not None:
+            return existing
+        kwargs: dict[str, Any] = {
+            k: v
+            for k, v in (
+                ("fetch_fn", fetch_fn),
+                ("ttl", ttl),
+                ("stop", stop),
+                ("wait", wait),
+                ("cached_type", cached_type),
+            )
+            if v is not None
+        }
+        return self.register(key, **kwargs)
+
     def _build_cache(
         self,
         key: str,
