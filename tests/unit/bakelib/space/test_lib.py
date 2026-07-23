@@ -348,7 +348,7 @@ class TestBaseLibSpace:
             space._publisher = publisher
             cached_token = space._get_cached_publish_token(token=None, registry="test-pypi")
         cached_token.delete()
-        result = cached_token.get_value()
+        result = cached_token.get()
         assert result is None
 
     def test_get_cached_publish_token_with_local_token(self, mock_ctx: Context) -> None:
@@ -359,7 +359,7 @@ class TestBaseLibSpace:
             cached_token = space._get_cached_publish_token(
                 token="local-token", registry="test-pypi"
             )
-        result = cached_token.get_value()
+        result = cached_token.get()
         assert result == "local-token"
 
     def test_execute_publish_returns_auth_failed_on_refresh_needed_error(
@@ -514,7 +514,7 @@ class TestBaseLibSpaceRemoteSecretManager:
             publisher = space.get_publisher("test-pypi")
             space._publisher = publisher
             cached = space._get_cached_publish_token(token="local-token", registry="test-pypi")
-        assert cached.get_value() == "local-token"
+        assert cached.get() == "local-token"
 
 
 # --- Remote publish-token: token resolved via Publisher._get_publish_token_from_remote ---
@@ -565,7 +565,7 @@ class TestRemotePublishToken:
     def test_vault_returns_remote_token_directly(self) -> None:
         space = RemoteTokenLibSpace()
         vault = space.vault()
-        keys = sorted(vault.keys())
+        keys = sorted(vault.list_cache_keys())
         assert len(keys) == 3
         assert keys == ["publish-token-crates", "publish-token-pypi", "publish-token-test-pypi"]
         values = [space.get_secret(k) for k in keys]
@@ -578,7 +578,7 @@ class TestRemotePublishToken:
             space._publisher = publisher
             cached = space._get_cached_publish_token(token="local-token", registry="test-pypi")
 
-            assert cached.get_value() == "local-token"
+            assert cached.get() == "local-token"
             assert cached.refresh() == "local-token"
 
         assert publisher.remote_call_count == 0

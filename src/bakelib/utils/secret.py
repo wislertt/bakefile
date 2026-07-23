@@ -33,7 +33,7 @@ class SecretUtils(Bakebook, Generic[T]):
         if self._vault is None:
             self._vault = self._cache_registry_cls(namespace=self.get_secret_namespace())
             for fetch_fn in self.get_secret_fetch_fns():
-                self._vault.register(fetch_fn.key, fetch_fn=fetch_fn)
+                self._vault.insert_cache(fetch_fn.key, fetch_fn=fetch_fn)
         return self._vault
 
     def get_group_kwargs(self) -> dict[str, GroupKwargs]:
@@ -47,28 +47,28 @@ class SecretUtils(Bakebook, Generic[T]):
         help="List all tracked secret keys with cache status",
     )
     def secret_list(self) -> None:
-        if not self.vault().keys():
+        if not self.vault().list_cache_keys():
             console.echo("No tracked secrets.")
             return
 
         console.echo(f"Tracked secrets (namespace: {self.vault().namespace}):")
-        for key in sorted(self.vault().keys()):
+        for key in sorted(self.vault().list_cache_keys()):
             status = (
-                "[green]cached[/green]" if self.vault().is_cached(key) else "[dim]not cached[/dim]"
+                "[green]cached[/green]" if self.vault().has_value(key) else "[dim]not cached[/dim]"
             )
             console.echo(f"  {key}: {status}")
 
     def get_secret(self, key: str) -> T:
-        return self.vault().cache(key).get_value()
+        return self.vault().get(key)
 
     def set_secret(self, key: str, value: str) -> None:
-        self.vault().cache(key).set(cast("T", value))
+        self.vault().set(key, cast("T", value))
 
     def del_secret(self, key: str) -> None:
-        self.vault().cache(key).delete()
+        self.vault().delete(key)
 
     def refresh_secret(self, key: str) -> None:
-        self.vault().cache(key).refresh()
+        self.vault().refresh(key)
 
     def _require_tracked_key(self, key: str) -> None:
         if key not in self.vault():
