@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
+def _drop_none(**kwargs: Any) -> dict[str, Any]:
+    return {k: v for k, v in kwargs.items() if v is not None}
+
+
 class RefreshableCacheRegistry(Generic[T]):
     _backends: ClassVar[list[type[RefreshableCache[Any]]]] = [MemoryCache]
     namespace: str = DEFAULT_NAMESPACE
@@ -48,7 +52,9 @@ class RefreshableCacheRegistry(Generic[T]):
             self.cached_type = cached_type
         self._caches: dict[str, RefreshableCache[T]] = {}
 
-    def register(
+    # ── Handle (cache repo) ──
+
+    def insert_cache(
         self,
         key: str,
         *,
@@ -59,7 +65,7 @@ class RefreshableCacheRegistry(Generic[T]):
         cached_type: Any = None,
     ) -> RefreshableCache[T]:
         if key in self._caches:
-            msg = f"Key '{key}' already registered; call unregister() first"
+            msg = f"Key '{key}' already registered; call remove_cache() first"
             raise ValueError(msg)
         if fetch_fn is None:
             fetch_fn = NullFetchFn(key)
@@ -69,7 +75,7 @@ class RefreshableCacheRegistry(Generic[T]):
         self._caches[key] = cache
         return cache
 
-    def get_or_register(
+    def ensure_cache(
         self,
         key: str,
         *,
@@ -82,18 +88,76 @@ class RefreshableCacheRegistry(Generic[T]):
         existing = self._caches.get(key)
         if existing is not None:
             return existing
-        kwargs: dict[str, Any] = {
-            k: v
-            for k, v in (
-                ("fetch_fn", fetch_fn),
-                ("ttl", ttl),
-                ("stop", stop),
-                ("wait", wait),
-                ("cached_type", cached_type),
-            )
-            if v is not None
-        }
-        return self.register(key, **kwargs)
+        return self.insert_cache(
+            key,
+            **_drop_none(fetch_fn=fetch_fn, ttl=ttl, stop=stop, wait=wait, cached_type=cached_type),
+        )
+
+    def upsert_cache(
+        self,
+        key: str,
+        *,
+        fetch_fn: Callable[[], T] | FetchFn[T] | None = None,
+        ttl: float | None = None,
+        stop: "StopBaseT | None" = None,
+        wait: "WaitBaseT | None" = None,
+        cached_type: Any = None,
+    ) -> RefreshableCache[T]:
+        if key in self._caches:
+            self.remove_cache(key)
+        return self.insert_cache(
+            key,
+            **_drop_none(fetch_fn=fetch_fn, ttl=ttl, stop=stop, wait=wait, cached_type=cached_type),
+        )
+
+    def remove_cache(self, key: str) -> None:
+        try:
+            cache = self._caches.pop(key)
+        except KeyError:
+            msg = f"Key '{key}' not registered"
+            raise KeyError(msg) from None
+        cache.delete()
+
+    def get_cache(self, key: str) -> RefreshableCache[T]:
+        try:
+            return self._caches[key]
+        except KeyError:
+            msg = f"Key '{key}' not registered"
+            raise KeyError(msg) from None
+
+    def list_cache_keys(self) -> KeysView[str]:
+        return self._caches.keys()
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._caches
+
+    # ── Value ──
+
+    def get(self, key: str) -> T:
+        return self.get_cache(key).get()
+
+    def set(self, key: str, value: T) -> None:
+        self.get_cache(key).set(value)
+
+    def delete(self, key: str) -> None:
+        self.get_cache(key).delete()
+
+    def delete_all(self) -> None:
+        for cache in self._caches.values():
+            cache.delete()
+
+    def refresh(self, key: str) -> T:
+        return self.get_cache(key).refresh()
+
+    def refresh_all(self) -> None:
+        for cache in self._caches.values():
+            cache.refresh()
+
+    def has_value(self, key: str) -> bool:
+        cache = self._caches.get(key)
+        return cache is not None and cache.has_value()
+
+    # ── Internal ──
 
     def _build_cache(
         self,
@@ -116,48 +180,6 @@ class RefreshableCacheRegistry(Generic[T]):
         if len(self.backends) == 1:
             return self.backends[0](**kwargs)
         return ChainedCache(backends=self.backends, **kwargs)
-
-    def cache(self, key: str) -> RefreshableCache[T]:
-        try:
-            return self._caches[key]
-        except KeyError:
-            msg = f"Key '{key}' not registered"
-            raise KeyError(msg) from None
-
-    def __contains__(self, key: object) -> bool:
-        return key in self._caches
-
-    def keys(self) -> KeysView[str]:
-        return self._caches.keys()
-
-    def is_cached(self, key: str) -> bool:
-        cache = self._caches.get(key)
-        return cache is not None and cache.has_value()
-
-    def get(self, key: str) -> T:
-        return self.cache(key).get_value()
-
-    def delete(self, key: str) -> None:
-        self.cache(key).delete()
-
-    def delete_all(self) -> None:
-        for cache in self._caches.values():
-            cache.delete()
-
-    def refresh(self, key: str) -> T:
-        return self.cache(key).refresh()
-
-    def refresh_all(self) -> None:
-        for cache in self._caches.values():
-            cache.refresh()
-
-    def unregister(self, key: str) -> None:
-        try:
-            cache = self._caches.pop(key)
-        except KeyError:
-            msg = f"Key '{key}' not registered"
-            raise KeyError(msg) from None
-        cache.delete()
 
 
 class SecretUtilsKeyringCacheRegistry(RefreshableCacheRegistry[T]):

@@ -62,15 +62,13 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
         stop = stop_after_attempt(1) if local_token else None
 
         vault = self.vault()
-        if key in vault:
-            vault.unregister(key)
-        vault.register(
+        vault.upsert_cache(
             key,
             fetch_fn=publisher.create_publish_token_fetch_fn(key, local_token=local_token),
             stop=stop,
         )
 
-        return vault.cache(key)
+        return vault.get_cache(key)
 
     @command(help="Build and publish the package")
     def publish(
@@ -108,7 +106,7 @@ class BaseLibSpace(SecretUtils[str | None], BaseSpace):
         @cached_publish_token.catch_refresh
         def _publish() -> PublishResult:
             publisher = unwrap(self._publisher)
-            token_value = cached_publish_token.get_value()
+            token_value = cached_publish_token.get()
             publish_result = publisher._publish_with_token(self.ctx, token=token_value)
 
             if publish_result.status == PublishStatus.AUTH_FAILED:

@@ -106,10 +106,10 @@ class TestCacheBasics:
             return "test-value"
 
         cache = cache_class(KEY_BASE, fetch_value)
-        assert cache.get_value() == "test-value"
+        assert cache.get() == "test-value"
         assert fetch_count == 1
 
-        assert cache.get_value() == "test-value"
+        assert cache.get() == "test-value"
         assert fetch_count == 1
 
     @pytest.mark.parametrize(
@@ -138,12 +138,12 @@ class TestCacheBasics:
         _ = capsys.readouterr()
 
         # First call - should fetch
-        result1 = cache.get_value()
+        result1 = cache.get()
         assert result1 == "test-value"
         assert fetch_count["count"] == 1
 
         # Second call - should hit cache
-        result2 = cache.get_value()
+        result2 = cache.get()
         assert result2 == "test-value"
         assert fetch_count["count"] == 1
 
@@ -156,7 +156,7 @@ class TestCacheBasics:
         time.sleep(ttl + buffer)
 
         # Third call - should refetch after TTL expires
-        result3 = cache.get_value()
+        result3 = cache.get()
         assert result3 == "test-value"
         assert fetch_count["count"] == 2
 
@@ -180,8 +180,8 @@ class TestCacheBasics:
         cache = cache_class(KEY_NO_TTL, fetch_value, ttl=None)
         _ = capsys.readouterr()
 
-        cache.get_value()
-        cache.get_value()
+        cache.get()
+        cache.get()
 
         logs = capsys_to_logs(capsys)
         assert has_messages_in_logs(logs, ["Cache miss", "Cache hit"])
@@ -200,8 +200,8 @@ class TestCacheBasics:
         cache_a = MemoryCache(KEY_A, fetch_a)
         cache_b = MemoryCache(KEY_B, fetch_b)
 
-        assert cache_a.get_value() == "a"
-        assert cache_b.get_value() == "b"
+        assert cache_a.get() == "a"
+        assert cache_b.get() == "b"
         assert fetch_counts == {"a": 1, "b": 1}
 
     def test_memory_cache_can_be_deleted(self):
@@ -213,11 +213,11 @@ class TestCacheBasics:
             return "value"
 
         cache = MemoryCache(KEY_DELETE, fetch_value)
-        cache.get_value()
+        cache.get()
         assert fetch_count == 1
 
         cache.delete()
-        cache.get_value()
+        cache.get()
         assert fetch_count == 2
 
 
@@ -246,7 +246,7 @@ class TestDecorator:
         def api_call(should_fail_first: bool = False) -> str:
             nonlocal call_count
             call_count += 1
-            value = cache.get_value()
+            value = cache.get()
             if should_fail_first and call_count == 1:
                 raise cache.RefreshNeededError("Value expired")
             return f"success-{value}"
@@ -275,7 +275,7 @@ class TestDecorator:
 
         @cache.catch_refresh
         def api_call() -> str:
-            return f"success-{cache.get_value()}"
+            return f"success-{cache.get()}"
 
         result = api_call()
         assert result == "success-value"
@@ -355,7 +355,7 @@ class TestAsyncDecorator:
         async def api_call(should_fail_first: bool = False) -> str:
             nonlocal call_count
             call_count += 1
-            value = cache.get_value()
+            value = cache.get()
             if should_fail_first and call_count == 1:
                 raise cache.RefreshNeededError("Value expired")
             return f"success-{value}"
@@ -384,7 +384,7 @@ class TestAsyncDecorator:
 
         @cache.acatch_refresh
         async def api_call() -> str:
-            return f"success-{cache.get_value()}"
+            return f"success-{cache.get()}"
 
         result = asyncio.run(api_call())
         assert result == "success-value"
@@ -456,11 +456,11 @@ class TestKeyringCacheSpecific:
             return "persistent"
 
         cache1 = KeyringCache(KEY_PERSIST, fetch_value)
-        cache1.get_value()
+        cache1.get()
         assert fetch_count == 1
 
         cache2 = KeyringCache(KEY_PERSIST, fetch_value)
-        assert cache2.get_value() == "persistent"
+        assert cache2.get() == "persistent"
         assert fetch_count == 1
 
 
@@ -477,11 +477,11 @@ class TestMemoryCacheSpecific:
             return "persistent"
 
         cache1 = MemoryCache(KEY_PERSIST, fetch_value)
-        cache1.get_value()
+        cache1.get()
         assert fetch_count == 1
 
         cache2 = MemoryCache(KEY_PERSIST, fetch_value)
-        assert cache2.get_value() == "persistent"
+        assert cache2.get() == "persistent"
         assert fetch_count == 1  # No re-fetch, same storage
 
 
@@ -501,8 +501,8 @@ class TestKeyringCacheSpecificMore:
             return "custom-namespace-value"
 
         cache = KeyringCache(KEY_CUSTOM, fetch_value, namespace=KEY_NAMESPACE_CUSTOM)
-        cache.get_value()
-        cache.get_value()
+        cache.get()
+        cache.get()
         assert fetch_count == 1
 
 
@@ -531,7 +531,7 @@ class TestRefreshableCacheAbstract:
     def test_cached_type_parameter_provides_type_for_lambda(self):
         # cached_type allows lambdas without return annotations
         cache = MemoryCache[str](KEY_CACHED_TYPE_TEST, lambda: "test-value", cached_type=str)
-        assert cache.get_value() == "test-value"
+        assert cache.get() == "test-value"
 
     def test_raise_error_when_no_type_annotation_and_no_cached_type(self):
         # Should raise TypeError when fetch_fn has no return annotation
@@ -565,7 +565,7 @@ class TestChainedCache:
 
         # Set up memory cache with value first
         memory = MemoryCache(KEY_CHAINED_A, fetch_memory)
-        memory.get_value()
+        memory.get()
         assert fetch_counts["memory"] == 1
 
         # Create chained cache - memory should be tried first
@@ -575,7 +575,7 @@ class TestChainedCache:
             fetch_fn=fetch_keyring,
         )
 
-        result = cache.get_value()
+        result = cache.get()
         assert result == "from-memory"
         assert fetch_counts["keyring"] == 0  # Never called
 
@@ -595,12 +595,12 @@ class TestChainedCache:
         )
 
         # First call - cache miss, fetches value
-        result1 = cache.get_value()
+        result1 = cache.get()
         assert result1 == "fallback-value"
         assert fetch_count == 1
 
         # Second call - should hit memory cache
-        result2 = cache.get_value()
+        result2 = cache.get()
         assert result2 == "fallback-value"
         assert fetch_count == 1
 
@@ -619,14 +619,14 @@ class TestChainedCache:
             fetch_fn=fetch_value,
         )
 
-        cache.get_value()
+        cache.get()
         assert fetch_count == 1
 
         # Delete from memory to test keyring fallback
         cache._backends[0].delete()
 
         # Should fetch again (memory empty, keyring has it)
-        cache.get_value()
+        cache.get()
         # If keyring backend is available, value was persisted in keyring (fetch_count == 1)
         # If no keyring backend, value was lost, so we fetch again (fetch_count == 2)
         expected_fetch = 1 if keyring_backend_available() else 2
@@ -646,7 +646,7 @@ class TestChainedCache:
             fetch_fn=fetch_value,
         )
 
-        cache.get_value()
+        cache.get()
         cache.delete()
 
         # Both backends should be empty
@@ -690,12 +690,12 @@ class TestNullCache:
         cache = NullCache(KEY_NULL_A, fetch_value)
 
         # First call - fetches
-        result1 = cache.get_value()
+        result1 = cache.get()
         assert result1 == "fetched-value"
         assert fetch_count == 1
 
         # Second call - fetches again (no caching)
-        result2 = cache.get_value()
+        result2 = cache.get()
         assert result2 == "fetched-value"
         assert fetch_count == 2
 
@@ -710,7 +710,7 @@ class TestNullCache:
         cache = NullCache(KEY_NULL_B, fetch_value)
 
         cache.set("cached-value")
-        cache.get_value()
+        cache.get()
 
         # Should still fetch (set did nothing)
         assert fetch_count == 1
@@ -726,7 +726,7 @@ class TestNullCache:
         cache = NullCache(KEY_NULL_A, fetch_value)
 
         cache.delete()
-        cache.get_value()
+        cache.get()
 
         # Should still work (delete did nothing)
         assert fetch_count == 1
@@ -747,10 +747,10 @@ class TestNullCache:
         )
 
         # Should always fetch
-        cache.get_value()
+        cache.get()
         assert fetch_count == 1
 
-        cache.get_value()
+        cache.get()
         assert fetch_count == 2
 
 
@@ -768,7 +768,7 @@ class TestFetchFnAsCache:
                 return f"{self.prefix}-value"
 
         cache = MemoryCache("fetch-fn-basic", PrefixFetch(key="fetch-fn-basic", prefix="hello"))
-        assert cache.get_value() == "hello-value"
+        assert cache.get() == "hello-value"
 
     def test_fetch_fn_instance_caches_result(self):
         from dataclasses import dataclass
@@ -786,8 +786,8 @@ class TestFetchFnAsCache:
         cache = MemoryCache(
             "fetch-fn-caches", CountingFetch(key="fetch-fn-caches", name="k"), cached_type=str
         )
-        assert cache.get_value() == "v1-k"
-        assert cache.get_value() == "v1-k"
+        assert cache.get() == "v1-k"
+        assert cache.get() == "v1-k"
         assert len(calls) == 1
 
     def test_fetch_fn_instance_with_chained_cache(self):
@@ -807,7 +807,7 @@ class TestFetchFnAsCache:
             fetch_fn=PrefixFetch(key="fetch-fn-chained", prefix="test"),
             cached_type=str,
         )
-        assert cache.get_value() == "test-chained"
+        assert cache.get() == "test-chained"
 
 
 class FaultyCache(RefreshableCache):
@@ -843,12 +843,12 @@ class TestChainedCacheFaultyBackends:
         )
 
         # FaultyCache raises, MemoryCache works
-        result = cache.get_value()
+        result = cache.get()
         assert result == "fallback-value"
         assert fetch_count == 1
 
         # Second call should hit MemoryCache
-        result2 = cache.get_value()
+        result2 = cache.get()
         assert result2 == "fallback-value"
         assert fetch_count == 1
 
@@ -882,7 +882,7 @@ class TestChainedCacheFaultyBackends:
             fetch_fn=fetch_value,
         )
 
-        cache.get_value()
+        cache.get()
         cache._backends[1].set("to-delete")
 
         # Delete should continue even though FaultyCache raises

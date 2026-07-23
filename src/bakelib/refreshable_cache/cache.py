@@ -86,7 +86,7 @@ class RefreshableCache(ABC, Generic[CachedT]):
             return False
         return time.time() - timestamp > self._ttl
 
-    def get_value(self) -> CachedT:
+    def get(self) -> CachedT:
         cached = self._get_entry()
         if cached is None:
             logger.debug(f"Cache miss for key '{self._key}', fetching value")

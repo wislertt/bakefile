@@ -180,11 +180,11 @@ class TestSecretDelVsRefresh:
         bakebook.set_secret(KEY_1, "original-value")
 
         bakebook.del_secret(KEY_1)
-        assert not bakebook.vault().is_cached(KEY_1)
+        assert not bakebook.vault().has_value(KEY_1)
 
         bakebook.set_secret(KEY_2, "original-value")
         bakebook.refresh_secret(KEY_2)
-        assert bakebook.vault().cache(KEY_2).get_value() == f"fetched-{KEY_2}"
+        assert bakebook.vault().get_cache(KEY_2).get() == f"fetched-{KEY_2}"
 
 
 class TestSecretRefresh:
@@ -195,7 +195,7 @@ class TestSecretRefresh:
         result = runner.invoke(bakebook._app, ["secret", "refresh", KEY_1])
         assert result.exit_code == 0
         assert "refreshed" in result.output.lower()
-        assert bakebook.vault().is_cached(KEY_1)
+        assert bakebook.vault().has_value(KEY_1)
         assert bakebook.get_secret(KEY_1) is None  # null_fetch_fn returns None
 
     def test_refresh_no_args_refreshes_all(self) -> None:
@@ -206,8 +206,8 @@ class TestSecretRefresh:
         result = runner.invoke(bakebook._app, ["secret", "refresh"])
         assert result.exit_code == 0
         assert "refreshed" in result.output.lower()
-        assert bakebook.vault().is_cached(KEY_1)
-        assert bakebook.vault().is_cached(KEY_2)
+        assert bakebook.vault().has_value(KEY_1)
+        assert bakebook.vault().has_value(KEY_2)
 
     def test_refresh_untracked_key_exits_cleanly(self) -> None:
         result = runner.invoke(SecretUtils()._app, ["secret", "refresh", "unknown-key"])
@@ -224,13 +224,13 @@ class TestCatchRefresh:
 
         bakebook = _SecretUtils()
         bakebook.set_secret(KEY_1, "cached-token")
-        cache = bakebook.vault().cache(KEY_1)
+        cache = bakebook.vault().get_cache(KEY_1)
 
         @cache.catch_refresh
         def api_call(should_fail_first: bool = False) -> str:
             nonlocal call_count
             call_count += 1
-            token = cache.get_value()
+            token = cache.get()
             if should_fail_first and call_count == 1:
                 raise cache.RefreshNeededError("Token expired")
             return f"success-{token}"
@@ -244,13 +244,13 @@ class TestCatchRefresh:
 
         bakebook = _SecretUtils()
         bakebook.set_secret(KEY_1, "my-token")
-        cache = bakebook.vault().cache(KEY_1)
+        cache = bakebook.vault().get_cache(KEY_1)
 
         @cache.catch_refresh
         def api_call() -> str:
             nonlocal call_count
             call_count += 1
-            return f"success-{cache.get_value()}"
+            return f"success-{cache.get()}"
 
         result = api_call()
         assert result == "success-my-token"
@@ -259,7 +259,7 @@ class TestCatchRefresh:
     def test_catch_refresh_deletes_cache_on_error(self) -> None:
         bakebook = _SecretUtils()
         bakebook.set_secret(KEY_1, "cached-token")
-        cache = bakebook.vault().cache(KEY_1)
+        cache = bakebook.vault().get_cache(KEY_1)
 
         @cache.catch_refresh
         def api_call() -> str:
@@ -275,12 +275,12 @@ class TestCatchRefresh:
             call_count: int = 0
 
             def fetch_data(self, should_fail_first: bool = False) -> str:
-                cache = self.vault().cache(KEY_1)
+                cache = self.vault().get_cache(KEY_1)
 
                 @cache.catch_refresh
                 def _do_fetch() -> str:
                     self.call_count += 1
-                    token = cache.get_value()
+                    token = cache.get()
                     if should_fail_first and self.call_count == 1:
                         raise cache.RefreshNeededError("Token expired")
                     return f"data-with-{token}"

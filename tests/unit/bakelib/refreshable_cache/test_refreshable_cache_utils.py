@@ -72,16 +72,16 @@ class TestFetchSpecAsRegistryOverride:
         registry = RefreshableCacheRegistry(
             namespace="reg-spec-override", backends=[MemoryCache], cached_type=str
         )
-        registry.register("db", fetch_fn=SecretFetch(key="db", project_id="p1", secret_id="db"))
+        registry.insert_cache("db", fetch_fn=SecretFetch(key="db", project_id="p1", secret_id="db"))
         assert registry.get("db") == "p1/db"
 
     def test_same_fetcher_different_params_per_entry(self):
         registry = RefreshableCacheRegistry(
             namespace="reg-spec-multi", backends=[MemoryCache], cached_type=str
         )
-        registry.register("db", fetch_fn=SecretFetch("db", "p1", "db"))
-        registry.register("api", fetch_fn=SecretFetch("api", "p1", "api"))
-        registry.register("tok", fetch_fn=SecretFetch("tok", "p2", "tok"))
+        registry.insert_cache("db", fetch_fn=SecretFetch("db", "p1", "db"))
+        registry.insert_cache("api", fetch_fn=SecretFetch("api", "p1", "api"))
+        registry.insert_cache("tok", fetch_fn=SecretFetch("tok", "p2", "tok"))
 
         assert registry.get("db") == "p1/db"
         assert registry.get("api") == "p1/api"
@@ -91,7 +91,7 @@ class TestFetchSpecAsRegistryOverride:
         registry = RefreshableCacheRegistry(
             namespace="reg-spec-int", backends=[MemoryCache], cached_type=int
         )
-        registry.register("count", fetch_fn=CountedFetch(key="count", multiplier=7))
+        registry.insert_cache("count", fetch_fn=CountedFetch(key="count", multiplier=7))
         assert registry.get("count") == 70
 
     def test_fetch_spec_works_with_refresh(self):
@@ -108,6 +108,6 @@ class TestFetchSpecAsRegistryOverride:
         registry = RefreshableCacheRegistry(
             namespace="reg-spec-refresh", backends=[MemoryCache], cached_type=str
         )
-        registry.register("k", fetch_fn=CountingFetch(key="k", name="k"))
+        registry.insert_cache("k", fetch_fn=CountingFetch(key="k", name="k"))
         assert registry.get("k") == "v1-k"
         assert registry.refresh("k") == "v2-k"
