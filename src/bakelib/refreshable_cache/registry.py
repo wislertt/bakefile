@@ -95,6 +95,31 @@ class RefreshableCacheRegistry(Generic[T]):
         }
         return self.register(key, **kwargs)
 
+    def upsert(
+        self,
+        key: str,
+        *,
+        fetch_fn: Callable[[], T] | FetchFn[T] | None = None,
+        ttl: float | None = None,
+        stop: "StopBaseT | None" = None,
+        wait: "WaitBaseT | None" = None,
+        cached_type: Any = None,
+    ) -> RefreshableCache[T]:
+        if key in self._caches:
+            self.unregister(key)
+        kwargs: dict[str, Any] = {
+            k: v
+            for k, v in (
+                ("fetch_fn", fetch_fn),
+                ("ttl", ttl),
+                ("stop", stop),
+                ("wait", wait),
+                ("cached_type", cached_type),
+            )
+            if v is not None
+        }
+        return self.register(key, **kwargs)
+
     def _build_cache(
         self,
         key: str,

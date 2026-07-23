@@ -140,6 +140,49 @@ class TestRegistryGetOrRegister:
         )
 
 
+class TestRegistryUpsert:
+    def test_registers_when_absent(self):
+        registry = make_registry("reg-upsert-absent")
+        cache = registry.upsert("k", fetch_fn=lambda: "v-k")
+        assert "k" in registry
+        assert registry.get("k") == "v-k"
+        assert registry.cache("k") is cache
+
+    def test_replaces_when_present(self):
+        registry = make_registry("reg-upsert-replace")
+        first = registry.register("k", fetch_fn=lambda: "first")
+        registry.get("k")
+        replaced = registry.upsert("k", fetch_fn=lambda: "second")
+        assert replaced is not first
+        assert registry.cache("k") is replaced
+        assert registry.get("k") == "second"
+
+    def test_old_cache_value_cleared_after_replace(self):
+        registry = make_registry("reg-upsert-cleanup")
+        old = registry.register("k", fetch_fn=lambda: "first")
+        registry.get("k")
+        assert old.has_value() is True
+        registry.upsert("k", fetch_fn=lambda: "second")
+        assert old.has_value() is False
+
+    def test_preserves_subclass_fetch_fn_default(self):
+        registry = make_registry("reg-upsert-subclass")
+        registry.upsert("k")
+        assert registry.get("k") == "val-k"
+
+    def test_replaces_then_registers_clean(self):
+        registry = make_registry("reg-upsert-repeat")
+        registry.upsert("k", fetch_fn=lambda: "v1")
+        registry.upsert("k", fetch_fn=lambda: "v2")
+        assert registry.get("k") == "v2"
+        assert set(registry.keys()) == {"k"}
+
+    def test_signature_matches_register(self):
+        assert inspect.signature(RefreshableCacheRegistry.upsert) == inspect.signature(
+            RefreshableCacheRegistry.register
+        )
+
+
 class TestRegistryPolicy:
     def test_ttl_default_inherited_from_registry(self):
         registry = make_registry("reg-ttl-default", ttl=42)
