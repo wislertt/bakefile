@@ -29,7 +29,6 @@ _TARGET_PYTHON_SPAWNERS: tuple[str, ...] = (
     "bakefile run",
     "bakefile lint",
 )
-# All commands that end up under the target Python (reinvokers + spawners).
 _TARGET_PYTHON_USERS: tuple[str, ...] = (*_REINVOKERS, *_TARGET_PYTHON_SPAWNERS)
 _OTHER_SUBCOMMANDS_NOTE: tuple[str, ...] = (
     "All other bakefile subcommands use INVOKED Python:",
@@ -38,8 +37,7 @@ _OTHER_SUBCOMMANDS_NOTE: tuple[str, ...] = (
 
 
 def _fmt_commands(cmds: tuple[str, ...]) -> str:
-    # Collapse shared prefixes into slash form:
-    # ("bake", "bakefile env", "bakefile export") -> "bake, bakefile env/export".
+    # Collapse shared prefixes into slash form, e.g. "bakefile env/export".
     bare: list[str] = []
     groups: dict[str, list[str]] = {}
     for cmd in cmds:
