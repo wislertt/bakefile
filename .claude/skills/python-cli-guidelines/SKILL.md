@@ -56,6 +56,7 @@ import typer
 
 app = typer.Typer()
 
+
 @app.command()
 def init():
     """Initialize a new bakefile.py in current directory."""
@@ -67,6 +68,7 @@ def init():
 ```python
 from pydantic import BaseModel, Field
 
+
 class TaskConfig(BaseModel):
     name: str = Field(..., min_length=1)
     command: str
@@ -77,6 +79,7 @@ class TaskConfig(BaseModel):
 
 ```python
 from abc import ABC, abstractmethod
+
 
 class Task(ABC):
     @abstractmethod

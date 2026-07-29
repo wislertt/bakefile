@@ -9,10 +9,12 @@ import typer
 
 app = typer.Typer(help="bakefile - Python build system")
 
+
 @app.command()
 def test():
     """Run tests for the project."""
     typer.echo("Running tests...")
+
 
 if __name__ == "__main__":
     app()
@@ -24,7 +26,7 @@ if __name__ == "__main__":
 @app.command()
 def run(
     task: str = typer.Argument(..., help="Task name to run"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output")
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ):
     """Run a specific task."""
     if verbose:
@@ -41,10 +43,12 @@ app = typer.Typer()
 bakefile_app = typer.Typer()
 app.add_typer(bakefile_app, name="bakefile")
 
+
 @bakefile_app.command()
 def init():
     """Initialize bakefile in current directory."""
     pass
+
 
 @bakefile_app.command()
 def lint():
@@ -58,7 +62,7 @@ def lint():
 @app.callback()
 def main(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
-    config: str = typer.Option("bakefile.py", "--config", "-c")
+    config: str = typer.Option("bakefile.py", "--config", "-c"),
 ):
     """Global options available to all commands."""
     pass
@@ -68,6 +72,7 @@ def main(
 
 ```python
 import sys
+
 
 @app.command()
 def build():
@@ -84,6 +89,7 @@ from rich.panel import Panel
 
 console = Console()
 
+
 @app.command()
 def status():
     """Show project status."""
@@ -94,13 +100,7 @@ def status():
 
 ```python
 @app.command()
-def run(
-    env: str = typer.Option(
-        "dev",
-        "--env",
-        envvar="BAKEFILE_ENV"
-    )
-):
+def run(env: str = typer.Option("dev", "--env", envvar="BAKEFILE_ENV")):
     """Run with environment variable support."""
     pass
 ```
@@ -120,6 +120,7 @@ def clean():
 ```python
 from rich.progress import track
 
+
 @app.command()
 def install():
     """Install dependencies."""
@@ -132,15 +133,12 @@ def install():
 ```python
 from pathlib import Path
 
+
 @app.command()
 def validate(
     path: Path = typer.Argument(
-        ...,
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        resolve_path=True
-    )
+        ..., exists=True, file_okay=True, dir_okay=False, resolve_path=True
+    ),
 ):
     """Validate a bakefile.py."""
     pass

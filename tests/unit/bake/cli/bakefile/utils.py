@@ -58,8 +58,8 @@ class BoolParser(ValueParser[bool]):
             raise ValueError(f"invalid value {value!r}") from e
 
 
-class OptionalStringParser(ValueParser[None | str]):
-    def __call__(self, value: str) -> None | str:
+class OptionalStringParser(ValueParser[str | None]):
+    def __call__(self, value: str) -> str | None:
         return None if value.strip().lower() in {""} else value
 
 

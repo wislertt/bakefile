@@ -90,12 +90,14 @@ class MyBakebook(Bakebook):
         # Actual build
         self.ctx.run("cargo build")
 
+
 bakebook = MyBakebook()
 
 # Standalone function (also works)
 from bake import Bakebook, command
 
 bakebook = Bakebook()
+
 
 @bakebook.command()
 def build() -> None:
@@ -527,9 +529,9 @@ Rich-based console output for user-facing messages:
 from bake.ui import console
 
 console.success("Operation completed")  # Green ✓, stdout
-console.echo("Processing data")         # Plain, stdout
-console.warning("File not found")       # Yellow ⚠, stderr
-console.error("Failed to connect")      # Red ✗, stderr
+console.echo("Processing data")  # Plain, stdout
+console.warning("File not found")  # Yellow ⚠, stderr
+console.error("Failed to connect")  # Red ✗, stderr
 
 # Rich markup supported
 console.error(f"File [bold]{path}[/bold] not found")
@@ -587,6 +589,7 @@ Users can use standard `logging` module in their bakefiles:
 # In bakefile.py
 import logging
 
+
 @bakebook.command()
 def build():
     logging.info("Starting build...")
@@ -603,6 +606,7 @@ Bakebook has three logging configuration fields that unify CLI and non-CLI loggi
 
 ```python
 from bake import Bakebook
+
 
 class MyBakebook(Bakebook):
     bake_log: str = "warning,bake=debug,bakelib=debug"
@@ -754,12 +758,15 @@ from bake.ui.run import run_script
 run_script("Install", "uv pip install requests")
 
 # Multi-line script
-run_script("Build", """
+run_script(
+    "Build",
+    """
     set -e
     echo "Building..."
     uv build
     echo "Done"
-""")
+""",
+)
 
 # Preview script
 run_script("Deploy", "...", dry_run=True)

@@ -43,9 +43,7 @@ tests/
 
 ```python
 # Unit test with mocked subprocess
-def test_reinvoke_with_detected_python(
-    subprocess_mock, monkeypatch
-):
+def test_reinvoke_with_detected_python(subprocess_mock, monkeypatch):
     # Mock subprocess.run to prevent real execution
     monkeypatch.setattr("subprocess.run", fake_run)
     _reinvoke_with_detected_python(Path("bakefile.py"))
@@ -88,8 +86,7 @@ def test_reinvocation_actually_switches_python(
     uv_project_folder_with_deps: Path,
 ):
     # Runs actual bake command via subprocess
-    result = run(["bake", "-vv", "test-dep"],
-                 check=False, cwd=uv_project_folder_with_deps)
+    result = run(["bake", "-vv", "test-dep"], check=False, cwd=uv_project_folder_with_deps)
     assert result.returncode == 0
 ```
 
@@ -213,6 +210,7 @@ Available in `tests/conftest.py`:
 ```python
 from unittest.mock import patch
 
+
 def test_my_function(monkeypatch):
     # Mock external dependencies
     monkeypatch.setattr("module.subprocess.run", fake_run)
@@ -227,10 +225,10 @@ def test_my_function(monkeypatch):
 ```python
 from bake.ui import run
 
+
 def test_real_command(uv_project_folder: Path):
     # Run actual command
-    result = run(["bake", "command"],
-                 check=False, cwd=uv_project_folder)
+    result = run(["bake", "command"], check=False, cwd=uv_project_folder)
 
     # Verify real behavior
     assert result.returncode == 0

@@ -50,12 +50,15 @@ import typer
 
 app = typer.Typer(help="bake - run tasks from bakefile.py")
 
+
 @app.command()
 def run(task: str):
     """Run a task."""
     pass
 
+
 meta_app = typer.Typer(help="bakefile - manage bakefile")
+
 
 @meta_app.command()
 def init():

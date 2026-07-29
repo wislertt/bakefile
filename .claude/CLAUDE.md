@@ -80,8 +80,10 @@ Always use the `Annotated` pattern for Pydantic `Field()` configuration:
 # ✅ Correct - Annotated pattern
 MyFieldType = Annotated[str, Field(min_length=1, max_length=100)]
 
+
 class MyModel(BaseModel):
     name: MyFieldType
+
 
 # ❌ Wrong - Field on assignment
 class MyModel(BaseModel):
@@ -130,9 +132,7 @@ bakefile.py      # Example bakefile
 **Testing Bakebook subclasses with `mock_ctx`:**
 
 ```python
-def test_clean_all_runs_git_clean(
-    self, mock_ctx: Context, capsys: pytest.CaptureFixture
-) -> None:
+def test_clean_all_runs_git_clean(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
     clean_utils = CleanUtils()
     with mock_ctx:
         clean_utils.clean_all()
