@@ -61,6 +61,10 @@ def make_version_callback(label: str) -> Callable[[bool], None]:
         if value:
             raw = _format_version(label)
             console.out.print(_colorize_version_string(raw) or raw)
+            console.err.print(
+                "Run `bakefile which` to see which Python each command uses.",
+                style="dim",
+            )
             raise typer.Exit()
 
     return _version_callback

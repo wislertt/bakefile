@@ -79,7 +79,7 @@ bake build              # Building...
 bakefile provides two command-line tools:
 
 - **`bake`** - Runs tasks from your `bakefile.py`
-- **`bakefile`** - Manages your `bakefile.py` (init, add-inline, lint, find-python, export, sync, lock, add, pip)
+- **`bakefile`** - Manages your `bakefile.py` (init, add-inline, lint, find-python, which, export, sync, lock, add, pip)
 
 Detailed CLI documentation in [Usage](#usage).
 
@@ -346,10 +346,18 @@ bakefile pip install            # = uv pip install --python <bakefile-python-pat
 
 #### find-python
 
-Find the Python interpreter path for the bakefile:
+Print the Python path that `bake` and `bakefile env|export|run|lint` reinvoke under:
 
 ```bash
 bakefile find-python
+```
+
+#### which
+
+Diagnose which Python each command uses. `bake` and `bakefile env|export|run|lint` reinvoke under the bakefile's Python; all other subcommands use the invoked Python:
+
+```bash
+bakefile which
 ```
 
 #### export

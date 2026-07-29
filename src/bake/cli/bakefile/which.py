@@ -23,13 +23,33 @@ _REINVOKERS: tuple[str, ...] = (
     "bake",
     "bakefile env",
     "bakefile export",
+)
+# Commands that spawn the reinvoked Python directly (no self-reinvoke, no bakebook load).
+_TARGET_PYTHON_SPAWNERS: tuple[str, ...] = (
     "bakefile run",
     "bakefile lint",
 )
+# All commands that end up under the target Python (reinvokers + spawners).
+_TARGET_PYTHON_USERS: tuple[str, ...] = (*_REINVOKERS, *_TARGET_PYTHON_SPAWNERS)
 _OTHER_SUBCOMMANDS_NOTE: tuple[str, ...] = (
     "All other bakefile subcommands use INVOKED Python:",
     "  init, venv, find_python, which, uv …",
 )
+
+
+def _fmt_commands(cmds: tuple[str, ...]) -> str:
+    # Collapse shared prefixes into slash form:
+    # ("bake", "bakefile env", "bakefile export") -> "bake, bakefile env/export".
+    bare: list[str] = []
+    groups: dict[str, list[str]] = {}
+    for cmd in cmds:
+        prefix, _, suffix = cmd.partition(" ")
+        if suffix:
+            groups.setdefault(prefix, []).append(suffix)
+        else:
+            bare.append(cmd)
+    rendered = [*bare, *(f"{prefix} {'/'.join(suffixes)}" for prefix, suffixes in groups.items())]
+    return ", ".join(rendered)
 
 
 class _Invoked(NamedTuple):
@@ -104,8 +124,11 @@ def _section_no_bakefile(invoked: _Invoked) -> list[Text | str]:
     return [
         "No bakefile.py found here.",
         "",
-        "Reinvoker commands (bake, bakefile env/export/run/lint) load the "
-        "bakebook — with no bakefile they have nothing to load and would error.",
+        f"Reinvoker commands ({_fmt_commands(_REINVOKERS)}) load the bakebook — with "
+        "no bakefile they have nothing to load and would error.",
+        "",
+        f"{_fmt_commands(_TARGET_PYTHON_SPAWNERS)} resolve the bakefile's Python — "
+        "with no bakefile they would error too.",
         "",
         *_OTHER_SUBCOMMANDS_NOTE,
         "",
@@ -118,8 +141,8 @@ def _section_no_project_python(invoked: _Invoked) -> list[Text | str]:
     return [
         "Bakefile found, but no reinvoked Python could be determined.",
         "",
-        "Reinvoker commands (bake, bakefile env/export/run/lint) need a "
-        "reinvoked Python — they would error until one exists.",
+        f"{_fmt_commands(_TARGET_PYTHON_USERS)} need the bakefile's Python — they "
+        "would error until one exists.",
         "Fix: `bakefile venv` (project) or `bakefile add-inline` (standalone).",
         "",
         *_OTHER_SUBCOMMANDS_NOTE,
@@ -141,7 +164,7 @@ def _section_unified(invoked: _Invoked) -> list[Text | str]:
         ),
         "",
         _summary_line(
-            "No reinvoke — bake, bakefile env/export/run/lint, and all other "
+            f"No reinvoke — {_fmt_commands(_TARGET_PYTHON_USERS)}, and all other "
             "subcommands use this Python."
         ),
     ]
@@ -157,11 +180,19 @@ def _section_switch(invoked: _Invoked, target: Path) -> list[Text | str]:
     parts: list[Text | str] = [
         Text.assemble(
             "Reinvokes under a different Python ",
-            ("(re-runs / spawns under it)", "dim"),
+            ("(re-runs itself under it; loads the bakebook)", "dim"),
             ":",
         ),
         "",
         *[f"  {cmd}" for cmd in _REINVOKERS],
+        "",
+        Text.assemble(
+            "Spawns the reinvoked Python ",
+            ("(runs your code under it; no self-reinvoke, no bakebook)", "dim"),
+            ":",
+        ),
+        "",
+        *[f"  {cmd}" for cmd in _TARGET_PYTHON_SPAWNERS],
         "",
         *_OTHER_SUBCOMMANDS_NOTE,
         "",

@@ -54,7 +54,8 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
 
     # 4. Re-invoke with detected Python
     logger.debug(
-        f"Re-invoking with detected Python: {target_python} (current: {current_python})",
+        f"Re-invoking with detected Python: {target_python} (current: {current_python}). "
+        "Run `bakefile which` for details.",
         extra={"target_python": str(target_python), "cli_module": cli_module},
     )
     env = os.environ.copy()

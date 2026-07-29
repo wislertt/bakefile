@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from bake.cli.bakefile import which as which_mod
-from bake.cli.bakefile.which import _print_which, _probe_target_version_string, which
+from bake.cli.bakefile.which import _fmt_commands, _print_which, _probe_target_version_string, which
 from bake.cli.common.context import context
 from bake.cli.common.reinvocation import DetectResult, DetectStatus
 from bake.ui.console import ARROW
@@ -29,6 +29,21 @@ def _fake_run_fail(*_args: Any, **_kwargs: Any) -> Any:
 
 def _detect(status: DetectStatus, python: Path | None = None) -> Any:
     return lambda _p: DetectResult(status, python)
+
+
+def test_fmt_commands_collapses_shared_prefix() -> None:
+    assert _fmt_commands(("bake", "bakefile env", "bakefile export")) == "bake, bakefile env/export"
+
+
+def test_fmt_commands_single_group() -> None:
+    assert _fmt_commands(("bakefile run", "bakefile lint")) == "bakefile run/lint"
+
+
+def test_fmt_commands_combined_groups() -> None:
+    assert (
+        _fmt_commands(("bake", "bakefile env", "bakefile export", "bakefile run", "bakefile lint"))
+        == "bake, bakefile env/export/run/lint"
+    )
 
 
 def test_probe_target_version_string_returns_output(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -102,6 +117,7 @@ def test_print_which_switch_version_differs(
     assert "bakefile env" in out
     assert "bakefile run" in out
     assert "bakefile lint" in out
+    assert "Spawns the reinvoked Python" in out
     assert "All other bakefile subcommands use INVOKED Python" in out
     assert "Reinvoked Python:  bakefile 0.0.54 from /venv/python" in out
     assert "python 3.12.1" in out
@@ -109,7 +125,7 @@ def test_print_which_switch_version_differs(
     assert "bakefile 0.0.63" in out
     # Invoked is listed first (chronological: invoke -> reinvoke)
     assert out.index("Invoked Python:") < out.index("Reinvoked Python:")
-    assert "5 commands reinvoke to a different Python" in out
+    assert "3 commands reinvoke to a different Python" in out
     assert "0.0.63 (invoked) → 0.0.54 (reinvoked)" in out
     assert ARROW in out
 
