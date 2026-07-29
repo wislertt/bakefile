@@ -57,6 +57,9 @@ known_first_party = ["bake", "bakelib", "python_package"]
 [tool.deptry.package_module_name_map]
 pydantic = ["pydantic", "pydantic_core"]
 
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+
 [tool.ruff]
 line-length = 100
 
