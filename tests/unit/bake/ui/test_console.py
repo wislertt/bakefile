@@ -248,7 +248,7 @@ def test_cmd_prints_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
     console.cmd("pytest tests/")
     captured = capsys.readouterr()
     assert "pytest tests/" in captured.err
-    assert "❯" in captured.err  # noqa: RUF001
+    assert console.ARROW in captured.err
     assert captured.out == ""
 
 

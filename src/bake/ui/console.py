@@ -88,6 +88,9 @@ def _supports_unicode() -> bool:
     return sys.stdout.encoding.lower() in UNICODE_ENCODINGS
 
 
+ARROW = "❯" if _supports_unicode() else ">"  # noqa: RUF001
+
+
 def _format_prefix(
     console_obj: Console,
     emoji: str | None,
@@ -152,8 +155,7 @@ def echo(message: Any, **kwargs) -> None:
 
 
 def cmd(cmd_str: str, **kwargs) -> None:
-    arrow = "❯" if _supports_unicode() else ">"  # noqa: RUF001
-    arrow_text = Text(arrow, style=BOLD_GREEN)
+    arrow_text = Text(ARROW, style=BOLD_GREEN)
     cmd_text = Text(f"{cmd_str}")
     err.print(arrow_text, cmd_text, **kwargs)
 

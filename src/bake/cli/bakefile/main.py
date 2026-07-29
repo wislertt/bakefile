@@ -11,13 +11,13 @@ from bake.cli.common.context import Context
 from bake.cli.common.obj import BakefileObject, get_bakefile_object
 from bake.cli.common.params import (
     BakebookNameOption,
+    BakefileVersionOption,
     BakeLogOption,
     BakeLogPrettyOption,
     ChdirOption,
     DryRunOption,
     FileNameOption,
     VerbosityOption,
-    VersionOption,
 )
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
@@ -38,6 +38,7 @@ from .init import init
 from .lint import lint
 from .run import run
 from .venv import venv
+from .which import which
 
 
 def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
@@ -46,7 +47,7 @@ def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
         _chdir: ChdirOption = DEFAULT_CHDIR,
         _file_name: FileNameOption = DEFAULT_FILE_NAME,
         _bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
-        _version: VersionOption = False,
+        _version: BakefileVersionOption = False,
         _bake_log: BakeLogOption = DEFAULT_BAKE_LOG,
         _bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,
         _verbosity: VerbosityOption = DEFAULT_BAKE_LOG_VERBOSITY,
@@ -80,6 +81,7 @@ def main():
     bakefile_app.command()(init)
     bakefile_app.command()(add_inline)
     bakefile_app.command()(find_python)
+    bakefile_app.command()(which)
     bakefile_app.command()(lint)
     bakefile_app.command()(venv)
     bakefile_app.command()(export)

@@ -18,12 +18,12 @@ from bake.cli.common.params import (
     BakebookNameOption,
     BakeLogOption,
     BakeLogPrettyOption,
+    BakeVersionOption,
     ChdirOption,
     DryRunOption,
     FileNameOption,
     IsChainCommandsOption,
     VerbosityOption,
-    VersionOption,
 )
 from bake.ui import console
 from bake.utils.constants import (
@@ -47,7 +47,7 @@ def bake_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
         _chdir: ChdirOption = DEFAULT_CHDIR,
         _file_name: FileNameOption = DEFAULT_FILE_NAME,
         _bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
-        _version: VersionOption = False,
+        _version: BakeVersionOption = False,
         _is_chain_commands: IsChainCommandsOption = DEFAULT_IS_CHAIN_COMMAND,
         _bake_log: BakeLogOption = DEFAULT_BAKE_LOG,
         _bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,
