@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from bake.cli.utils.version import version_callback
+from bake.cli.utils.version import make_version_callback
 
 
 def validate_file_name(value: str) -> str:
@@ -47,12 +47,21 @@ FileNameOption = Annotated[
 BakebookNameOption = Annotated[
     str, typer.Option("--book-name", "-b", help="Name of bakebook object to retrieve")
 ]
-VersionOption = Annotated[
+BakeVersionOption = Annotated[
     bool,
     typer.Option(
         "--version",
         help="Show version",
-        callback=version_callback,
+        callback=make_version_callback("bake"),
+        is_eager=True,
+    ),
+]
+BakefileVersionOption = Annotated[
+    bool,
+    typer.Option(
+        "--version",
+        help="Show version",
+        callback=make_version_callback("bakefile"),
         is_eager=True,
     ),
 ]

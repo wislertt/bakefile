@@ -24,9 +24,9 @@ import typer
 
 bakebook = typer.Typer()  # Must be named 'bakebook' by default
 
+
 @bakebook.command()
-def build():
-    ...
+def build(): ...
 ```
 
 2. If using a different variable name, specify it with `-b`:
@@ -85,6 +85,7 @@ bakebook = {"commands": [...]}
 
 # Good
 import typer
+
 bakebook = typer.Typer()
 ```
 
@@ -200,6 +201,7 @@ ls -la bakefile.py
 
 ```python
 import importlib.util
+
 spec = importlib.util.spec_from_file_location("bakefile", "bakefile.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -244,13 +246,13 @@ import typer
 bakebook = typer.Typer()
 dev_book = typer.Typer()
 
+
 @bakebook.command()
-def build():
-    ...
+def build(): ...
+
 
 @dev_book.command()
-def lint():
-    ...
+def lint(): ...
 ```
 
 Run with:
@@ -271,6 +273,7 @@ import os
 bakebook = typer.Typer()
 
 if os.environ.get("CI"):
+
     @bakebook.command()
     def ci_build():
         typer.echo("Running CI build...")

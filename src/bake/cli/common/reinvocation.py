@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from bake.utils.settings import ENV__BAKE_REINVOKED, bake_settings
 
@@ -54,7 +54,8 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
 
     # 4. Re-invoke with detected Python
     logger.debug(
-        f"Re-invoking with detected Python: {target_python} (current: {current_python})",
+        f"Re-invoking with detected Python: {target_python} (current: {current_python}). "
+        "Run `bakefile which` for details.",
         extra={"target_python": str(target_python), "cli_module": cli_module},
     )
     env = os.environ.copy()
@@ -71,3 +72,33 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
     except KeyboardInterrupt as e:
         # User pressed Ctrl+C - exit cleanly with standard SIGINT exit code (128 + 2)
         raise SystemExit(130) from e
+
+
+DetectStatus = Literal["no_bakefile", "no_project_python", "unified", "switch"]
+
+
+class DetectResult(NamedTuple):
+    status: DetectStatus
+    python: Path | None
+
+
+def detect_target_python(bakefile_path: Path | None) -> DetectResult:
+    logger.debug("Starting detect_target_python")
+
+    if bakefile_path is None or not bakefile_path.exists():
+        logger.debug("No bakefile found, no target detected")
+        return DetectResult("no_bakefile", None)
+
+    try:
+        from bake.manage.find_python import find_python_path
+
+        target_python = find_python_path(bakefile_path)
+    except Exception:
+        logger.debug("Failed to find Python for bakefile, no target detected")
+        return DetectResult("no_project_python", None)
+
+    if Path(sys.executable) == target_python:
+        logger.debug(f"No reinvoke target, already on detected Python: {target_python}")
+        return DetectResult("unified", target_python)
+
+    return DetectResult("switch", target_python)

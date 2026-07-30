@@ -10,17 +10,21 @@ from typer.testing import CliRunner
 
 app = typer.Typer()
 
+
 @app.command()
 def hello(name: str = "World"):
     typer.echo(f"Hello {name}!")
 
+
 # Test
 runner = CliRunner()
+
 
 def test_hello_default():
     result = runner.invoke(app, [])
     assert result.exit_code == 0
     assert "Hello World!" in result.stdout
+
 
 def test_hello_with_name():
     result = runner.invoke(app, ["--name", "Claude"])
@@ -34,11 +38,13 @@ def test_hello_with_name():
 from pathlib import Path
 from bakefile.core import ShellCommand
 
+
 def test_shell_command_success(tmp_path: Path):
     """Test successful shell command execution."""
     task = ShellCommand("test", "echo hello")
     exit_code = task.execute(tmp_path)
     assert exit_code == 0
+
 
 def test_shell_command_failure(tmp_path: Path):
     """Test failed shell command execution."""
@@ -52,6 +58,7 @@ def test_shell_command_failure(tmp_path: Path):
 ```python
 from unittest.mock import patch, MagicMock
 import subprocess
+
 
 def test_task_with_mocked_subprocess():
     """Test task with mocked subprocess."""
@@ -71,11 +78,13 @@ def test_task_with_mocked_subprocess():
 import pytest
 from pathlib import Path
 
+
 @pytest.fixture
 def temp_project(tmp_path: Path) -> Path:
     """Create a temporary project directory."""
     (tmp_path / "bakefile.py").write_text("# test bakefile")
     return tmp_path
+
 
 @pytest.fixture
 def runner():
@@ -89,15 +98,18 @@ def runner():
 from pydantic import ValidationError
 import pytest
 
+
 def test_valid_task_config():
     """Test valid task configuration."""
     config = TaskConfig(name="test", command="pytest")
     assert config.name == "test"
 
+
 def test_invalid_task_config():
     """Test invalid task configuration."""
     with pytest.raises(ValidationError):
         TaskConfig(name="", command="pytest")  # empty name
+
 
 def test_task_names_must_be_unique():
     """Test that task names must be unique."""
@@ -107,7 +119,7 @@ def test_task_names_must_be_unique():
             tasks=[
                 TaskConfig(name="test", command="echo 1"),
                 TaskConfig(name="test", command="echo 2"),
-            ]
+            ],
         )
 ```
 
@@ -121,6 +133,7 @@ def test_load_bakefile(tmp_path: Path):
 
     config = load_bakefile(bakefile_path)
     assert config.name == "test"
+
 
 def test_load_bakefile_not_found(tmp_path: Path):
     """Test loading non-existent bakefile."""
@@ -137,6 +150,7 @@ def test_invalid_yaml(tmp_path: Path):
 
     with pytest.raises(yaml.YAMLError):
         load_bakefile(tmp_path / "bakefile.py")
+
 
 def test_task_not_available():
     """Test running unavailable task."""

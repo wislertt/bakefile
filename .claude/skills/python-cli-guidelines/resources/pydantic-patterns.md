@@ -7,8 +7,10 @@ Data validation patterns using Pydantic for bakefile.
 ```python
 from pydantic import BaseModel, Field
 
+
 class TaskConfig(BaseModel):
     """Configuration for a single task."""
+
     name: str = Field(..., min_length=1, description="Task name")
     command: str = Field(..., description="Command to execute")
     description: str | None = Field(None, description="Task description")
@@ -19,6 +21,7 @@ class TaskConfig(BaseModel):
 
 ```python
 from pydantic import field_validator, model_validator
+
 
 class TaskConfig(BaseModel):
     command: str
@@ -43,8 +46,10 @@ class TaskConfig(BaseModel):
 ```python
 from pathlib import Path
 
+
 class BakefileConfig(BaseModel):
     """Configuration for entire bakefile."""
+
     project_name: str
     python_version: str = "3.11"
     working_dir: Path = Field(default_factory=lambda: Path.cwd())
@@ -57,8 +62,10 @@ class TaskConfig(BaseModel):
     name: str
     command: str
 
+
 class BakefileConfig(BaseModel):
     """Configuration with nested tasks."""
+
     project_name: str
     tasks: list[TaskConfig] = Field(default_factory=list)
 
@@ -76,6 +83,7 @@ class BakefileConfig(BaseModel):
 ```python
 import yaml
 
+
 def load_bakefile(path: Path) -> BakefileConfig:
     """Load bakefile.py and parse as Pydantic model."""
     data = yaml.safe_load(path.read_text())
@@ -87,8 +95,10 @@ def load_bakefile(path: Path) -> BakefileConfig:
 ```python
 from pydantic import Field
 
+
 class Config(BaseModel):
     """Configuration with environment variable support."""
+
     database_url: str = Field(default="sqlite:///db.sqlite3", alias="DATABASE_URL")
     debug: bool = Field(default=False, alias="DEBUG")
 
@@ -101,15 +111,17 @@ class Config(BaseModel):
 ```python
 from pydantic import ConfigDict
 
+
 class StrictConfig(BaseModel):
     """Configuration with strict validation."""
+
     name: str
     count: int
 
     model_config = ConfigDict(
         extra="forbid",  # Disallow extra fields
         str_strip_whitespace=True,
-        validate_default=True
+        validate_default=True,
     )
 ```
 
@@ -118,13 +130,16 @@ class StrictConfig(BaseModel):
 ```python
 from pydantic import BeforeValidator
 
+
 def parse_command(v: str | list[str]) -> list[str]:
     """Parse command string or list to list of strings."""
     if isinstance(v, str):
         return v.split()
     return v
 
+
 CommandArgs = list[str]  # Simplified for Python 3.10+
+
 
 class TaskConfig(BaseModel):
     command: CommandArgs

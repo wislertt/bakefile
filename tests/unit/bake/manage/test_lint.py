@@ -28,7 +28,7 @@ class TestRunRuffFormat:
 
     @pytest.mark.parametrize(
         "only_bakefile,expected",
-        [(False, "2 files left unchanged"), (True, "1 file left unchanged")],
+        [(False, "3 files left unchanged"), (True, "1 file left unchanged")],
     )
     def test_uv_project(self, uv_project_folder: Path, only_bakefile: bool, expected: str) -> None:
         self.inner_test_ruff_format(uv_project_folder, only_bakefile, expected)

@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from bake.cli.common import reinvocation
-from bake.cli.common.reinvocation import _reinvoke_with_detected_python
+from bake.cli.common.reinvocation import _reinvoke_with_detected_python, detect_target_python
 from bake.utils import ENV__BAKE_REINVOKED, settings
 
 
@@ -110,3 +110,41 @@ def test_reinvoke_keyboard_interrupt_exits_cleanly(
         with pytest.raises(SystemExit) as exc_info:
             _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
         assert exc_info.value.code == 130  # Standard SIGINT exit code (128 + 2)
+
+
+def test_detect_target_python_switch_when_differs() -> None:
+    detected = Path("/venv/bin/python")
+    with (
+        patch("bake.manage.find_python.find_python_path", return_value=detected),
+        patch("sys.executable", "/usr/bin/python3"),
+    ):
+        result = detect_target_python(Path("bakefile.py"))
+    assert result.status == "switch"
+    assert result.python == detected
+
+
+def test_detect_target_python_unified_when_same() -> None:
+    with (
+        patch("bake.manage.find_python.find_python_path", return_value=Path("/usr/bin/python3")),
+        patch("sys.executable", "/usr/bin/python3"),
+    ):
+        result = detect_target_python(Path("bakefile.py"))
+    assert result.status == "unified"
+    assert result.python == Path("/usr/bin/python3")
+
+
+def test_detect_target_python_no_project_python_on_error() -> None:
+    with (
+        patch("bake.manage.find_python.find_python_path", side_effect=Exception("Failed")),
+        patch("sys.executable", "/usr/bin/python3"),
+    ):
+        result = detect_target_python(Path("bakefile.py"))
+    assert result.status == "no_project_python"
+    assert result.python is None
+
+
+def test_detect_target_python_no_bakefile_when_missing() -> None:
+    with patch("sys.executable", "/usr/bin/python3"):
+        result = detect_target_python(Path("/nonexistent/bakefile.py"))
+    assert result.status == "no_bakefile"
+    assert result.python is None

@@ -40,6 +40,7 @@ Create a file named `bakefile.py`:
 ```python
 from bake import Bakebook, command, console
 
+
 class MyBakebook(Bakebook):
     @command()
     def build(self) -> None:
@@ -47,7 +48,9 @@ class MyBakebook(Bakebook):
         # Use self.ctx to run commands
         self.ctx.run("cargo build")
 
+
 bakebook = MyBakebook()
+
 
 @bakebook.command()
 def hello(name: str = "world"):
@@ -76,7 +79,7 @@ bake build              # Building...
 bakefile provides two command-line tools:
 
 - **`bake`** - Runs tasks from your `bakefile.py`
-- **`bakefile`** - Manages your `bakefile.py` (init, add-inline, lint, find-python, export, sync, lock, add, pip)
+- **`bakefile`** - Manages your `bakefile.py` (init, add-inline, lint, find-python, which, export, sync, lock, add, pip)
 
 Detailed CLI documentation in [Usage](#usage).
 
@@ -95,6 +98,7 @@ from pydantic import Field
 from typing import Annotated
 import typer
 
+
 class MyBakebook(Bakebook):
     # Pydantic configuration
     api_url: str = Field(default="https://api.example.com", env="API_URL")
@@ -104,7 +108,9 @@ class MyBakebook(Bakebook):
         # Run CLI commands via self.ctx
         self.ctx.run(f"curl {self.api_url}")
 
+
 bakebook = MyBakebook()
+
 
 # Standalone functions also work
 @bakebook.command()
@@ -131,6 +137,7 @@ bakefile supports [PEP 723](https://peps.python.org/pep-0723/) inline script met
 from bake import Bakebook, command, console
 
 bakebook = Bakebook()
+
 
 @bakebook.command()
 def hello():
@@ -166,6 +173,7 @@ from bake import Bakebook, command, console
 from typing import Annotated
 import typer
 
+
 # Pattern 1: On class (use self.ctx for context access)
 class MyBakebook(Bakebook):
     @command()
@@ -173,7 +181,9 @@ class MyBakebook(Bakebook):
         console.echo("Task 1")
         self.ctx.run("echo 'Task 1 complete'")
 
+
 bakebook = MyBakebook()
+
 
 # Pattern 2: On instance (use bakebook.ctx for context access)
 @bakebook.command(name="deploy", help="Deploy application")
@@ -199,9 +209,9 @@ class MyBakebook(Bakebook):
         self.ctx.run(
             "pytest",
             capture_output=False,  # Stream to terminal
-            check=True,            # Raise on error
-            cwd="/tmp",           # Working directory
-            env={"KEY": "value"}, # Environment variables
+            check=True,  # Raise on error
+            cwd="/tmp",  # Working directory
+            env={"KEY": "value"},  # Environment variables
         )
 
         # Run a multi-line script
@@ -221,6 +231,7 @@ Bakebooks extend Pydantic's `BaseSettings` for configuration:
 ```python
 from bake import Bakebook
 from pydantic import Field
+
 
 class MyBakebook(Bakebook):
     # Defaults
@@ -335,10 +346,18 @@ bakefile pip install            # = uv pip install --python <bakefile-python-pat
 
 #### find-python
 
-Find the Python interpreter path for the bakefile:
+Print the Python path that `bake` and `bakefile env|export|run|lint` reinvoke under:
 
 ```bash
 bakefile find-python
+```
+
+#### which
+
+Diagnose which Python each command uses. `bake` and `bakefile env|export|run|lint` reinvoke under the bakefile's Python; all other subcommands use the invoked Python:
+
+```bash
+bakefile which
 ```
 
 #### export
@@ -399,9 +418,11 @@ Create custom spaces by inheriting from BaseSpace:
 ```python
 from bakelib import BaseSpace
 
+
 class MySpace(BaseSpace):
     def test(self) -> None:
         self.ctx.run("npm test")
+
 
 bakebook = MySpace()
 ```
@@ -428,15 +449,19 @@ from bakelib.environ import (
     get_bakebook,
 )
 
+
 # Compose env mixins with EnvBakebook
 class DevBakebook(DevEnvMixin, EnvBakebook[BaseEnv]):
     pass
 
+
 class StagingBakebook(StagingEnvMixin, EnvBakebook[BaseEnv]):
     pass
 
+
 class ProdBakebook(ProdEnvMixin, EnvBakebook[BaseEnv]):
     pass
+
 
 bakebook_dev = DevBakebook()
 bakebook_staging = StagingBakebook()
@@ -457,8 +482,10 @@ Create custom environments by inheriting from `BaseEnv`:
 ```python
 from bakelib.environ import BaseEnv, EnvBakebook
 
+
 class MyEnv(BaseEnv):
     ENV_ORDER = ["dev", "sit", "qa", "uat", "prod"]
+
 
 class MyEnvBakebook(EnvBakebook[MyEnv]):
     env: MyEnv = MyEnv("local")

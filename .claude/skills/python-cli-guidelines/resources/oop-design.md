@@ -8,6 +8,7 @@ Object-oriented patterns for reusable build tasks.
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+
 class Task(ABC):
     """Base class for all build tasks."""
 
@@ -50,11 +51,8 @@ class ShellCommand(Task):
 
     def execute(self, cwd: Path) -> int:
         import subprocess
-        result = subprocess.run(
-            self.command,
-            shell=True,
-            cwd=cwd
-        )
+
+        result = subprocess.run(self.command, shell=True, cwd=cwd)
         return result.returncode
 
     def is_available(self, cwd: Path) -> bool:
@@ -71,15 +69,14 @@ class PythonTask(Task):
 
     def execute(self, cwd: Path) -> int:
         import subprocess
-        result = subprocess.run(
-            ["uv", "run", "python", "-c", self.code],
-            cwd=cwd
-        )
+
+        result = subprocess.run(["uv", "run", "python", "-c", self.code], cwd=cwd)
         return result.returncode
 
     def is_available(self, cwd: Path) -> bool:
         # Check if uv is available
         import shutil
+
         return shutil.which("uv") is not None
 ```
 
@@ -148,10 +145,8 @@ class PytestTask(BaseTestTask):
 
     def run_tests(self, cwd: Path) -> int:
         import subprocess
-        result = subprocess.run(
-            ["uv", "run", "pytest", "tests/"],
-            cwd=cwd
-        )
+
+        result = subprocess.run(["uv", "run", "pytest", "tests/"], cwd=cwd)
         return result.returncode
 
 
@@ -160,10 +155,8 @@ class RuffTask(BaseTestTask):
 
     def run_tests(self, cwd: Path) -> int:
         import subprocess
-        result = subprocess.run(
-            ["uv", "run", "ruff", "check"],
-            cwd=cwd
-        )
+
+        result = subprocess.run(["uv", "run", "ruff", "check"], cwd=cwd)
         return result.returncode
 ```
 
@@ -187,6 +180,7 @@ class UVStrategy(DependencyStrategy):
 
     def install(self, cwd: Path) -> int:
         import subprocess
+
         result = subprocess.run(["uv", "sync"], cwd=cwd)
         return result.returncode
 
@@ -199,6 +193,7 @@ class PipStrategy(DependencyStrategy):
 
     def install(self, cwd: Path) -> int:
         import subprocess
+
         result = subprocess.run(["pip", "install", "-r", "requirements.txt"], cwd=cwd)
         return result.returncode
 

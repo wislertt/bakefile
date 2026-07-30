@@ -82,6 +82,7 @@ from typing import TypeVar
 
 T = TypeVar("T")
 
+
 def validate_value(value: Any, expected_type: type[T]) -> T:
     """Validate that value matches expected type.
 
@@ -300,6 +301,7 @@ class BakebookError(BaseBakefileError):
 # obj.py
 import contextlib
 
+
 def get_bakebook(self):
     if self.bakebook is not None:
         return
@@ -314,6 +316,7 @@ def get_bakebook(self):
 ```python
 # callback.py
 import typer
+
 
 def validate_file_name(file_name: str) -> str:
     if "/" in file_name or "\\" in file_name:
@@ -354,6 +357,7 @@ Create a typed `Context` subclass to pass objects through CLI:
 # context.py
 import typer
 from .obj import BakefileObject
+
 
 class Context(typer.Context):
     obj: BakefileObject
@@ -396,6 +400,7 @@ from bake.ui import console
 
 bakebook = Bakebook()
 
+
 @bakebook.command()
 def build(
     prod: bool = False,
@@ -405,6 +410,7 @@ def build(
     # Access context via self.ctx in class-based bakebooks
     # For standalone commands, ctx is available through the command context
 
+
 @bakebook.command()
 def test(
     coverage: bool = False,
@@ -413,6 +419,7 @@ def test(
     console.echo("Running tests...")
     if coverage:
         bakebook.ctx.run("pytest --cov")
+
 
 @bakebook.command()
 def lint():
@@ -428,6 +435,7 @@ The `Bakebook` class extends `BaseSettings`, allowing you to define environment 
 ```python
 from bake import Bakebook
 
+
 class MyBakebook(Bakebook):
     # Environment variables (auto-loaded from .env)
     database_url: str
@@ -436,6 +444,7 @@ class MyBakebook(Bakebook):
 
     def get_connection(self):
         return connect(self.database_url)
+
 
 bakebook = MyBakebook()
 
@@ -450,6 +459,7 @@ Users can define methods as commands with `@bake.command()`:
 ```python
 from bake import Bakebook, command
 from bake.ui import console
+
 
 class MyBakebook(Bakebook):
     database_url: str = "sqlite:///default.db"
@@ -475,6 +485,7 @@ class MyBakebook(Bakebook):
         """Internal helper - NOT a command"""
         return "internal"
 
+
 bakebook = MyBakebook()
 ```
 
@@ -496,11 +507,13 @@ from bake import Bakebook, command
 # Old way: standalone functions (still works)
 bakebook = Bakebook()
 
+
 @bakebook.command()
 def standalone_task():
     """This still works - use bakebook.ctx to access context."""
     # Access context via bakebook instance
     bakebook.ctx.run("echo 'Hello'")
+
 
 # New way: class methods (recommended for context access)
 class MyBakebook(Bakebook):
@@ -558,9 +571,9 @@ The `Bakebook` class uses Pydantic's `SettingsConfigDict`:
 
 ```python
 model_config = SettingsConfigDict(
-    env_file=".env",              # Load from .env file
-    env_file_encoding="utf-8",    # File encoding
-    extra="ignore"                # Ignore extra fields
+    env_file=".env",  # Load from .env file
+    env_file_encoding="utf-8",  # File encoding
+    extra="ignore",  # Ignore extra fields
 )
 ```
 
@@ -575,6 +588,7 @@ model_config = SettingsConfigDict(
 
 ```python
 from bake import Bakebook
+
 
 def process_bakebook(bakebook: Bakebook) -> None:
     """Process a bakebook instance."""
@@ -595,6 +609,7 @@ The `Bakebook` class provides a `.ctx` property that gives commands access to th
 ```python
 from bake import Bakebook
 
+
 class MyBakebook(Bakebook):
     @command()
     def build(self):
@@ -609,6 +624,7 @@ class MyBakebook(Bakebook):
         # Access verbosity level
         if self.ctx.verbosity >= 2:
             console.echo("Verbose output enabled")
+
 
 bakebook = MyBakebook()
 ```
@@ -729,9 +745,11 @@ import os
 
 ENV_NO_COLOR = "NO_COLOR"
 
+
 def should_use_colors() -> bool:
     value = os.environ.get(ENV_NO_COLOR)
     return value == "" or value is None
+
 
 # Usage
 rich_markup_mode = "rich" if env.should_use_colors() else None
@@ -765,6 +783,7 @@ from bake import Bakebook
 
 bakebook = Bakebook()
 
+
 @bakebook.command()
 def build():
     """Build the project."""
@@ -782,6 +801,7 @@ Bakebook has three logging fields that work for both CLI and non-CLI usage:
 
 ```python
 from bake import Bakebook
+
 
 class MyBakebook(Bakebook):
     bake_log: str = "warning,bake=debug,myapp=debug"
@@ -830,9 +850,11 @@ BAKE_LOG_PRETTY=true
 ```python
 from bake import Bakebook
 
+
 class MyBakebook(Bakebook):
     bake_log: str = "info,myapp=debug"
     bake_log_verbosity: int = 2
+
 
 bb = MyBakebook()
 bb.setup_logging()  # Uses own bake_log and bake_log_verbosity

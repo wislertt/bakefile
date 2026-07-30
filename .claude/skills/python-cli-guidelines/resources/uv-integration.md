@@ -30,17 +30,17 @@ UV automatically detects the Python environment based on:
 import subprocess
 from pathlib import Path
 
+
 def run_with_uv(command: list[str], cwd: Path) -> int:
     """Run command using UV for environment resolution."""
-    result = subprocess.run(
-        ["uv", "run"] + command,
-        cwd=cwd
-    )
+    result = subprocess.run(["uv", "run"] + command, cwd=cwd)
     return result.returncode
+
 
 # Example task
 class TestTask(Task):
     """Run tests using UV."""
+
     name = "test"
     description = "Run tests with UV"
 
@@ -53,10 +53,7 @@ class TestTask(Task):
 ```python
 def execute_python(code: str, cwd: Path) -> int:
     """Execute Python code using UV."""
-    result = subprocess.run(
-        ["uv", "run", "python", "-c", code],
-        cwd=cwd
-    )
+    result = subprocess.run(["uv", "run", "python", "-c", code], cwd=cwd)
     return result.returncode
 ```
 
@@ -65,10 +62,7 @@ def execute_python(code: str, cwd: Path) -> int:
 ```python
 def install_dependencies(cwd: Path) -> int:
     """Install dependencies using UV."""
-    result = subprocess.run(
-        ["uv", "sync"],
-        cwd=cwd
-    )
+    result = subprocess.run(["uv", "sync"], cwd=cwd)
     return result.returncode
 ```
 
@@ -111,6 +105,7 @@ When user writes `bakefile.py`, UV should handle environment:
 # In user's bakefile.py
 from bakefile import Task, run
 
+
 class TestTask(Task):
     name = "test"
 
@@ -124,9 +119,11 @@ class TestTask(Task):
 ```python
 import shutil
 
+
 def has_uv() -> bool:
     """Check if UV is available."""
     return shutil.which("uv") is not None
+
 
 def ensure_uv():
     """Ensure UV is installed."""
