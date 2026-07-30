@@ -119,7 +119,7 @@ def test_print_which_switch_version_differs(
     assert "bakefile lint" in out
     assert "Spawns the reinvoked Python" in out
     assert "All other bakefile subcommands use INVOKED Python" in out
-    assert "Reinvoked Python:  bakefile 0.0.54 from /venv/python" in out
+    assert f"Reinvoked Python:  bakefile 0.0.54 from {Path('/venv/python')}" in out
     assert "python 3.12.1" in out
     assert "Invoked Python:" in out
     assert "bakefile 0.0.63" in out

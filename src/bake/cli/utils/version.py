@@ -10,7 +10,7 @@ from rich.text import Text
 from bake.ui import console
 
 _VERSION_RE = re.compile(
-    r"^(?P<label>\S+) (?P<version>\S+) from (?P<path>.+) \(python (?P<pyver>[^)]+)\)$"
+    r"^(?P<label>\S+) (?P<version>\S+) from (?P<path>[^()]+) \(python (?P<pyver>[^)]+)\)$"
 )
 
 _VERSION_STYLE = "bold cyan"
