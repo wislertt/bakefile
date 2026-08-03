@@ -1,10 +1,21 @@
 import functools
+import sys
 from typing import Any, ClassVar
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
+from typing_extensions import Self
 
 EnvPriorityOrderType = tuple[str | frozenset[str], ...]
+
+if sys.version_info >= (3, 15):
+    _UNSET: Any = sentinel("UNSET")  # noqa: F821
+else:
+
+    class _Unset:
+        __slots__ = ()
+
+    _UNSET: Any = _Unset()
 
 
 class _FrozenEnvMeta(type):
@@ -215,6 +226,13 @@ class BaseSubEnv(BaseEnv):
     @property
     def sub(self) -> int | None:
         return self._sub
+
+    def replace(  # ty: ignore[invalid-method-override]
+        self, *, main: str = _UNSET, sub: int | None = _UNSET
+    ) -> Self:
+        new_main = self._main if main is _UNSET else main
+        new_sub = self._sub if sub is _UNSET else sub
+        return type(self)(f"{new_main}{'' if new_sub is None else new_sub}")
 
     def _parse_env_code(self, code: str) -> None:
         """Parse environment code and set self._main and self._sub.

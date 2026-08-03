@@ -595,3 +595,78 @@ class TestBaseSubEnvValidation:
         # Setting NEW "_" attributes is allowed (only existing ones are protected)
         env._custom = "value"  # This works because _custom doesn't exist yet
         assert env._custom == "value"  # ty: ignore[unresolved-attribute]
+
+
+class TestBaseSubEnvReplace:
+    class SimpleSubEnv(BaseSubEnv):
+        ENV_PRIORITY_ORDER: ClassVar[EnvPriorityOrderType] = ("a", "b", "c")
+
+    @pytest.mark.parametrize(
+        ("code", "sub", "expected"),
+        [
+            ("a", 1, "a1"),
+            ("a1", 2, "a2"),  # replace, not append
+            ("a1", None, "a"),  # clear
+        ],
+    )
+    def test_replace_sub_produces_expected_code(self, code, sub, expected):
+        result = self.SimpleSubEnv(code).replace(sub=sub)
+        assert str(result) == expected
+
+    def test_replace_sub_sets_field(self):
+        assert self.SimpleSubEnv("a").replace(sub=1).sub == 1
+
+    def test_replace_sub_none_clears(self):
+        result = self.SimpleSubEnv("a1").replace(sub=None)
+        assert result.sub is None
+        assert result.main == "a"
+
+    def test_replace_preserves_main(self):
+        assert self.SimpleSubEnv("a").replace(sub=2).main == "a"
+
+    def test_replace_returns_same_type(self):
+        result = self.SimpleSubEnv("a").replace(sub=1)
+        assert type(result) is self.SimpleSubEnv
+
+    def test_replace_main_only(self):
+        result = self.SimpleSubEnv("a1").replace(main="b")
+        assert str(result) == "b1"
+        assert result.sub == 1
+
+    def test_replace_main_and_sub(self):
+        result = self.SimpleSubEnv("a1").replace(main="b", sub=2)
+        assert str(result) == "b2"
+        assert result.main == "b"
+        assert result.sub == 2
+
+    def test_replace_no_args_returns_equal_copy(self):
+        original = self.SimpleSubEnv("a1")
+        result = original.replace()
+        assert result == original
+        assert str(result) == str(original)
+        assert result.main == original.main
+        assert result.sub == original.sub
+        assert result is not original
+
+    def test_replace_preserves_ordering(self):
+        env = self.SimpleSubEnv("a")
+        assert env.replace(sub=2) < env.replace(sub=1) < env
+
+    def test_replace_does_not_mutate_original(self):
+        env = self.SimpleSubEnv("a1")
+        env.replace(sub=2, main="b")
+        assert str(env) == "a1"
+        assert env.main == "a"
+        assert env.sub == 1
+
+    def test_replace_sub_zero_rejected(self):
+        with pytest.raises(ValueError):
+            self.SimpleSubEnv("a").replace(sub=0)
+
+    def test_replace_invalid_main_rejected(self):
+        with pytest.raises(ValueError):
+            self.SimpleSubEnv("a1").replace(main="zzz")
+
+    def test_replace_is_keyword_only(self):
+        with pytest.raises(TypeError):
+            self.SimpleSubEnv("a").replace(1)  # ty: ignore[too-many-positional-arguments]

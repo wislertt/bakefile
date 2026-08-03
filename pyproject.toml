@@ -36,6 +36,7 @@ dependencies = [
   "tomli>=2.0.0; python_version < '3.11'",
   "ty>=0.0.8",
   "typer>=0.26.1",
+  "typing-extensions>=4.12.0",
   "uv>=0.9.20"
 ]
 
