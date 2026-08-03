@@ -490,3 +490,31 @@ class TestGcpLandingZoneEnvFrozenClassVariables:
         """SHARED_CODE cannot be reassigned at class level."""
         with pytest.raises(AttributeError, match=r"Cannot mutate.*SHARED_CODE.*frozen"):
             GcpLandingZoneEnv.SHARED_CODE = "x"
+
+
+class TestGcpLandingZoneSubEnvReplace:
+    """replace() preserves preset-specific properties (code, name, multi-char main)."""
+
+    @pytest.mark.parametrize(
+        ("code", "sub", "expected_code", "expected_name"),
+        [
+            ("d", 1, "d1", "Development1"),
+            ("d1", 2, "d2", "Development2"),
+            ("net", 2, "net2", "Network2"),  # multi-char main
+            ("d1", None, "d", "Development"),  # clear
+        ],
+    )
+    def test_replace_updates_code_and_name(self, code, sub, expected_code, expected_name):
+        result = GcpLandingZoneSubEnv(code).replace(sub=sub)
+        assert result.code == expected_code
+        assert result.name == expected_name
+        assert str(result) == expected_code
+
+    def test_replace_returns_preset_type(self):
+        result = GcpLandingZoneSubEnv("d").replace(sub=1)
+        assert type(result) is GcpLandingZoneSubEnv
+
+    def test_replace_main_swaps_to_valid_preset_code(self):
+        result = GcpLandingZoneSubEnv("d1").replace(main="p")
+        assert result.code == "p1"
+        assert result.name == "Production1"
