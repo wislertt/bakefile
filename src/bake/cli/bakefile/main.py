@@ -19,6 +19,7 @@ from bake.cli.common.params import (
     FileNameOption,
     VerbosityOption,
 )
+from bake.ui import style
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
     DEFAULT_BAKE_LOG_PRETTY,
@@ -65,6 +66,7 @@ def main():
     bakefile_obj.resolve_bakefile_path()
 
     bakefile_app = BakefileApp(
+        help=f"Manage bakefile.py. Use {style.code('bake')} to run tasks.",
         add_completion=add_completion,
         rich_markup_mode=rich_markup_mode,
     )

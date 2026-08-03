@@ -25,7 +25,7 @@ from bake.cli.common.params import (
     IsChainCommandsOption,
     VerbosityOption,
 )
-from bake.ui import console
+from bake.ui import console, style
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
     DEFAULT_BAKE_LOG_PRETTY,
@@ -99,6 +99,7 @@ def main():
     bakefile_obj.warn_if_no_bakebook(color_echo=bake_settings.should_use_colors())
 
     bake_app = typer.Typer(
+        help=f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it.",
         add_completion=add_completion,
         rich_markup_mode=rich_markup_mode,
     )

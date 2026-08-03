@@ -1,6 +1,7 @@
 """Unit tests for EnvBakebook."""
 
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -94,6 +95,16 @@ class TestEnvBakebook:
         assert "env" in dump
         assert dump["env"] == BaseEnv("dev")
         assert str(dump["env"]) == "dev"
+
+    def test_env_bakebook_skips_auto_lazy_init_on_construction(self) -> None:
+        class CustomDev(DevEnvBB):
+            lazy_init_called: ClassVar[bool] = False
+
+            def lazy_init(self) -> None:
+                CustomDev.lazy_init_called = True
+
+        CustomDev()
+        assert CustomDev.lazy_init_called is False
 
 
 class TestEnvSpecificBakebooks:

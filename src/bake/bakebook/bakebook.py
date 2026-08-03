@@ -150,8 +150,9 @@ class BakebookMixin(BaseSettings):
     Multiple BakebookMixin subclasses can be composed with a single Bakebook
     subclass without MRO conflicts.
 
-    Recommended usage: fields only — no methods. This keeps mixins simple
-    and avoids the need for typed access to base class attributes.
+    Recommended usage: attributes only, no methods. Fields, ClassVars, and
+    plain class data all work. This keeps mixins simple and avoids the need
+    for typed access to base class members (the case methods would hit).
     Use ``Bakebook`` subclasses for methods and ``@command()`` definitions.
     """
 
@@ -199,6 +200,12 @@ class Bakebook(BaseSettings):
         []
     )
 
+    _auto_lazy_init: ClassVar[bool] = (
+        # True: __init__ auto-calls lazy_init(). Set False to defer it, then
+        # call lazy_init() manually when construction shouldn't run lazy init work yet.
+        True
+    )
+
     @field_validator("bake_log")
     @classmethod
     def _validate_bake_log(cls, v: str) -> str:
@@ -226,6 +233,8 @@ class Bakebook(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._register_marked_methods()
+        if type(self)._auto_lazy_init:
+            self.lazy_init()
 
     def _get_command_kwargs(self, method: CommandFunction) -> CommandKwargs | None:
         """Get command kwargs from a method, static method, or class method."""
@@ -335,6 +344,9 @@ class Bakebook(BaseSettings):
     def get_bake_log_thread_local_context(self) -> dict[str, ContextVar[Any]]:
         """Override to inject ContextVars into bake's logger output."""
         return {}
+
+    def lazy_init(self) -> None:
+        self.setup_logging()
 
     def setup_logging(self) -> None:
         bake_settings.setup_bake_logging(
