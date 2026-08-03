@@ -377,12 +377,15 @@ class TestSetupLogging:
     def test_setup_logging_passes_default_thread_local_context(self) -> None:
         from bake.utils.settings import BakeSettings
 
+        class _NoAutoBakebook(Bakebook):
+            _auto_lazy_init: ClassVar[bool] = False
+
         fresh_settings = BakeSettings()
         with (
             patch("bake.bakebook.bakebook.bake_settings", fresh_settings),
             patch.object(BakeSettings, "setup_bake_logging") as mock_setup,
         ):
-            bb = Bakebook()
+            bb = _NoAutoBakebook()
             bb.setup_logging()
 
         mock_setup.assert_called_once()
@@ -396,6 +399,8 @@ class TestSetupLogging:
         user_var: ContextVar[str | None] = ContextVar("user_var", default=None)
 
         class MyBakebook(Bakebook):
+            _auto_lazy_init: ClassVar[bool] = False
+
             def get_bake_log_thread_local_context(self) -> dict[str, ContextVar]:
                 return {"user_var": user_var}
 
@@ -409,6 +414,34 @@ class TestSetupLogging:
 
         mock_setup.assert_called_once()
         assert mock_setup.call_args.kwargs["thread_local_context"] == {"user_var": user_var}
+
+
+class TestLazyInit:
+    def test_lazy_init_runs_on_construction(self) -> None:
+        class CustomBakebook(Bakebook):
+            lazy_init_called: ClassVar[bool] = False
+
+            def lazy_init(self) -> None:
+                CustomBakebook.lazy_init_called = True
+
+        CustomBakebook()
+        assert CustomBakebook.lazy_init_called is True
+
+    def test_lazy_init_skipped_when_auto_disabled(self) -> None:
+        class CustomBakebook(Bakebook):
+            _auto_lazy_init: ClassVar[bool] = False
+            lazy_init_called: ClassVar[bool] = False
+
+            def lazy_init(self) -> None:
+                CustomBakebook.lazy_init_called = True
+
+        CustomBakebook()
+        assert CustomBakebook.lazy_init_called is False
+
+    def test_default_lazy_init_calls_setup_logging(self) -> None:
+        with patch.object(Bakebook, "setup_logging") as mock_setup:
+            Bakebook()
+        mock_setup.assert_called_once()
 
 
 class TestBakeLogValidation:

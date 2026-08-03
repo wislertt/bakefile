@@ -1,4 +1,4 @@
-from typing import Any, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
@@ -32,6 +32,12 @@ def _get_expected_env_type(cls: type) -> type | None:
 
 
 class EnvBakebook(Bakebook, Generic[E]):
+    _auto_lazy_init: ClassVar[bool] = (
+        # Defer lazy_init: one instance is created per env, but only the selected
+        # env's bakebook runs. get_bakebook() calls lazy_init() on the chosen one.
+        False
+    )
+
     env: E
 
     def __init_subclass__(cls, **kwargs):
@@ -47,10 +53,6 @@ class EnvBakebook(Bakebook, Generic[E]):
                 f"{env_annotation.__name__}, "
                 f"expected {expected_env_type.__name__}"
             )
-
-    def lazy_init(self) -> None:
-        """Override for expensive initialization. Called by get_bakebook()."""
-        self.setup_logging()
 
     @classmethod
     def settings_customise_sources(

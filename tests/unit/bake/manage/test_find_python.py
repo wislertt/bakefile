@@ -24,6 +24,10 @@ from bake.utils.exceptions import PythonNotFoundError
 from tests.utils.cli import RunCli
 from tests.utils.misc import xfail_on_local_failure
 
+STALE_UV_CACHE_WARNING = (
+    "Local failure likely due to a stale uv cache. Run `uv cache clean` and re-run."
+)
+
 
 def assert_bakefile_level_python_exe(python_path: Path):
     assert python_path.exists()
@@ -73,7 +77,7 @@ def test_find_python_with_inline_metadata_without_lock_and_venv(
     assert isinstance(result.stdout, str)
     assert dummy_test_package in result.stdout
 
-    with xfail_on_local_failure():
+    with xfail_on_local_failure(warning=STALE_UV_CACHE_WARNING):
         assert count_message_in_logs(logs, message=r"\[run\].*uv") == 4
         assert has_messages_in_logs(
             logs,
@@ -148,7 +152,7 @@ def test_find_python_with_inline_metadata_with_lock_without_venv(
     logs = capsys_to_logs(capfd)
     assert assert_bakefile_level_python_exe(python_path)
 
-    with xfail_on_local_failure():
+    with xfail_on_local_failure(warning=STALE_UV_CACHE_WARNING):
         assert count_message_in_logs(logs, message=r"\[run\].*uv") == 3
         assert has_messages_in_logs(
             logs,

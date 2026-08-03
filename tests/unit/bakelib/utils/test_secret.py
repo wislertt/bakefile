@@ -56,6 +56,20 @@ class TestSecretUtilsInit:
         assert v1 is v2
 
 
+class TestSecretUtilsDuplicateKeys:
+    def test_vault_raises_on_duplicate_fetch_fn_keys(self) -> None:
+        class DupSecretUtils(_SecretUtils):
+            def get_secret_namespace(self) -> str:
+                return "test-secret-dup"
+
+            def get_secret_fetch_fns(self) -> tuple[FetchFn[str | None], ...]:
+                return (NullFetchFn[str | None](KEY_1), NullFetchFn[str | None](KEY_1))
+
+        bakebook = DupSecretUtils()
+        with pytest.raises(ValueError, match="already registered"):
+            bakebook.vault()
+
+
 class TestSecretList:
     def test_list_shows_no_secrets_message(self) -> None:
         result = runner.invoke(SecretUtils()._app, ["secret", "list"])

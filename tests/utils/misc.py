@@ -2,6 +2,7 @@
 
 import contextlib
 import sys
+import warnings
 from collections.abc import Iterator
 from functools import wraps
 from pathlib import Path
@@ -86,13 +87,15 @@ def flaky_on_windows_ci(max_retries: int = 5):
 
 
 @contextlib.contextmanager
-def xfail_on_local_failure() -> Iterator[None]:
+def xfail_on_local_failure(warning: str | None = None) -> Iterator[None]:
     """xfail if a wrapped assertion fails locally; enforce in CI."""
     try:
         yield
     except AssertionError:
         if bake_settings.github_actions:
             raise
+        if warning is not None:
+            warnings.warn(warning, stacklevel=2)
         pytest.xfail("local-only failure; enforced in CI")
 
 
