@@ -1,4 +1,3 @@
-from contextlib import suppress
 from pathlib import Path
 
 import zerv
@@ -121,17 +120,11 @@ class PythonSpace(BaseSpace):
     def _package_name(self) -> str:
         return self._get_package_name_from_pyproject_toml()
 
-    @property
-    def _version(self) -> str:
+    def _get_version(self) -> str:
         return self._get_version_from_pyproject_toml()
 
-    @_version.setter
-    def _version(self, value: str) -> None:
-        self._version_setter(value)
-
-    def _version_setter(self, value: str) -> None:
-        with suppress(NotImplementedError):
-            super()._version_setter(value)
+    def _set_version(self, value: str) -> None:
+        super()._set_version(value)
         self.ctx.run(f"uv version {zerv.render(version=value, output_format='pep440')}")
 
     def _determine_new_version(

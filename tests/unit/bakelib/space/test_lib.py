@@ -70,13 +70,8 @@ class MinimalTestLibSpace(BaseLibSpace):
     def _package_name(self) -> str:
         return "test-package"
 
-    @property
-    def _version(self) -> str:
+    def _get_version(self) -> str:
         return "0.0.0"
-
-    @_version.setter
-    def _version(self, value: str) -> None:
-        _ = value
 
 
 def test_baselib_space_is_base_space() -> None:

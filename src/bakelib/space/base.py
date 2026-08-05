@@ -1,6 +1,6 @@
 import os
 import shutil
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, NoReturn
@@ -43,6 +43,10 @@ def _global_keyring_env() -> dict[str, str]:
     return {}
 
 
+def _semver_normalize(value: str) -> str:
+    return zerv.render(version=value, output_format="semver")
+
+
 class BaseSpace(CleanUtils, Bakebook):
     _version_schema: zerv.StandardSchema = "standard-base-prerelease-post-dev"
 
@@ -52,15 +56,37 @@ class BaseSpace(CleanUtils, Bakebook):
 
     @property
     def _version(self) -> str:
-        self._method_not_available("_version")
+        return self._get_version()
 
     @_version.setter
     def _version(self, value: str) -> None:
-        self._version_setter(value)
+        self._set_version(value)
 
-    def _version_setter(self, value: str) -> None:
-        _ = value
+    # Asymmetric by design: getter raises NIE (base has no version source, so
+    # reaching it is a bug), setter no-ops as a cooperative-super terminal.
+    def _get_version(self) -> str:
         self._method_not_available("_version")
+
+    def _set_version(self, value: str) -> None:
+        pass
+
+    # Explicit source list, never super(): base has no getter value (NIE above).
+    # Default normalizes to semver so raw format variants compare equal.
+    # Returns first source's raw value: tuple order picks the returned format.
+    def _get_consistent_version(
+        self,
+        sources: tuple[type["BaseSpace"], ...],
+        *,
+        normalize: Callable[[str], str] = _semver_normalize,
+    ) -> str:
+        values = [source._get_version(self) for source in sources]
+        if not values:
+            self._method_not_available("_version")
+        keys = [normalize(value) for value in values]
+        if len(set(keys)) > 1:
+            names = [source.__name__ for source in sources]
+            raise ValueError(f"Version mismatch: {dict(zip(names, values, strict=True))}")
+        return values[0]
 
     @command(help="Show or set current version")
     def version(

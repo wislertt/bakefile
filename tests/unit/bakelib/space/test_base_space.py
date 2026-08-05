@@ -18,31 +18,37 @@ class MinimalTestSpace(BaseSpace):
     def _package_name(self) -> str:
         return "test-package"
 
-    @property
-    def _version(self) -> str:
+    def _get_version(self) -> str:
         return self._version_value
 
-    @_version.setter
-    def _version(self, value: str) -> None:
-        self._version_setter(value)
-
-    def _version_setter(self, value: str) -> None:
+    def _set_version(self, value: str) -> None:
         self._version_value = value
 
 
 class ChildMinimalTestSpace(MinimalTestSpace):
     """Simulates downstream class (e.g. ARDockerUtils) extending _version setter.
 
-    Only overrides _version_setter — no property getter/setter override needed.
-    super()._version_setter(value) works naturally via MRO.
+    Only overrides _set_version, no property getter/setter override needed.
+    super()._set_version(value) works naturally via MRO.
     """
 
     _extra_tag: str | None = None
 
-    def _version_setter(self, value: str) -> None:
-        super()._version_setter(value)
+    def _set_version(self, value: str) -> None:
+        super()._set_version(value)
         if self._extra_tag is None:
             self._extra_tag = f"tag-{value}"
+
+
+class GetterOnlySpace(BaseSpace):
+    _custom_version: str = "9.9.9"
+
+    @property
+    def _package_name(self) -> str:
+        return "getter-only-pkg"
+
+    def _get_version(self) -> str:
+        return self._custom_version
 
 
 class TestBareBaseSpace:
@@ -56,10 +62,69 @@ class TestBareBaseSpace:
         with pytest.raises(NotImplementedError, match="BaseSpace must implement _version"):
             _ = base_space._version
 
-    def test_version_setter_raises_not_implemented(self) -> None:
-        base_space = BaseSpace()
-        with pytest.raises(NotImplementedError, match="BaseSpace must implement _version"):
-            base_space._version = "1.0.0"
+    def test_version_setter_is_noop_terminal(self) -> None:
+        BaseSpace()._version = "1.0.0"  # base setter no-ops, must not raise
+
+    def test_version_getter_raises_when_subclass_missing_override(self) -> None:
+        class VersionlessSpace(BaseSpace):
+            @property
+            def _package_name(self) -> str:
+                return "no-version-pkg"
+
+        space = VersionlessSpace()
+        with pytest.raises(NotImplementedError, match="VersionlessSpace must implement _version"):
+            _ = space._version
+
+    def test_setter_inherited_noop_keeps_space_assignable(self) -> None:
+        # Why base setter no-ops (not NIE): a getter-only Space inherits it and
+        # must stay assignable.
+        space = GetterOnlySpace()
+        space._version = "1.0.0"
+
+        assert space._version == "9.9.9"
+
+    def test_diamond_multi_source_setter_fans_out_getter_checks_consistency(self) -> None:
+        # zerv-style diamond: getters skip super (one return value can't gather),
+        # setters use super (cooperative fan-out A->B->base no-op).
+        class VersionSourceA(BaseSpace):
+            _version_a: str = "1.0.0"
+
+            @property
+            def _package_name(self) -> str:
+                return "pkg-a"
+
+            def _get_version(self) -> str:
+                return self._version_a
+
+            def _set_version(self, value: str) -> None:
+                super()._set_version(value)
+                self._version_a = value
+
+        class VersionSourceB(BaseSpace):
+            _version_b: str = "1.0.0"
+
+            @property
+            def _package_name(self) -> str:
+                return "pkg-b"
+
+            def _get_version(self) -> str:
+                return self._version_b
+
+            def _set_version(self, value: str) -> None:
+                super()._set_version(value)
+                self._version_b = value
+
+        class MultiSourceSpace(VersionSourceA, VersionSourceB):
+            def _get_version(self) -> str:
+                return self._get_consistent_version((VersionSourceA, VersionSourceB))
+
+        space = MultiSourceSpace()
+        assert space._version == "1.0.0"
+
+        space._version = "2.5.0"
+        assert space._version_a == "2.5.0"
+        assert space._version_b == "2.5.0"
+        assert space._version == "2.5.0"
 
 
 class TestBaseSpace:
@@ -75,11 +140,47 @@ class TestBaseSpace:
         assert base_space._version == "2.0.0"
 
 
+class TestGetterHook:
+    def test_get_version_hook_returns_value_without_property_override(self) -> None:
+        space = GetterOnlySpace()
+        assert space._version == "9.9.9"
+
+
 class TestMethodNotAvailable:
     def test_method_not_available_raises_not_implemented(self) -> None:
         base_space = BaseSpace()
         with pytest.raises(NotImplementedError, match="BaseSpace must implement test_method"):
             base_space._method_not_available("test_method")
+
+
+class TestGetConsistentVersion:
+    def test_raises_not_implemented_when_no_sources(self) -> None:
+        space = MinimalTestSpace()
+        with pytest.raises(NotImplementedError, match="must implement _version"):
+            space._get_consistent_version(sources=())
+
+    def test_raises_value_error_on_version_mismatch(self) -> None:
+        class VersionSourceA(BaseSpace):
+            def _get_version(self) -> str:
+                return "1.0.0"
+
+        class VersionSourceB(BaseSpace):
+            def _get_version(self) -> str:
+                return "2.0.0"
+
+        class MismatchSpace(BaseSpace):
+            def _get_version(self) -> str:
+                return self._get_consistent_version((VersionSourceA, VersionSourceB))
+
+        space = MismatchSpace()
+        with pytest.raises(ValueError, match="Version mismatch") as exc_info:
+            _ = space._version
+
+        message = str(exc_info.value)
+        assert "VersionSourceA" in message
+        assert "1.0.0" in message
+        assert "VersionSourceB" in message
+        assert "2.0.0" in message
 
 
 class TestCommandNotAvailable:
@@ -536,14 +637,6 @@ class TestSetupProject:
 
 
 class TestChildVersionSetterExtensibility:
-    """Demonstrates the MRO hack currently required to extend _version setter.
-
-    When a child class overrides @_version.setter, it cannot call the parent
-    setter via super() because super()._version invokes the getter (returns a
-    string), not the property descriptor. The only workaround is walking the
-    MRO manually — this test documents that ugly but necessary hack.
-    """
-
     def test_child_setter_runs_parent_logic(self) -> None:
         child = ChildMinimalTestSpace()
         child._version = "1.2.3"

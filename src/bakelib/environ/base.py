@@ -9,7 +9,7 @@ from typing_extensions import Self
 EnvPriorityOrderType = tuple[str | frozenset[str], ...]
 
 if sys.version_info >= (3, 15):
-    _UNSET: Any = sentinel("UNSET")  # noqa: F821
+    _UNSET: Any = sentinel("UNSET")  # noqa: F821 # pragma: no cover
 else:
 
     class _Unset:
