@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal, overload
 import typer
 from typer.core import TyperCommand
 
-from bake.ui.run import CmdType
+from bake.ui.run import CmdType, StrOrNoneCompletedProcess
 from bake.ui.run import run as _run
 from bake.ui.run.script import run_script as _run_script
 
@@ -100,7 +100,7 @@ class Context(typer.Context):
         timeout: float | None = None,
         _encoding: str | None = None,
         **kwargs,
-    ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+    ) -> StrOrNoneCompletedProcess:
         return _run(
             cmd,
             capture_output=capture_output,
@@ -132,7 +132,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         **kwargs,
-    ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+    ) -> StrOrNoneCompletedProcess:
         return _run_script(
             title,
             script,

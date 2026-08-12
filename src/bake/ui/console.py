@@ -1,13 +1,16 @@
 import sys
 import textwrap
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Literal
 
 import rich
 import rich.style
 from rich.console import Console as RichConsole
 from rich.console import JustifyMethod, OverflowMethod
+from rich.rule import Rule
 from rich.text import Text
 
+from bake.ui.style import BLUE, BOLD_BLUE, BOLD_GREEN
 from bake.utils.settings import bake_settings
 
 OVERFLOW_DEFAULT = "ignore"
@@ -80,7 +83,6 @@ plain_out = Console(no_color=True, stderr=False)
 plain_err = Console(no_color=True, stderr=True)
 
 
-BOLD_GREEN = "bold green"
 UNICODE_ENCODINGS = {"utf-8", "utf-16", "utf-32", "utf-16-le", "utf-16-be"}
 
 
@@ -112,7 +114,7 @@ def prefix_out(
     message: str,
     emoji: str | None = None,
     label: str = "INFO",
-    style: str = "bold blue",
+    style: str = BOLD_BLUE,
     **kwargs,
 ) -> None:
     out.print(_format_prefix(out, emoji=emoji, label=label, style=style, message=message), **kwargs)
@@ -122,7 +124,7 @@ def prefix_err(
     message: str,
     emoji: str | None = None,
     label: str = "INFO",
-    style: str = "bold blue",
+    style: str = BOLD_BLUE,
     **kwargs,
 ) -> None:
     err.print(_format_prefix(err, emoji=emoji, label=label, style=style, message=message), **kwargs)
@@ -139,7 +141,7 @@ def success(message: str, **kwargs) -> None:
 
 
 def info(message: str, *, label: str = "INFO", **kwargs) -> None:
-    prefix_err(emoji=None, label=label, style="blue", message=message, **kwargs)
+    prefix_err(emoji=None, label=label, style=BLUE, message=message, **kwargs)
 
 
 def start(message: str, **kwargs) -> None:
@@ -160,6 +162,52 @@ def cmd(cmd_str: str, **kwargs) -> None:
     err.print(arrow_text, cmd_text, **kwargs)
 
 
+BLOCK_WIDTH = 70
+
+
+def _block_width() -> int:
+    return min(BLOCK_WIDTH, err.size.width)
+
+
+def line(text: str = "", *, char: str = "=", style: str = BOLD_GREEN) -> None:
+    err.print(Rule(text, characters=char, style=style), width=_block_width())
+
+
+def thin_line(text: str = "", *, char: str = "-", style: str = "dim") -> None:
+    line(text, char=char, style=style)
+
+
+@contextmanager
+def block(
+    title: str,
+    *,
+    line_style: str = BOLD_GREEN,
+    title_style: str = "bold",
+    title_mode: Literal["framed", "inline"] = "framed",
+    start_label: str = "",
+    end_label: str = "END",
+    end_title: bool = True,
+    outer_line_char: str = "=",
+    inner_line_char: str = "-",
+):
+    styled_title = f"[{title_style}]{title}[/{title_style}]"
+    start = f"[{BLUE}]{start_label}[/{BLUE}] {styled_title}" if start_label else styled_title
+    if end_title:
+        end = f"[{BLUE}]{end_label}[/{BLUE}] {styled_title}" if end_label else styled_title
+    else:
+        end = ""
+    if title_mode == "inline":
+        line(start, char=outer_line_char, style=line_style)
+    else:  # framed
+        line(char=outer_line_char, style=line_style)
+        err.print(start)
+        line(char=inner_line_char, style=line_style)
+    try:
+        yield
+    finally:
+        line(end, char=outer_line_char, style=line_style)
+
+
 def script_block(title: str, script: str, **kwargs) -> None:
     # Lazy import: beautysh adds a StreamHandler to logging.root at import time
     from beautysh import BashFormatter
@@ -170,16 +218,8 @@ def script_block(title: str, script: str, **kwargs) -> None:
     if error:
         formatted = textwrap.dedent(script)
 
-    terminal_width: int = err.size.width
-    width = min(70, terminal_width)
-    bold_line = "=" * width
-    thin_line = "-" * width
-
-    err.print(bold_line, style=BOLD_GREEN)
-    err.print(title, style="bold")
-    err.print(thin_line, style=BOLD_GREEN)
-    err.print(formatted, highlight=False, **kwargs)
-    err.print(bold_line, style=BOLD_GREEN)
+    with block(title, end_title=False):
+        err.print(formatted, highlight=False, **kwargs)
 
 
 def warning(message: str, **kwargs) -> None:

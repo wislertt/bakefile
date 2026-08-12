@@ -226,6 +226,32 @@ class TestScriptBlock:
         assert "-" in captured.err  # thin line character
 
 
+class TestThinLine:
+    def test_thin_line_uses_dash_char(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.thin_line("stdout")
+        captured = capsys.readouterr()
+        assert "stdout" in captured.err
+        assert "-" in captured.err
+        assert captured.out == ""
+
+
+class TestBlock:
+    def test_block_default_close_has_end_label(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with console.block("Deploy"):
+            console.err.print("body")
+        captured = capsys.readouterr()
+        assert "END" in captured.err
+        assert "Deploy" in captured.err
+        assert captured.out == ""
+
+    def test_block_inline_mode_puts_title_in_rule(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with console.block("lint", title_mode="inline"):
+            console.err.print("body")
+        captured = capsys.readouterr()
+        assert "lint" in captured.err
+        assert captured.out == ""
+
+
 def test_warning_prints_github_actions_format(capsys: pytest.CaptureFixture[str]) -> None:
     with mock.patch("bake.ui.console.bake_settings") as mock_settings:
         mock_settings.github_actions = True

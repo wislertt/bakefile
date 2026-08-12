@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 from bake.ui import console
-from bake.ui.run import run
+from bake.ui.run import StrOrNoneCompletedProcess, run
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ def run_script(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     **kwargs,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     """Run a multi-line script with shebang support.
 
     Creates a temporary file with the script content and executes it. On Unix,
