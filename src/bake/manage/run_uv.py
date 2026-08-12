@@ -1,10 +1,9 @@
 import logging
-import subprocess
 from pathlib import Path
 
 from bake.manage.find_python import find_python_path, is_standalone_bakefile
 from bake.ui import console, style
-from bake.ui.run import run, run_uv
+from bake.ui.run import StrOrNoneCompletedProcess, run, run_uv
 from bake.utils import BakebookError
 from bake.utils.exceptions import PythonNotFoundError
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def _run_uv(
     bakefile_path: Path | None, command_name: str, cmd: list[str], dry_run: bool = False
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 
@@ -40,25 +39,25 @@ def _run_uv(
 
 def run_uv_add(
     bakefile_path: Path | None, cmd: list[str], dry_run: bool
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     return _run_uv(bakefile_path=bakefile_path, command_name="add", cmd=cmd, dry_run=dry_run)
 
 
 def run_uv_lock(
     bakefile_path: Path | None, cmd: list[str], dry_run: bool
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     return _run_uv(bakefile_path=bakefile_path, command_name="lock", cmd=cmd, dry_run=dry_run)
 
 
 def run_uv_sync(
     bakefile_path: Path | None, cmd: list[str], dry_run: bool
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     return _run_uv(bakefile_path=bakefile_path, command_name="sync", cmd=cmd, dry_run=dry_run)
 
 
 def run_uv_pip(
     bakefile_path: Path | None, cmd: list[str], dry_run: bool
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 

@@ -16,7 +16,8 @@ from bake.cli.utils.version import (
     _parse_version_string,
 )
 from bake.ui import console
-from bake.ui.console import ARROW, BOLD_GREEN
+from bake.ui.console import ARROW
+from bake.ui.style import BOLD_GREEN
 
 _PROBE_MODULES: tuple[str, ...] = ("bake.cli.bake", "bake.cli.bakefile")
 _REINVOKERS: tuple[str, ...] = (

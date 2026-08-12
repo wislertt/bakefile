@@ -9,9 +9,12 @@ import zerv
 from bake import (
     DEFAULT_BAKE_LOG,
     DEFAULT_BAKE_LOG_PRETTY,
+    CliTask,
+    ParallelCliTaskRunner,
     command,
     console,
     params,
+    spawn_env,
 )
 from bakelib import GitHubActionsTools, PythonLibSpace
 
@@ -33,16 +36,29 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
         self._update_examples()
         self._update_hooks()
 
-    def _update_examples(self) -> None:
+    def _example_tasks(self, bake_command: str) -> list[CliTask]:
         examples_dir = Path("examples")
         if not examples_dir.exists():
-            return
+            return []
+        return [
+            CliTask(
+                name=example_dir.name,
+                command=["bake", *bake_command.split()],
+                cwd=example_dir,
+                env=spawn_env(example_dir, prepend_venv=True),
+                echo=True,
+            )
+            for example_dir in sorted(examples_dir.iterdir())
+            if example_dir.is_dir()
+        ]
 
-        for example_dir in sorted(examples_dir.iterdir()):
-            if not example_dir.is_dir():
-                continue
-            console.start(f"Updating {example_dir}")
-            self.ctx.run("bake update --fast", cwd=example_dir)
+    def _update_examples(self) -> None:
+        ParallelCliTaskRunner(
+            self._example_tasks("update -ff"),
+            dry_run=self.ctx.dry_run,
+            show_count=True,
+            show_summary=False,
+        ).run()
 
     def _update_hooks(self) -> None:
         hooks_dir = Path(".claude/hooks")

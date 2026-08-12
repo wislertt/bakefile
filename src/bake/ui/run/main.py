@@ -16,10 +16,12 @@ from typing import Literal, overload
 import typer
 from rich.text import Text
 
-from bake.ui import console
+from bake.ui import console, style
 from bake.ui.run.splitter import OutputSplitter
-from bake.ui.style import code
 from bake.utils.settings import ENV__BAKE_REINVOKED
+
+# CompletedProcess is invariant in T, so this is a str|None union, not [str | None].
+StrOrNoneCompletedProcess = subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]
 
 # Import pty on Unix systems for color-preserving PTY support
 if sys.platform != "win32":
@@ -78,7 +80,7 @@ def _run_with_temp_file(
     _encoding: str | None = None,
     echo_cmd: str | None = None,
     **kwargs,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     """Run multi-line script using temp file with shebang support.
 
     On Windows: Parse shebang and use interpreter explicitly, or use cmd.exe /c.
@@ -220,7 +222,7 @@ def run(
     timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     """Run a command with optional streaming and output capture.
 
     Parameters
@@ -426,14 +428,6 @@ def _dry_run_result(
     )
 
 
-def _separator() -> None:
-    console.err.print("[dim]" + "─" * 28 + "[/dim]")
-
-
-def _labeled_separator(label: str) -> None:
-    console.err.print(f"[dim]{'─' * 10} {label} {'─' * 10}[/dim]")
-
-
 def _cmd_name(cmd_str: str) -> str:
     max_len = 50
     if len(cmd_str) > max_len:
@@ -441,24 +435,17 @@ def _cmd_name(cmd_str: str) -> str:
     return cmd_str
 
 
-def _dump_output(
-    result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None],
-    name: str,
-) -> None:
-    if result.stdout or result.stderr:
-        if result.stdout:
-            _labeled_separator("stdout")
-            console.err.print(Text.from_ansi(result.stdout.rstrip()), highlight=False)
-        if result.stderr:
-            _labeled_separator("stderr")
-            console.err.print(Text.from_ansi(result.stderr.rstrip()), highlight=False)
-    else:
-        # No captured output: identify the failing command (truncated).
-        console.error(f"Command {code(name)} failed with exit code {result.returncode}")
+def dump_output(result: StrOrNoneCompletedProcess) -> None:
+    if result.stdout:
+        console.thin_line(style.dim("stdout"))
+        console.err.print(Text.from_ansi(result.stdout.rstrip()), highlight=False)
+    if result.stderr:
+        console.thin_line(style.dim("stderr"))
+        console.err.print(Text.from_ansi(result.stderr.rstrip()), highlight=False)
 
 
 def _check_exit_code(
-    result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None],
+    result: StrOrNoneCompletedProcess,
     check: bool,
     cmd_str_for_display: str,
     stream: bool = True,
@@ -474,7 +461,13 @@ def _check_exit_code(
         )
         # Show output if not streamed (user hasn't seen it)
         if not stream:
-            _dump_output(result, _cmd_name(cmd_str_for_display))
+            if result.stdout or result.stderr:
+                dump_output(result)
+            else:
+                console.error(
+                    f"Command {style.code(_cmd_name(cmd_str_for_display))} "
+                    f"failed with exit code {result.returncode}"
+                )
         raise typer.Exit(result.returncode)
 
 
@@ -605,7 +598,7 @@ def _run_with_split(
     timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     use_pty = sys.platform != "win32" and capture_output
 
     _setup = _setup_pty_stream if use_pty else _setup_pipe_stream
@@ -709,7 +702,7 @@ def _run_without_split(
     timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
     env = _prepare_subprocess_env(env)
 

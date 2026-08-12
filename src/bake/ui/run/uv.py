@@ -4,7 +4,7 @@ from typing import Literal, overload
 
 from uv import find_uv_bin
 
-from bake.ui.run.main import run
+from bake.ui.run.main import StrOrNoneCompletedProcess, run
 
 
 @overload
@@ -58,7 +58,7 @@ def run_uv(
     timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]:
+) -> StrOrNoneCompletedProcess:
     uv_bin = find_uv_bin()
 
     return run(

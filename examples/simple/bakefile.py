@@ -10,7 +10,6 @@
 
 import logging
 from pathlib import Path
-from typing import Annotated
 
 import typer
 
@@ -29,7 +28,7 @@ class MyBakebook(Bakebook):
     @command()
     def update(
         self,
-        fast: Annotated[bool, params.FastBoolOption] = False,
+        fast: params.FastOption = 0,
     ) -> None:
         _ = fast
         self.ctx.run("bakefile lock --upgrade")

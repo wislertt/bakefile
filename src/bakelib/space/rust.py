@@ -9,7 +9,7 @@ from typing import Any
 import zerv
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt
 
-from bake import console, style
+from bake import StrOrNoneCompletedProcess, console, style
 
 from .base import BaseSpace
 from .utils import check_rust_version_matches_stable
@@ -35,7 +35,7 @@ def _cleanup_rustup_temp(retry_state: RetryCallState) -> None:
 
 
 def run_rustup_update(
-    run_fn: Callable[..., subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]],
+    run_fn: Callable[..., StrOrNoneCompletedProcess],
     timeout: float = 30,
     max_attempts: int = 5,
 ) -> None:
