@@ -276,6 +276,21 @@ class TestSequentialCliTaskRunner:
 
         assert SequentialCliTaskRunner(tasks).run() is None
 
+    def test_dry_run_returns_without_summary_or_exit(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        calls: list[dict] = []
+        monkeypatch.setattr(rc, "run", _make_fake_run(calls))
+
+        runner = SequentialCliTaskRunner([_task("a"), _task("b")], dry_run=True)
+
+        assert runner.run() is None
+
+        assert len(calls) == 2
+        assert all(c["dry_run"] for c in calls)
+        combined = strip_ansi(capsys.readouterr().err)
+        assert "Summary" not in combined  # early return before summary()
+
     def test_run_reusable_keeps_count_in_range(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
