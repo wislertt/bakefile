@@ -290,31 +290,31 @@ def test_script_block_falls_back_to_dedent_on_error(
         assert captured.out == ""
 
 
-def test_prefix_out_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix_out("Task complete", emoji=":check:", label="DONE", style="bold green")
+def test_prefix_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix("Task complete", emoji=":check:", label="DONE", style="bold green")
     captured = capsys.readouterr()
     assert "DONE" in captured.out
     assert "Task complete" in captured.out
     assert captured.err == ""
 
 
-def test_prefix_out_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix_out("Just info", label="INFO", style="bold blue")
+def test_prefix_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix("Just info", label="INFO", style="bold blue")
     captured = capsys.readouterr()
     assert "INFO" in captured.out
     assert "Just info" in captured.out
 
 
-def test_prefix_err_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix_err("Task failed", emoji=":x:", label="FAIL", style="bold red")
+def test_prefix_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix("Task failed", emoji=":x:", label="FAIL", style="bold red", stderr=True)
     captured = capsys.readouterr()
     assert "FAIL" in captured.err
     assert "Task failed" in captured.err
     assert captured.out == ""
 
 
-def test_prefix_err_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix_err("Warning message", label="WARN", style="bold yellow")
+def test_prefix_stderr_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix("Warning message", label="WARN", style="bold yellow", stderr=True)
     captured = capsys.readouterr()
     assert "WARN" in captured.err
     assert "Warning message" in captured.err
@@ -348,4 +348,56 @@ def test_github_action_add_mask_does_nothing_when_not_github_actions(
         console.github_action_add_mask("my-secret-token")
         captured = capsys.readouterr()
         assert captured.out == ""
+        assert captured.err == ""
+
+
+class TestStderrOverride:
+    @pytest.mark.parametrize(
+        "func_name,override,expected_stream",
+        [
+            ("echo", True, "err"),
+            ("prefix", True, "err"),
+            ("success", False, "out"),
+            ("info", False, "out"),
+            ("start", False, "out"),
+            ("end", False, "out"),
+            ("cmd", False, "out"),
+            ("warning", False, "out"),
+            ("error", False, "out"),
+        ],
+    )
+    def test_stderr_override_routes_to_other_stream(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        func_name: str,
+        override: bool,
+        expected_stream: str,
+    ) -> None:
+        getattr(console, func_name)("routed message", stderr=override)
+        captured = capsys.readouterr()
+        expected = getattr(captured, expected_stream)
+        other = getattr(captured, "out" if expected_stream == "err" else "err")
+        assert "routed message" in strip_ansi(expected)
+        assert other == ""
+
+
+class TestStderrOverrideGitHubActions:
+    @pytest.mark.parametrize(
+        "func_name,annotation",
+        [
+            ("error", "::error::"),
+            ("warning", "::warning::"),
+        ],
+    )
+    def test_override_routes_annotation_to_chosen_stream(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        func_name: str,
+        annotation: str,
+    ) -> None:
+        with mock.patch("bake.ui.console.bake_settings") as mock_settings:
+            mock_settings.github_actions = True
+            getattr(console, func_name)("verdict text", stderr=False)
+        captured = capsys.readouterr()
+        assert f"{annotation}verdict text" in captured.out
         assert captured.err == ""

@@ -110,56 +110,56 @@ def _format_prefix(
     return f"[{style}]{emoji_str}{formatted_label}[/{style}] {message}"
 
 
-def prefix_out(
+def _get_console(stderr: bool) -> Console:
+    return err if stderr else out
+
+
+def prefix(
     message: str,
+    *,
     emoji: str | None = None,
     label: str = "INFO",
     style: str = BOLD_BLUE,
+    stderr: bool = False,
     **kwargs,
 ) -> None:
-    out.print(_format_prefix(out, emoji=emoji, label=label, style=style, message=message), **kwargs)
+    target = _get_console(stderr)
+    target.print(
+        _format_prefix(target, emoji=emoji, label=label, style=style, message=message), **kwargs
+    )
 
 
-def prefix_err(
-    message: str,
-    emoji: str | None = None,
-    label: str = "INFO",
-    style: str = BOLD_BLUE,
-    **kwargs,
-) -> None:
-    err.print(_format_prefix(err, emoji=emoji, label=label, style=style, message=message), **kwargs)
-
-
-def success(message: str, **kwargs) -> None:
-    prefix_err(
+def success(message: str, *, stderr: bool = True, **kwargs) -> None:
+    prefix(
+        message,
         emoji=":white_check_mark:",
         label="SUCCESS",
         style=BOLD_GREEN,
-        message=message,
+        stderr=stderr,
         **kwargs,
     )
 
 
-def info(message: str, *, label: str = "INFO", **kwargs) -> None:
-    prefix_err(emoji=None, label=label, style=BLUE, message=message, **kwargs)
+def info(message: str, *, label: str = "INFO", stderr: bool = True, **kwargs) -> None:
+    prefix(message, emoji=None, label=label, style=BLUE, stderr=stderr, **kwargs)
 
 
-def start(message: str, **kwargs) -> None:
-    info(f"{message}...", label="START", **kwargs)
+def start(message: str, *, stderr: bool = True, **kwargs) -> None:
+    info(f"{message}...", label="START", stderr=stderr, **kwargs)
 
 
-def end(message: str, **kwargs) -> None:
-    info(message, label="END", **kwargs)
+def end(message: str, *, stderr: bool = True, **kwargs) -> None:
+    info(message, label="END", stderr=stderr, **kwargs)
 
 
-def echo(message: Any, **kwargs) -> None:
-    out.print(message, **kwargs)
+def echo(message: Any, *, stderr: bool = False, **kwargs) -> None:
+    _get_console(stderr).print(message, **kwargs)
 
 
-def cmd(cmd_str: str, **kwargs) -> None:
+def cmd(cmd_str: str, *, stderr: bool = True, **kwargs) -> None:
     arrow_text = Text(ARROW, style=BOLD_GREEN)
     cmd_text = Text(f"{cmd_str}")
-    err.print(arrow_text, cmd_text, **kwargs)
+    _get_console(stderr).print(arrow_text, cmd_text, **kwargs)
 
 
 BLOCK_WIDTH = 70
@@ -222,24 +222,25 @@ def script_block(title: str, script: str, **kwargs) -> None:
         err.print(formatted, highlight=False, **kwargs)
 
 
-def warning(message: str, **kwargs) -> None:
+def warning(message: str, *, stderr: bool = True, **kwargs) -> None:
     if bake_settings.github_actions:
-        err.print(f"::warning::{message}", **kwargs)
+        _get_console(stderr).print(f"::warning::{message}", **kwargs)
     else:
-        prefix_err(
+        prefix(
+            message,
             emoji=":warning-emoji: ",
             label="WARNING",
             style="bold yellow",
-            message=message,
+            stderr=stderr,
             **kwargs,
         )
 
 
-def error(message: str, **kwargs) -> None:
+def error(message: str, *, stderr: bool = True, **kwargs) -> None:
     if bake_settings.github_actions:
-        err.print(f"::error::{message}", **kwargs)
+        _get_console(stderr).print(f"::error::{message}", **kwargs)
     else:
-        prefix_err(emoji=":x:", label="ERROR", style="bold red", message=message, **kwargs)
+        prefix(message, emoji=":x:", label="ERROR", style="bold red", stderr=stderr, **kwargs)
 
 
 def flush() -> None:
