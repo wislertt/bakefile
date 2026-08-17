@@ -230,7 +230,7 @@ class Bakebook(BaseSettings):
             raise ContextNotAvailableError(f"Expected {Context}, got {type(ctx)}")
         return ctx
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._register_marked_methods()
         if type(self)._auto_lazy_init:

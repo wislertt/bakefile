@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 
 import pytest
@@ -920,6 +921,45 @@ class TestSignatureCompatibility:
 
         missing = expected - uv_params
         assert not missing, f"run_uv missing params: {missing}"
+
+
+class TestPopenKwargs:
+    """PopenKwargs should stay in sync with subprocess.Popen's signature."""
+
+    # Params Popen accepts but run() must not forward (reasons inline).
+    EXCLUDED: ClassVar[frozenset[str]] = frozenset(
+        {
+            "self",  # bound method
+            "args",  # positional cmd, own param
+            "shell",  # own param, auto-detected
+            "cwd",  # own param
+            "env",  # own param, merged internally
+            "stdout",  # driven by capture_output/stream internally
+            "stderr",  # driven by capture_output/stream internally
+            "start_new_session",  # load-bearing for process-tree kill
+            "encoding",  # breaks internal bytes decode
+            "text",  # breaks internal bytes decode
+            "errors",  # breaks internal bytes decode
+            "universal_newlines",  # breaks internal bytes decode
+            "process_group",  # 3.11+, absent from ty's stubs for our target python
+        }
+    )
+
+    def test_popen_kwargs_matches_popen_params(self) -> None:
+        """PopenKwargs keys should match Popen params minus the exclusion set."""
+        popen_params = set(inspect.signature(subprocess.Popen.__init__).parameters.keys())
+        kwargs_keys = set(main.PopenKwargs.__annotations__.keys())
+
+        unexpected = kwargs_keys - popen_params
+        assert not unexpected, f"PopenKwargs has params Popen doesn't accept: {sorted(unexpected)}"
+
+        missing = (popen_params - self.EXCLUDED) - kwargs_keys
+        assert not missing, (
+            f"Popen has forwardable params missing from PopenKwargs.\n"
+            f"Missing: {sorted(missing)}\n"
+            f"If intentional, add to EXCLUDED in this test and the "
+            f"exclusion comments in bake/ui/run/main.py."
+        )
 
 
 # ============================================================================

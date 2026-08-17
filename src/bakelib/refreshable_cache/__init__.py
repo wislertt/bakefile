@@ -1,5 +1,7 @@
 from bakelib.refreshable_cache.cache import (
+    CacheKwargs,
     ChainedCache,
+    ChainedCacheKwargs,
     KeyringCache,
     MemoryCache,
     NullCache,
@@ -17,8 +19,10 @@ from bakelib.refreshable_cache.utils import (
 )
 
 __all__ = [
+    "CacheKwargs",
     "CallableFetchFn",
     "ChainedCache",
+    "ChainedCacheKwargs",
     "FetchFn",
     "KeyringCache",
     "MemoryCache",

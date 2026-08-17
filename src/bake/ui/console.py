@@ -7,14 +7,82 @@ import rich
 import rich.style
 from rich.console import Console as RichConsole
 from rich.console import JustifyMethod, OverflowMethod
+from rich.emoji import Emoji
 from rich.rule import Rule
 from rich.text import Text
+from typing_extensions import NotRequired, TypedDict, Unpack
 
 from bake.ui.style import BLUE, BOLD_BLUE, BOLD_GREEN
 from bake.utils.settings import bake_settings
 
 OVERFLOW_DEFAULT = "ignore"
 CROP_DEFAULT = False
+
+_FORCE_TERMINAL_DEFAULT = (
+    # Force terminal mode in GitHub Actions to enable ANSI color output.
+    # Without this, rich auto-detects no TTY and disables colors.
+    # By default, use None for auto-detection (preserves normal behavior).
+    True if bake_settings.github_actions else None
+)
+
+_LEGACY_WINDOWS_DEFAULT = (
+    # Force disable legacy Windows mode in GitHub Actions to use ANSI codes.
+    # GitHub Actions Windows runners support ANSI, but rich may auto-detect legacy mode.
+    False if bake_settings.github_actions else None
+)
+
+UNICODE_ENCODINGS = {"utf-8", "utf-16", "utf-32", "utf-16-le", "utf-16-be"}
+
+
+def _supports_unicode() -> bool:
+    return sys.stdout.encoding.lower() in UNICODE_ENCODINGS
+
+
+ARROW = "❯" if _supports_unicode() else ">"  # noqa: RUF001
+
+BLOCK_WIDTH = 70
+
+__all__ = [
+    "block",
+    "cmd",
+    "echo",
+    "end",
+    "err",
+    "error",
+    "flush",
+    "github_action_add_mask",
+    "info",
+    "line",
+    "out",
+    "plain_err",
+    "plain_out",
+    "prefix",
+    "script_block",
+    "start",
+    "success",
+    "thin_line",
+    "warning",
+]
+
+
+class PrintKwargs(TypedDict):
+    # Keyword arguments forwarded to RichConsole.print; drift-guarded by
+    # tests/unit/bake/ui/test_console.py. Own params never shadow these names:
+    # chrome styling uses label_style/arrow_style, shortcodes use emoji_code.
+    sep: NotRequired[str]
+    end: NotRequired[str]
+    justify: NotRequired[JustifyMethod | None]
+    overflow: NotRequired[OverflowMethod | None]
+    no_wrap: NotRequired[bool | None]
+    markup: NotRequired[bool | None]
+    highlight: NotRequired[bool | None]
+    width: NotRequired[int | None]
+    height: NotRequired[int | None]
+    crop: NotRequired[bool]
+    soft_wrap: NotRequired[bool | None]
+    new_line_start: NotRequired[bool]
+    style: NotRequired[str | rich.style.Style | None]
+    emoji: NotRequired[bool | None]
 
 
 class Console(RichConsole):
@@ -55,20 +123,6 @@ class Console(RichConsole):
         )
 
 
-_FORCE_TERMINAL_DEFAULT = (
-    # Force terminal mode in GitHub Actions to enable ANSI color output.
-    # Without this, rich auto-detects no TTY and disables colors.
-    # By default, use None for auto-detection (preserves normal behavior).
-    True if bake_settings.github_actions else None
-)
-
-
-_LEGACY_WINDOWS_DEFAULT = (
-    # Force disable legacy Windows mode in GitHub Actions to use ANSI codes.
-    # GitHub Actions Windows runners support ANSI, but rich may auto-detect legacy mode.
-    False if bake_settings.github_actions else None
-)
-
 out = Console(
     stderr=False,
     force_terminal=_FORCE_TERMINAL_DEFAULT,
@@ -83,98 +137,161 @@ plain_out = Console(no_color=True, stderr=False)
 plain_err = Console(no_color=True, stderr=True)
 
 
-UNICODE_ENCODINGS = {"utf-8", "utf-16", "utf-32", "utf-16-le", "utf-16-be"}
+def _replace_emoji(emoji_code: str) -> str:
+    # Shortcode typos fail fast instead of rendering literally; literal glyphs pass through.
+    replaced = Emoji.replace(emoji_code)
+    if emoji_code.startswith(":") and emoji_code.endswith(":") and replaced == emoji_code:
+        raise ValueError(f"unknown emoji code: {emoji_code!r}")
+    return replaced
 
 
-def _supports_unicode() -> bool:
-    return sys.stdout.encoding.lower() in UNICODE_ENCODINGS
-
-
-ARROW = "❯" if _supports_unicode() else ">"  # noqa: RUF001
-
-
-def _format_prefix(
-    console_obj: Console,
-    emoji: str | None,
-    label: str,
-    style: str,
-    message: str,
-) -> str:
-    formatted_label = f"[{label}]" if console_obj.no_color or out.color_system is None else label
+def _get_prefix(console: Console, emoji_code: str | None, label: str, label_style: str) -> Text:
+    formatted_label = f"[{label}]" if console.no_color or console.color_system is None else label
 
     # Strip emoji/unicode in non-UTF contexts (e.g., Windows CI) to avoid encoding issues
     emoji_str = ""
-    if emoji and _supports_unicode():
-        emoji_str = emoji + " "
+    if emoji_code and _supports_unicode():
+        emoji_str = _replace_emoji(emoji_code) + " "
 
-    return f"[{style}]{emoji_str}{formatted_label}[/{style}] {message}"
+    # Text bypasses rich markup/highlight kwargs, so label styling is independent.
+    # no_color consoles still render attributes (e.g. bold), so drop the style.
+    text_style = "" if console.no_color else label_style
+    return Text(f"{emoji_str}{formatted_label}", style=text_style)
 
 
-def _get_console(stderr: bool) -> Console:
+def _get_console(stderr: bool, no_color: bool = False) -> Console:
+    if no_color:
+        return plain_err if stderr else plain_out
     return err if stderr else out
 
 
 def prefix(
     message: str,
     *,
-    emoji: str | None = None,
-    label: str = "INFO",
-    style: str = BOLD_BLUE,
-    stderr: bool = False,
-    **kwargs,
+    label: str,
+    emoji_code: str | None = None,
+    label_style: str = BOLD_BLUE,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
 ) -> None:
-    target = _get_console(stderr)
-    target.print(
-        _format_prefix(target, emoji=emoji, label=label, style=style, message=message), **kwargs
-    )
+    console = _get_console(stderr, no_color=no_color)
+    if no_color:
+        kwargs.setdefault("highlight", False)
+        kwargs.setdefault("markup", False)
+    label_text = _get_prefix(console, emoji_code=emoji_code, label=label, label_style=label_style)
+    console.print(label_text, message, **kwargs)
 
 
-def success(message: str, *, stderr: bool = True, **kwargs) -> None:
+def success(
+    message: str,
+    *,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
     prefix(
         message,
-        emoji=":white_check_mark:",
+        emoji_code=":white_check_mark:",
         label="SUCCESS",
-        style=BOLD_GREEN,
+        label_style=BOLD_GREEN,
         stderr=stderr,
+        no_color=no_color,
         **kwargs,
     )
 
 
-def info(message: str, *, label: str = "INFO", stderr: bool = True, **kwargs) -> None:
-    prefix(message, emoji=None, label=label, style=BLUE, stderr=stderr, **kwargs)
+def info(
+    message: str,
+    *,
+    label: str = "INFO",
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
+    prefix(
+        message,
+        emoji_code=None,
+        label=label,
+        label_style=BLUE,
+        stderr=stderr,
+        no_color=no_color,
+        **kwargs,
+    )
 
 
-def start(message: str, *, stderr: bool = True, **kwargs) -> None:
-    info(f"{message}...", label="START", stderr=stderr, **kwargs)
+def start(
+    message: str,
+    *,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
+    info(f"{message}...", label="START", stderr=stderr, no_color=no_color, **kwargs)
 
 
-def end(message: str, *, stderr: bool = True, **kwargs) -> None:
-    info(message, label="END", stderr=stderr, **kwargs)
+def end(
+    message: str,
+    *,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
+    info(message, label="END", stderr=stderr, no_color=no_color, **kwargs)
 
 
-def echo(message: Any, *, stderr: bool = False, **kwargs) -> None:
-    _get_console(stderr).print(message, **kwargs)
+def echo(
+    message: Any, *, stderr: bool = False, no_color: bool = False, **kwargs: Unpack[PrintKwargs]
+) -> None:
+    console = _get_console(stderr, no_color=no_color)
+    console.print(message, **kwargs)
 
 
-def cmd(cmd_str: str, *, stderr: bool = True, **kwargs) -> None:
-    arrow_text = Text(ARROW, style=BOLD_GREEN)
-    cmd_text = Text(f"{cmd_str}")
-    _get_console(stderr).print(arrow_text, cmd_text, **kwargs)
+def cmd(
+    cmd_str: str,
+    *,
+    arrow_style: str = BOLD_GREEN,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
+    text_arrow_style = "" if no_color else arrow_style
+    console = _get_console(stderr, no_color=no_color)
+    console.print(Text(ARROW, style=text_arrow_style), Text(cmd_str), **kwargs)
 
 
-BLOCK_WIDTH = 70
+def _block_width(console: Console) -> int:
+    return min(BLOCK_WIDTH, console.size.width)
 
 
-def _block_width() -> int:
-    return min(BLOCK_WIDTH, err.size.width)
+def _get_block_label(label: str, no_color: bool) -> str:
+    # Labels are color-only markup; plain consoles strip color, so skip wrapping there.
+    return label if no_color else f"[{BLUE}]{label}[/{BLUE}]"
 
 
-def line(text: str = "", *, char: str = "=", style: str = BOLD_GREEN) -> None:
-    err.print(Rule(text, characters=char, style=style), width=_block_width())
+def line(
+    text: str = "",
+    *,
+    char: str = "=",
+    style: str = BOLD_GREEN,
+    stderr: bool = True,
+    no_color: bool = False,
+) -> None:
+    console = _get_console(stderr, no_color=no_color)
+    # Match prefix/cmd: no_color drops styles (plain consoles still render bold).
+    rule_style = "" if no_color else style
+    console.print(Rule(text, characters=char, style=rule_style), width=_block_width(console))
 
 
-def thin_line(text: str = "", *, char: str = "-", style: str = "dim") -> None:
-    line(text, char=char, style=style)
+def thin_line(
+    text: str = "",
+    *,
+    char: str = "-",
+    style: str = "dim",
+    stderr: bool = True,
+    no_color: bool = False,
+) -> None:
+    line(text, char=char, style=style, stderr=stderr, no_color=no_color)
 
 
 @contextmanager
@@ -189,26 +306,41 @@ def block(
     end_title: bool = True,
     outer_line_char: str = "=",
     inner_line_char: str = "-",
+    stderr: bool = True,
+    no_color: bool = False,
 ):
-    styled_title = f"[{title_style}]{title}[/{title_style}]"
-    start = f"[{BLUE}]{start_label}[/{BLUE}] {styled_title}" if start_label else styled_title
+    console = _get_console(stderr, no_color=no_color)
+    # Same no_color rule as line/prefix/cmd: skip markup so output has zero ANSI.
+    styled_title = title if no_color else f"[{title_style}]{title}[/{title_style}]"
+    start = (
+        f"{_get_block_label(start_label, no_color)} {styled_title}" if start_label else styled_title
+    )
     if end_title:
-        end = f"[{BLUE}]{end_label}[/{BLUE}] {styled_title}" if end_label else styled_title
+        end = (
+            f"{_get_block_label(end_label, no_color)} {styled_title}" if end_label else styled_title
+        )
     else:
         end = ""
     if title_mode == "inline":
-        line(start, char=outer_line_char, style=line_style)
+        line(start, char=outer_line_char, style=line_style, stderr=stderr, no_color=no_color)
     else:  # framed
-        line(char=outer_line_char, style=line_style)
-        err.print(start)
-        line(char=inner_line_char, style=line_style)
+        line(char=outer_line_char, style=line_style, stderr=stderr, no_color=no_color)
+        console.print(start)
+        line(char=inner_line_char, style=line_style, stderr=stderr, no_color=no_color)
     try:
         yield
     finally:
-        line(end, char=outer_line_char, style=line_style)
+        line(end, char=outer_line_char, style=line_style, stderr=stderr, no_color=no_color)
 
 
-def script_block(title: str, script: str, **kwargs) -> None:
+def script_block(
+    title: str,
+    script: str,
+    *,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
     # Lazy import: beautysh adds a StreamHandler to logging.root at import time
     from beautysh import BashFormatter
 
@@ -218,29 +350,58 @@ def script_block(title: str, script: str, **kwargs) -> None:
     if error:
         formatted = textwrap.dedent(script)
 
-    with block(title, end_title=False):
-        err.print(formatted, highlight=False, **kwargs)
+    if no_color:
+        kwargs.setdefault("highlight", False)
+        kwargs.setdefault("markup", False)
+    print_kwargs: PrintKwargs = {"highlight": False}
+    print_kwargs.update(kwargs)
+    with block(title, end_title=False, stderr=stderr, no_color=no_color):
+        console = _get_console(stderr, no_color=no_color)
+        console.print(formatted, **print_kwargs)
 
 
-def warning(message: str, *, stderr: bool = True, **kwargs) -> None:
+def warning(
+    message: str,
+    *,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
     if bake_settings.github_actions:
-        _get_console(stderr).print(f"::warning::{message}", **kwargs)
+        console = _get_console(stderr, no_color=no_color)
+        console.print(f"::warning::{message}", **kwargs)
     else:
         prefix(
             message,
-            emoji=":warning-emoji: ",
+            emoji_code=":warning-emoji: ",
             label="WARNING",
-            style="bold yellow",
+            label_style="bold yellow",
             stderr=stderr,
+            no_color=no_color,
             **kwargs,
         )
 
 
-def error(message: str, *, stderr: bool = True, **kwargs) -> None:
+def error(
+    message: str,
+    *,
+    stderr: bool = True,
+    no_color: bool = False,
+    **kwargs: Unpack[PrintKwargs],
+) -> None:
     if bake_settings.github_actions:
-        _get_console(stderr).print(f"::error::{message}", **kwargs)
+        console = _get_console(stderr, no_color=no_color)
+        console.print(f"::error::{message}", **kwargs)
     else:
-        prefix(message, emoji=":x:", label="ERROR", style="bold red", stderr=stderr, **kwargs)
+        prefix(
+            message,
+            emoji_code=":x:",
+            label="ERROR",
+            label_style="bold red",
+            stderr=stderr,
+            no_color=no_color,
+            **kwargs,
+        )
 
 
 def flush() -> None:
@@ -248,6 +409,6 @@ def flush() -> None:
     err.file.flush()
 
 
-def github_action_add_mask(value: str, **kwargs) -> None:
+def github_action_add_mask(value: str, **kwargs: Unpack[PrintKwargs]) -> None:
     if bake_settings.github_actions:
         out.print(f"::add-mask::{value}", **kwargs)

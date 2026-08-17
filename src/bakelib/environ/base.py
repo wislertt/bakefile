@@ -58,7 +58,7 @@ class _BaseEnv(str, metaclass=_FrozenEnvMeta):
 
         original_init = cls.__init__
 
-        def wrapped_init(self, *args, **kwargs):
+        def wrapped_init(self, *args: Any, **kwargs: Any) -> None:
             original_init(self, *args, **kwargs)
             object.__setattr__(self, "_initialized", True)
 

@@ -199,7 +199,7 @@ def _export(
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(content, encoding="utf-8")
     elif content != "":
-        console.plain_out.print(content, overflow="ignore", crop=False)
+        console.echo(content, no_color=True, overflow="ignore", crop=False)
 
 
 def export(

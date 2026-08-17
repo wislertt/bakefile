@@ -40,7 +40,7 @@ class EnvBakebook(Bakebook, Generic[E]):
 
     env: E
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         expected_env_type = _get_expected_env_type(cls)
         if expected_env_type is None:

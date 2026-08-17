@@ -9,12 +9,14 @@ import tempfile
 import threading
 import time
 import types
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, overload
+from typing import IO, Any, Literal, overload
 
 import typer
 from rich.text import Text
+from typing_extensions import NotRequired, TypedDict, Unpack
 
 from bake.ui import console, style
 from bake.ui.run.splitter import OutputSplitter
@@ -68,6 +70,28 @@ def _resolve_interpreter(interpreter: str) -> str | None:
     return shutil.which(interpreter)
 
 
+CmdType = str | list[str] | tuple[str, ...]
+
+
+class PopenKwargs(TypedDict):
+    # subprocess.Popen params forwarded by run(); drift-guarded by
+    # tests/unit/bake/ui/run/test_run.py, which owns the exclusion set.
+    bufsize: NotRequired[int]
+    executable: NotRequired[str | os.PathLike[str]]
+    stdin: NotRequired[int | IO[Any] | None]
+    preexec_fn: NotRequired[Callable[[], Any]]
+    close_fds: NotRequired[bool]
+    startupinfo: NotRequired[Any]
+    creationflags: NotRequired[int]
+    restore_signals: NotRequired[bool]
+    pass_fds: NotRequired[Collection[int]]
+    user: NotRequired[str | int | None]
+    group: NotRequired[str | int | None]
+    extra_groups: NotRequired[Iterable[str | int] | None]
+    umask: NotRequired[int]
+    pipesize: NotRequired[int]
+
+
 def _run_with_temp_file(
     cmd: str,
     capture_output: bool,
@@ -79,7 +103,7 @@ def _run_with_temp_file(
     timeout: float | None = None,
     _encoding: str | None = None,
     echo_cmd: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run multi-line script using temp file with shebang support.
 
@@ -163,9 +187,6 @@ def _run_with_temp_file(
             os.unlink(path)
 
 
-CmdType = str | list[str] | tuple[str, ...]
-
-
 @overload
 def run(
     cmd: CmdType,
@@ -182,7 +203,7 @@ def run(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
 
 
@@ -202,7 +223,7 @@ def run(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
 
 
@@ -221,7 +242,7 @@ def run(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a command with optional streaming and output capture.
 
@@ -519,7 +540,7 @@ def _setup_pty_stream(
     capture_output: bool,
     env: dict[str, str] | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
@@ -565,7 +586,7 @@ def _setup_pipe_stream(
     capture_output: bool,
     env: dict[str, str] | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
@@ -597,7 +618,7 @@ def _run_with_split(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     use_pty = sys.platform != "win32" and capture_output
 
@@ -701,7 +722,7 @@ def _run_without_split(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
     env = _prepare_subprocess_env(env)

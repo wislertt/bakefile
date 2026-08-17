@@ -2,9 +2,10 @@ import subprocess
 from pathlib import Path
 from typing import Literal, overload
 
+from typing_extensions import Unpack
 from uv import find_uv_bin
 
-from bake.ui.run.main import StrOrNoneCompletedProcess, run
+from bake.ui.run.main import PopenKwargs, StrOrNoneCompletedProcess, run
 
 
 @overload
@@ -22,7 +23,7 @@ def run_uv(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
 
 
@@ -40,7 +41,7 @@ def run_uv(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
 
 
@@ -57,7 +58,7 @@ def run_uv(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     uv_bin = find_uv_bin()
 

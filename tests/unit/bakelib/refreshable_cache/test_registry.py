@@ -6,7 +6,9 @@ import pytest
 from tenacity import stop_after_attempt, wait_fixed
 
 from bakelib.refreshable_cache import (
+    CacheKwargs,
     ChainedCache,
+    ChainedCacheKwargs,
     FetchFn,
     KeyringCache,
     MemoryCache,
@@ -189,6 +191,38 @@ class TestRegistrySignatureParity:
         insert = sig(RefreshableCacheRegistry.insert_cache)
         assert sig(RefreshableCacheRegistry.ensure_cache) == insert
         assert sig(RefreshableCacheRegistry.upsert_cache) == insert
+
+
+class TestCacheKwargs:
+    """CacheKwargs/ChainedCacheKwargs should stay in sync with cache __init__ signatures."""
+
+    def test_cache_kwargs_matches_refreshable_cache_params(self):
+        init_params = set(inspect.signature(RefreshableCache.__init__).parameters)
+        kwargs_keys = set(CacheKwargs.__annotations__)
+
+        unexpected = kwargs_keys - init_params
+        assert not unexpected, (
+            f"CacheKwargs has params RefreshableCache doesn't accept: {sorted(unexpected)}"
+        )
+
+        missing = init_params - kwargs_keys - {"self"}
+        assert not missing, (
+            f"RefreshableCache.__init__ has params missing from CacheKwargs: {sorted(missing)}"
+        )
+
+    def test_chained_cache_kwargs_matches_chained_cache_params(self):
+        init_params = set(inspect.signature(ChainedCache.__init__).parameters)
+        kwargs_keys = set(ChainedCacheKwargs.__annotations__)
+
+        unexpected = kwargs_keys - init_params
+        assert not unexpected, (
+            f"ChainedCacheKwargs has params ChainedCache doesn't accept: {sorted(unexpected)}"
+        )
+
+        missing = init_params - kwargs_keys - {"self"}
+        assert not missing, (
+            f"ChainedCache.__init__ has params missing from ChainedCacheKwargs: {sorted(missing)}"
+        )
 
 
 class TestRegistryPolicy:
