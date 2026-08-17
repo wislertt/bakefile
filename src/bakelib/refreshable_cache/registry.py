@@ -3,7 +3,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 from bakelib.refreshable_cache.cache import (
     DEFAULT_NAMESPACE,
+    CacheKwargs,
     ChainedCache,
+    ChainedCacheKwargs,
     KeyringCache,
     MemoryCache,
     RefreshableCache,
@@ -168,7 +170,7 @@ class RefreshableCacheRegistry(Generic[T]):
         wait: "WaitBaseT | None",
         cached_type: Any,
     ) -> RefreshableCache[T]:
-        kwargs: dict[str, Any] = {
+        kwargs: CacheKwargs = {
             "key": key,
             "fetch_fn": fetch_fn,
             "ttl": ttl if ttl is not None else self.ttl,
@@ -179,7 +181,8 @@ class RefreshableCacheRegistry(Generic[T]):
         }
         if len(self.backends) == 1:
             return self.backends[0](**kwargs)
-        return ChainedCache(backends=self.backends, **kwargs)
+        chained_kwargs: ChainedCacheKwargs = {**kwargs, "backends": self.backends}
+        return ChainedCache(**chained_kwargs)
 
 
 class SecretUtilsKeyringCacheRegistry(RefreshableCacheRegistry[T]):

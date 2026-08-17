@@ -2,8 +2,11 @@ import logging
 import subprocess
 from pathlib import Path
 
+from typing_extensions import Unpack
+
 from bake.ui import console
 from bake.ui.run import StrOrNoneCompletedProcess, run
+from bake.ui.run.main import PopenKwargs
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +28,7 @@ def run_script(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
-    **kwargs,
+    **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a multi-line script with shebang support.
 

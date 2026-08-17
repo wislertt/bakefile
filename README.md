@@ -291,10 +291,19 @@ Helpers:
 
 - `console.echo(msg)` prints to stdout (your task's normal output).
 - `console.success`, `info`, `warning`, `error(msg)` print a labeled line to stderr. In GitHub Actions, `warning` and `error` become `::warning::` / `::error::` annotations.
-- `console.cmd(cmd_str)` prints a command as `❯ <cmd>`, which is what `ctx.run` uses to show the command it runs.
+- `console.prefix(msg, label=..., emoji_code=..., label_style=...)` prints a custom labeled line when the built-in labels don't fit. `label` is required — use `info` for the default `INFO` label.
+- `console.cmd(cmd_str)` prints a command as `❯ <cmd>`, which is what `ctx.run` uses to show the command it runs. The arrow accepts `arrow_style=` (default green, e.g. `arrow_style="bold red"` for failed commands); the command text always stays plain.
 - `console.script_block(title, script)` pretty-prints a multi-line script, used by `run_script`.
 
-For anything else, use the raw Rich consoles: `console.out` / `console.err` (stdout / stderr, color) and `console.plain_out` / `console.plain_err` (no color).
+Every helper accepts rich print kwargs (`style`, `emoji`, `markup`, `highlight`, ...) and they apply to the message only — the label chrome is rendered as a `Text` object and is never affected. Chrome styling has its own param names (`label_style` on `prefix`, `arrow_style` on `cmd`) so rich kwargs are never shadowed. So `console.success("tests[unit] passed", markup=False)` keeps the green label but prints the message literally. Note that with markup on (the default), rich parses the message: `[unit]`-style tags are consumed.
+
+Stream model: `echo` is for machine-readable data (stdout, safe to pipe); everything else is human progress output (stderr). Any helper also accepts `no_color=True` to emit zero ANSI codes — use it when the output is parsed by another tool:
+
+```python
+console.echo(value, no_color=True)  # clean stdout, no ANSI codes
+```
+
+For anything else, the raw Rich consoles are also exposed: `console.out` / `console.err` (stdout / stderr, color) and `console.plain_out` / `console.plain_err` (no color).
 
 `console` output, plain `print()`, and command output are all separate from logs. They always print, regardless of verbosity.
 

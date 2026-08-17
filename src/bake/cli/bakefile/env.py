@@ -76,7 +76,7 @@ def _build_selective_env_dict(
 def _env_print(bakebook: Bakebook, var_name: str, reveal_secrets: bool = False) -> None:
     data = _get_data(bakebook=bakebook, reveal_secrets=reveal_secrets)
     value = _lookup_field(data, var_name)
-    console.plain_out.print(_format_shell_value(value), overflow="ignore", crop=False)
+    console.echo(_format_shell_value(value), no_color=True, overflow="ignore", crop=False)
 
 
 def _env(bakebook: Bakebook, env_input: EnvInput) -> None:

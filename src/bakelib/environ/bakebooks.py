@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar, get_args, get_origin
+from typing import Any, Generic, TypeVar, get_args, get_origin
 
 from bakelib.environ.bakebook import EnvBakebook
 from bakelib.environ.get import get_bakebook
@@ -28,7 +28,7 @@ class EnvBakebooks(Generic[E]):
         MyGroup.all()   # return all bakebooks
     """
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         expected_type = _get_expected_type(cls)
         for attr_name, value in vars(cls).items():

@@ -58,6 +58,21 @@ class TestConsoleSignature:
                 f"Our:  {our_param.default}"
             )
 
+    def test_print_kwargs_matches_rich_print_params(self) -> None:
+        """PrintKwargs keys should match Rich's Console.print keyword params."""
+        rich_params = {
+            name
+            for name, param in inspect.signature(RichConsole.print).parameters.items()
+            if name not in ("self", "objects")
+            and param.kind is not inspect.Parameter.POSITIONAL_ONLY
+        }
+        kwargs_keys = set(console.PrintKwargs.__annotations__.keys())
+        assert kwargs_keys == rich_params, (
+            f"PrintKwargs out of sync with rich Console.print.\n"
+            f"Rich params: {sorted(rich_params)}\n"
+            f"PrintKwargs: {sorted(kwargs_keys)}"
+        )
+
 
 class TestSuccess:
     def test_success_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -180,6 +195,8 @@ class TestOutputToCorrectStream:
     ) -> None:
         if func_name == "script_block":
             getattr(console, func_name)("Test Title", "echo 'test'")
+        elif func_name == "prefix":
+            getattr(console, func_name)("Test message", label="TEST")
         else:
             getattr(console, func_name)("Test message")
         captured = capsys.readouterr()
@@ -290,8 +307,23 @@ def test_script_block_falls_back_to_dedent_on_error(
         assert captured.out == ""
 
 
+def test_script_block_no_color_renders_markup_literally(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    console.script_block("Test", "echo '[bold]hi[/bold]'", no_color=True)
+    captured = capsys.readouterr()
+    assert "echo '[bold]hi[/bold]'" in captured.err
+    assert "\x1b[" not in captured.err
+
+
 def test_prefix_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix("Task complete", emoji=":check:", label="DONE", style="bold green")
+    console.prefix(
+        "Task complete",
+        label="DONE",
+        emoji_code=":heavy_check_mark:",
+        label_style="bold green",
+        stderr=False,
+    )
     captured = capsys.readouterr()
     assert "DONE" in captured.out
     assert "Task complete" in captured.out
@@ -299,22 +331,94 @@ def test_prefix_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_prefix_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix("Just info", label="INFO", style="bold blue")
+    console.prefix("Just info", label="INFO", label_style="bold blue", stderr=False)
     captured = capsys.readouterr()
     assert "INFO" in captured.out
     assert "Just info" in captured.out
 
 
+def test_prefix_unknown_emoji_code_raises() -> None:
+    with pytest.raises(ValueError, match="unknown emoji code"):
+        console.prefix("msg", label="DONE", emoji_code=":white_check_markxxxx:")
+
+
+def test_prefix_literal_emoji_glyph_passthrough(capsys: pytest.CaptureFixture[str]) -> None:
+    console.prefix("with glyph", label="DONE", emoji_code="✅", stderr=False)
+    captured = capsys.readouterr()
+    # Label shape depends on cached color system, so only assert glyph passthrough.
+    output = strip_ansi(captured.out)
+    assert "✅" in output
+    assert "DONE" in output
+    assert "with glyph" in output
+
+
 def test_prefix_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix("Task failed", emoji=":x:", label="FAIL", style="bold red", stderr=True)
+    console.prefix(
+        "Task failed", label="FAIL", emoji_code=":x:", label_style="bold red", stderr=True
+    )
     captured = capsys.readouterr()
     assert "FAIL" in captured.err
     assert "Task failed" in captured.err
     assert captured.out == ""
 
 
+def test_block_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    with console.block("Deploy", stderr=False):
+        console.out.print("body")
+    captured = capsys.readouterr()
+    assert "Deploy" in captured.out
+    assert "body" in captured.out
+    assert captured.err == ""
+
+
+def test_block_no_color_prints_plain(capsys: pytest.CaptureFixture[str]) -> None:
+    with console.block("Deploy", no_color=True):
+        pass
+    captured = capsys.readouterr()
+    assert "Deploy" in captured.err
+    assert "\x1b[" not in captured.err
+
+
+class TestNoColor:
+    def test_get_console_no_color_returns_plain_consoles(self) -> None:
+        assert console._get_console(stderr=False, no_color=True) is console.plain_out
+        assert console._get_console(stderr=True, no_color=True) is console.plain_err
+        assert console._get_console(stderr=False, no_color=False) is console.out
+        assert console._get_console(stderr=True, no_color=False) is console.err
+
+    def test_prefix_no_color_prints_plain_label(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.prefix("Plain message", label="INFO", label_style="bold blue", no_color=True)
+        captured = capsys.readouterr()
+        assert "[INFO] Plain message" in captured.err
+        assert "\x1b[" not in captured.err
+
+    def test_prefix_no_color_renders_markup_literally(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        console.prefix("Run [bold]bake build[/bold]", label="INFO", no_color=True)
+        captured = capsys.readouterr()
+        assert "[bold]bake build[/bold]" in captured.err
+        assert "\x1b[" not in captured.err
+
+    def test_success_no_color_prints_plain_label(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.success("Plain success", no_color=True)
+        captured = capsys.readouterr()
+        assert "[SUCCESS] Plain success" in captured.err
+        assert "\x1b[" not in captured.err
+
+    def test_echo_no_color_prints_to_plain_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.echo("plain value", no_color=True)
+        captured = capsys.readouterr()
+        assert "plain value" in captured.out
+
+    def test_cmd_no_color_skips_arrow_style(self, capsys: pytest.CaptureFixture[str]) -> None:
+        console.cmd("echo hello", no_color=True)
+        captured = capsys.readouterr()
+        assert "echo hello" in captured.err
+
+
 def test_prefix_stderr_without_emoji(capsys: pytest.CaptureFixture[str]) -> None:
-    console.prefix("Warning message", label="WARN", style="bold yellow", stderr=True)
+    console.prefix("Warning message", label="WARN", label_style="bold yellow", stderr=True)
     captured = capsys.readouterr()
     assert "WARN" in captured.err
     assert "Warning message" in captured.err
@@ -357,6 +461,8 @@ class TestStderrOverride:
         [
             ("echo", True, "err"),
             ("prefix", True, "err"),
+            ("line", False, "out"),
+            ("thin_line", False, "out"),
             ("success", False, "out"),
             ("info", False, "out"),
             ("start", False, "out"),
@@ -373,7 +479,8 @@ class TestStderrOverride:
         override: bool,
         expected_stream: str,
     ) -> None:
-        getattr(console, func_name)("routed message", stderr=override)
+        label_kwargs = {"label": "TEST"} if func_name == "prefix" else {}
+        getattr(console, func_name)("routed message", stderr=override, **label_kwargs)
         captured = capsys.readouterr()
         expected = getattr(captured, expected_stream)
         other = getattr(captured, "out" if expected_stream == "err" else "err")

@@ -10,6 +10,7 @@ import keyring as kr
 from keyring.errors import PasswordDeleteError
 from pydantic import BaseModel, TypeAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
+from typing_extensions import TypedDict
 
 from bakelib.refreshable_cache.utils import FetchFn, RefreshNeededError
 
@@ -34,6 +35,23 @@ class CacheEntry(BaseModel, Generic[CachedT]):
 
 
 DEFAULT_NAMESPACE = "bakelib.refreshable_cache"
+
+
+class CacheKwargs(TypedDict):
+    # RefreshableCache.__init__ params forwarded by registry._build_cache();
+    # drift-guarded by tests/unit/bakelib/refreshable_cache/test_registry.py.
+    key: str
+    fetch_fn: Callable[[], Any] | FetchFn[Any]
+    ttl: float | None
+    namespace: str | None
+    stop: "StopBaseT | None"
+    wait: "WaitBaseT | None"
+    cached_type: Any
+
+
+class ChainedCacheKwargs(CacheKwargs):
+    # ChainedCache.__init__ adds backends; same drift test as CacheKwargs.
+    backends: "list[type[RefreshableCache[Any]]]"
 
 
 class RefreshableCache(ABC, Generic[CachedT]):

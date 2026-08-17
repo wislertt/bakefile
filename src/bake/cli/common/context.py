@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING, Literal, overload
 
 import typer
 from typer.core import TyperCommand
+from typing_extensions import Unpack
 
 from bake.ui.run import CmdType, StrOrNoneCompletedProcess
 from bake.ui.run import run as _run
+from bake.ui.run.main import PopenKwargs
 from bake.ui.run.script import run_script as _run_script
 
 from .obj import BakefileObject
@@ -61,7 +63,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
-        **kwargs,
+        **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[str]: ...
 
     @overload
@@ -80,7 +82,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
-        **kwargs,
+        **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[None]: ...
 
     def run(
@@ -99,7 +101,7 @@ class Context(typer.Context):
         env: dict[str, str] | None = None,
         timeout: float | None = None,
         _encoding: str | None = None,
-        **kwargs,
+        **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run(
             cmd,
@@ -131,7 +133,7 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
-        **kwargs,
+        **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run_script(
             title,

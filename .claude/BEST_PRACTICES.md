@@ -692,7 +692,7 @@ BAKEBOOK_NAME_IN_SAMPLES = "__bakebook__"
 ```python
 from bake.ui import console
 
-# Success messages (green, stdout)
+# Success messages (green, stderr)
 console.success("Operation completed")
 
 # Echo messages (plain, stdout, accepts any type)
@@ -705,6 +705,14 @@ console.warning("File not found")
 
 # Error messages (red, stderr)
 console.error("Failed to connect")
+
+# Custom labeled line (when built-in labels don't fit)
+# label is required — use info() for the default INFO label
+console.prefix("Deployed", label="DEPLOY", label_style="bold magenta")
+
+# Command echo (arrow is chrome, command text always plain)
+console.cmd("bake build")
+console.cmd(cmd_str, arrow_style="bold red")  # e.g. echo a failed command
 ```
 
 **Rich Markup in Messages:**
@@ -722,10 +730,36 @@ console.info(f"Run [code]bakefile init --inline[/code] to create one")
 # [code] or backticks for monospace
 ```
 
+**Markup kwarg scope (labeled helpers):**
+
+- Rich print kwargs (`style`, `emoji`, `markup`, `highlight`, ...) apply to the **message only** — the label chrome is a `Text` object and never affected. Chrome styling uses its own params (`label_style` on `prefix`, `arrow_style` on `cmd`) so rich kwargs are never shadowed
+- `console.success("tests[unit] passed", markup=False)` keeps the green label, prints message literally
+- With markup on (default), rich parses the message: `[unit]`-style tags are consumed, stray `[/tag]` raises `MarkupError`
+- For message text that may contain brackets (paths, globs, subprocess output), pass `markup=False`
+
 **Stream separation:**
 
-- `success()` and `info()` → stdout
-- `warning()` and `error()` → stderr
+- `echo()` → stdout: machine-readable data (values meant for piping/capture)
+- Everything else (`info`, `success`, `start`, `end`, `warning`, `error`, `cmd`, `block`) → stderr: human progress output
+
+This keeps `bake my-task | grep value` clean: data on stdout, progress noise on stderr.
+
+**Delimiting output sections:**
+
+- Prefer `block()` context manager — exception-safe (closing line printed in `finally`)
+- Avoid `start()`/`end()` pairs — easy to forget the matching `end()`, no guard
+- `line()`/`thin_line()` for manual separators
+
+```python
+with console.block("Running tests"):
+    bakebook.ctx.run("pytest")
+```
+
+**Plain (no-color) output:**
+
+- Any console function accepts `no_color=True` to emit zero ANSI codes (labels get `[INFO]`-style brackets)
+- Use for machine-parseable output: `console.echo(value, no_color=True)`
+- Emoji glyphs (✅ ⚠️ ❌) still render — they are unicode, not ANSI
 
 **Type hints:**
 
