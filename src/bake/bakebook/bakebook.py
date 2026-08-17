@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any, ClassVar
 
 import typer
-from pydantic import Field, PrivateAttr, field_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from pydantic.warnings import PydanticDeprecationWarning
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typer._click.globals import get_current_context
@@ -162,6 +162,45 @@ class BakebookMixin(BaseSettings):
         super().__init__(**kwargs)
 
 
+def _remerge_private_attributes_mro(cls: type[BaseModel]) -> None:
+    """Rebuild ``__private_attributes__`` in MRO order.
+
+    pydantic merges base snapshots in declared order — last base wins,
+    inverted vs MRO — dropping overrides on mid-MRO bases
+    (https://github.com/pydantic/pydantic/issues/11700; fix deferred to v3).
+    Own-body declarations are fresh ModelPrivateAttr objects, inherited ones
+    shared references — identity separates them; own entries are re-applied
+    on top.
+    """
+    if "__private_attributes__" not in cls.__dict__:
+        return
+
+    base_snapshots = [
+        base.__dict__["__private_attributes__"]
+        for base in cls.__mro__[1:]
+        if "__private_attributes__" in base.__dict__
+    ]
+    if len(base_snapshots) < 2:
+        # Single pydantic base: pydantic's own merge is already MRO-correct.
+        return
+
+    own = cls.__dict__["__private_attributes__"]
+
+    declared_order: dict[str, Any] = {}  # pydantic's merge — diff target only
+    for snapshot in base_snapshots:
+        declared_order.update(snapshot)
+
+    remerged: dict[str, Any] = {}
+    for snapshot in reversed(base_snapshots):  # least-derived first → MRO wins
+        remerged.update(snapshot)
+
+    for name, attr in own.items():
+        if name not in declared_order or attr is not declared_order[name]:
+            remerged[name] = attr
+
+    cls.__private_attributes__ = remerged
+
+
 class Bakebook(BaseSettings):
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
@@ -205,6 +244,12 @@ class Bakebook(BaseSettings):
         # call lazy_init() manually when construction shouldn't run lazy init work yet.
         True
     )
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Class creation — the only point the declared-order private-attr merge
+        # can be corrected, and it fires for every Bakebook descendant.
+        _remerge_private_attributes_mro(cls)
 
     @field_validator("bake_log")
     @classmethod
