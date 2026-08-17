@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import orjson
 import pytest
 import typer
+import zerv
 
 from bake import Context
 from bake.ui.logger import strip_ansi
@@ -243,6 +244,39 @@ class TestVersionBumpContext:
                 pass
 
             assert base_space._version == "1.0.0"
+
+
+class TestVersionSchema:
+    # _version_schema is a pydantic private attr; Bakebook re-merges the
+    # declared-order base merge into MRO order (pydantic/pydantic#11700).
+
+    def test_base_space_default(self) -> None:
+        assert MinimalTestSpace()._version_schema == "standard-base-prerelease-post-dev"
+
+    def test_child_class_override(self) -> None:
+        class SchemaSpace(MinimalTestSpace):
+            _version_schema: zerv.StandardSchema = "standard-base-prerelease-post-dev-context"
+
+        assert SchemaSpace()._version_schema == "standard-base-prerelease-post-dev-context"
+
+    def test_child_override_survives_mixed_bases(self) -> None:
+        # Original bug: override space followed by plain sibling reverted to
+        # the base default, losing git context from image tags.
+        class OverrideSpace(MinimalTestSpace):
+            _version_schema: zerv.StandardSchema = "standard-base-prerelease-post-dev-context"
+
+        class PlainSpace(MinimalTestSpace):
+            pass
+
+        class Composed(OverrideSpace, PlainSpace):
+            pass
+
+        assert Composed()._version_schema == "standard-base-prerelease-post-dev-context"
+
+    def test_instance_assignment_wins(self) -> None:
+        space = MinimalTestSpace()
+        space._version_schema = "standard-base-prerelease-post-dev-context"
+        assert space._version_schema == "standard-base-prerelease-post-dev-context"
 
 
 class TestOptionalVersionContext:

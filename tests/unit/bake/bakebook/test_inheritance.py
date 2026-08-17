@@ -1,6 +1,10 @@
 import types
 
-from bake import Bakebook, command
+import pytest
+from pydantic import BaseModel, PrivateAttr
+
+from bake import Bakebook, BakebookMixin, command
+from bake.bakebook.bakebook import _remerge_private_attributes_mro
 from tests.unit.bake.bakebook.utils import ExpectedCommand, assert_commands
 
 
@@ -386,3 +390,162 @@ def test_diamond_inheritance() -> None:
         },
         msg="Diamond inheritance - BaseA appears once",
     )
+
+
+def test_private_attr_override_survives_mixed_bases() -> None:
+    class SpaceBase(Bakebook):
+        _knob: str = "base-default"
+
+    class OverrideSpace(SpaceBase):
+        _knob: str = "override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class HouseOrder(OverrideSpace, PlainSpace):
+        pass
+
+    class SwappedOrder(PlainSpace, OverrideSpace):
+        pass
+
+    assert HouseOrder()._knob == "override"
+    assert SwappedOrder()._knob == "override"
+
+
+def test_private_attr_first_base_wins_on_conflict() -> None:
+    class FirstSpace(Bakebook):
+        _knob: str = "first"
+
+    class SecondSpace(Bakebook):
+        _knob: str = "second"
+
+    class Composed(FirstSpace, SecondSpace):
+        pass
+
+    assert Composed()._knob == "first"
+
+
+def test_private_attr_declared_on_composed_class_wins() -> None:
+    class SpaceA(Bakebook):
+        _knob: str = "base-default"
+
+    class SpaceB(Bakebook):
+        pass
+
+    class Composed(SpaceA, SpaceB):
+        _knob: str = "own"
+
+    assert Composed()._knob == "own"
+
+
+def test_private_attr_factory_override_follows_mro() -> None:
+    # Factories compare equal under value equality — only identity separates them.
+    class SpaceBase(Bakebook):
+        _knob: str = PrivateAttr(default_factory=lambda: "base-factory")
+
+    class OverrideSpace(SpaceBase):
+        _knob: str = PrivateAttr(default_factory=lambda: "override-factory")
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class Composed(OverrideSpace, PlainSpace):
+        _knob: str = PrivateAttr(default_factory=lambda: "own-factory")
+
+    assert Composed()._knob == "own-factory"
+
+    class NoOwnDeclaration(OverrideSpace, PlainSpace):
+        pass
+
+    assert NoOwnDeclaration()._knob == "override-factory"
+
+
+def test_private_attr_with_bakebook_mixin_composition() -> None:
+    """House composition shape: BakebookMixin fields first, spaces after."""
+
+    class SpaceBase(Bakebook):
+        _knob: str = "base-default"
+
+    class OverrideSpace(SpaceBase):
+        _knob: str = "override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class ValueMixin(BakebookMixin):
+        some_field: str = "x"
+
+    class Real(ValueMixin, OverrideSpace, PlainSpace):
+        pass
+
+    bakebook = Real()
+    assert bakebook._knob == "override"
+    assert bakebook.some_field == "x"
+
+
+def test_private_attr_instance_assignment_still_wins() -> None:
+    """Per-instance values keep working — the knob stays a private attr."""
+
+    class SpaceBase(Bakebook):
+        _knob: str = "base-default"
+
+    class OverrideSpace(SpaceBase):
+        _knob: str = "override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class Composed(OverrideSpace, PlainSpace):
+        pass
+
+    bakebook = Composed()
+    bakebook._knob = "per-instance"
+    assert bakebook._knob == "per-instance"
+    assert Composed()._knob == "override"
+
+
+def test_remerge_skips_class_without_private_attributes() -> None:
+    class NoSnapshotModel(BaseModel):
+        _knob: str = "own"
+
+    del NoSnapshotModel.__private_attributes__
+
+    _remerge_private_attributes_mro(NoSnapshotModel)
+
+    assert "__private_attributes__" not in NoSnapshotModel.__dict__
+
+
+def test_remerge_skips_single_pydantic_base() -> None:
+    class DirectModel(BaseModel):
+        _knob: str = "own"
+
+    snapshot = DirectModel.__dict__["__private_attributes__"]
+
+    _remerge_private_attributes_mro(DirectModel)
+
+    assert DirectModel.__dict__["__private_attributes__"] is snapshot
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="pydantic/pydantic#11700 — once this XPasses, upstream fixed the "
+    "declared-order private-attr merge: remove this test and revisit "
+    "_remerge_private_attributes_mro in bake/bakebook/bakebook.py",
+)
+def test_pydantic_raw_private_attr_mro_bug_still_present() -> None:
+    """Pins the raw pydantic bug; the Bakebook-level tests above pass either
+    way and cannot signal an upstream fix."""
+
+    class RawBase(BaseModel):
+        _knob: str = "base"
+
+    class RawOverride(RawBase):
+        _knob: str = "override"
+
+    class RawPlain(RawBase):
+        pass
+
+    class RawComposed(RawOverride, RawPlain):
+        pass
+
+    assert RawComposed()._knob == "override"
