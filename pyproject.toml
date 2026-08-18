@@ -1,7 +1,7 @@
 [project]
 name = "bakefile"
 version = "0.0.0" # use git tag
-description = "An OOP task runner in Python (Makefile alternative)"
+description = "An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reusable and in Python."
 readme = "README.md"
 authors = [
   {name = "Wisaroot Lertthaweedech", email = "l.wisaroot@gmail.com"}
@@ -70,6 +70,7 @@ build-backend = "uv_build"
 
 [tool.deptry]
 known_first_party = ["bake", "bakelib", "python_package"]
+extend_exclude = ["scripts"]
 
 [tool.deptry.package_module_name_map]
 pydantic = ["pydantic", "pydantic_core"]
@@ -96,6 +97,9 @@ select = [
   "SIM", # flake8-simplify
   "UP" # pyupgrade
 ]
+
+[tool.ty.src]
+exclude = ["scripts"]
 
 [tool.uv.build-backend]
 module-name = ["bake", "bakelib"]

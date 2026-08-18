@@ -23,3 +23,7 @@ class ContextNotAvailableError(BakebookError, RuntimeError):
 
 class CommandConflictError(BakebookError):
     """Exception raised when a command or group name conflicts with an existing registration."""
+
+
+class FieldMroConflictError(BakebookError):
+    """Exception raised when pydantic resolves an inherited field against the MRO."""

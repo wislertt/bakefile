@@ -4,10 +4,12 @@ import warnings
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
+from inspect import get_annotations
 from typing import Annotated, Any, ClassVar
 
 import typer
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
+from pydantic.fields import FieldInfo
 from pydantic.warnings import PydanticDeprecationWarning
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typer._click.globals import get_current_context
@@ -22,7 +24,11 @@ from bake.utils.constants import (
     DEFAULT_BAKE_LOG_PRETTY,
     DEFAULT_BAKE_LOG_VERBOSITY,
 )
-from bake.utils.exceptions import CommandConflictError, ContextNotAvailableError
+from bake.utils.exceptions import (
+    CommandConflictError,
+    ContextNotAvailableError,
+    FieldMroConflictError,
+)
 from bake.utils.settings import bake_settings
 
 logger = logging.getLogger(__name__)
@@ -144,16 +150,21 @@ class CommandGroup:
 
 
 class BakebookMixin(BaseSettings):
-    """Base class for composable Bakebook mixins.
+    """Base class for Bakebook field bundles — attributes only, nothing else.
 
-    Use instead of inheriting from Bakebook when creating mixin classes.
-    Multiple BakebookMixin subclasses can be composed with a single Bakebook
-    subclass without MRO conflicts.
+    Compose BakebookMixin subclasses before the Bakebook subclasses they
+    configure. Unlike plain non-pydantic mixins, this is a real pydantic
+    base, so fields resolve on pydantic's supported merge path.
 
     Recommended usage: attributes only, no methods. Fields, ClassVars, and
-    plain class data all work. This keeps mixins simple and avoids the need
+    plain class data all work. This keeps bundles simple and avoids the need
     for typed access to base class members (the case methods would hit).
     Use ``Bakebook`` subclasses for methods and ``@command()`` definitions.
+
+    ``model_config`` on a mixin is shadowed by ``Bakebook``'s: pydantic
+    merges base configs last-declared-wins and ``Bakebook`` is declared
+    last (https://github.com/pydantic/pydantic/issues/9992). Declare it
+    on the final bakebook class instead.
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -199,6 +210,81 @@ def _remerge_private_attributes_mro(cls: type[BaseModel]) -> None:
             remerged[name] = attr
 
     cls.__private_attributes__ = remerged
+
+
+def _check_field_merge_mro(cls: type[BaseModel]) -> None:
+    """Raise when pydantic would resolve an inherited field against the MRO.
+
+    pydantic merges flattened ``__pydantic_fields__`` snapshots in declared
+    base order, so a base that merely *inherits* a field shadows a later
+    base's override (https://github.com/pydantic/pydantic/issues/13678;
+    same declared-order merge family as #11700, no v2 fix planned).
+    """
+    pydantic_bases = [base for base in cls.__bases__ if issubclass(base, BaseModel)]
+    if len(pydantic_bases) < 2:
+        # Also covers parametrized aliases (``Something[X]``): their single
+        # base is the origin, and their field copies carry typevar
+        # substitutions invisible to get_annotations.
+        return
+
+    # pydantic's own merge (collect_model_fields): earliest declared base
+    # containing the name wins, inherited copies included.
+    lookup: dict[str, FieldInfo] = {}
+    source: dict[str, type[BaseModel]] = {}
+    for base in reversed(pydantic_bases):
+        for name, field_info in base.__pydantic_fields__.items():
+            lookup[name] = field_info
+            source[name] = base
+
+    # get_annotations yields own-body names only, so the first MRO hit is the
+    # declarer. Aliases precede their origins in the MRO, hence two passes.
+    declarer: dict[str, type[BaseModel]] = {}
+    aliases: list[type[BaseModel]] = []
+    for klass in cls.__mro__:
+        if not issubclass(klass, BaseModel):
+            continue
+        # Read from __dict__: BaseModel itself carries no generic metadata, and
+        # plain attribute lookup raises on metaclass __getattr__.
+        if klass.__dict__.get("__pydantic_generic_metadata__", {}).get("origin") is not None:
+            aliases.append(klass)
+            continue
+        for ann_name in get_annotations(klass):
+            declarer.setdefault(ann_name, klass)
+
+    # A parametrized alias (e.g. ``EnvBakebook[SomeEnv]``) re-declares its
+    # chain's substituted fields, so it claims those names at its own (earlier)
+    # MRO slot — but only where substitution changed the annotation; the rest
+    # of its flattened snapshot is inherited copies.
+    winner = dict(declarer)
+    for alias_cls in aliases:
+        for name, alias_field in alias_cls.__pydantic_fields__.items():
+            base = declarer.get(name)
+            if base is None or winner.get(name) is not base:
+                continue  # not declared here, or already claimed by an earlier alias
+            if base not in alias_cls.__mro__:
+                continue  # parallel branch, not the alias's chain
+            base_field = base.__pydantic_fields__.get(name)
+            if base_field is None or alias_field.annotation == base_field.annotation:
+                continue  # ClassVar declarer, or plain inherited copy
+            winner[name] = alias_cls
+
+    for name, resolved in lookup.items():
+        expected = winner.get(name)
+        if expected is None or expected is cls or expected is source[name]:
+            continue
+        expected_field = expected.__pydantic_fields__.get(name)
+        if expected_field is None:
+            continue
+        if repr(resolved) == repr(expected_field):
+            # Equal-value copies: branches redeclared identically.
+            continue
+        raise FieldMroConflictError(
+            f"Field '{name}' on '{cls.__name__}' resolves from '{source[name].__name__}', "
+            f"but the MRO expects '{expected.__name__}' to win: a base that merely "
+            f"inherits '{name}' shadows a later base's override. Fix: redeclare "
+            f"'{name}' on '{cls.__name__}', reorder bases so '{expected.__name__}' "
+            "comes first, or compose a BakebookMixin declaring it first."
+        )
 
 
 class Bakebook(BaseSettings):
@@ -247,9 +333,19 @@ class Bakebook(BaseSettings):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        # Class creation — the only point the declared-order private-attr merge
-        # can be corrected, and it fires for every Bakebook descendant.
+        # The merged snapshot is born before type.__new__ (pydantic injects it
+        # into the namespace), making this the earliest correctable point. Keep
+        # this write early: later placement leaves a window where pydantic
+        # internals could read the uncorrected merge.
         _remerge_private_attributes_mro(cls)
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        # Field snapshots are collected after type.__new__ (too early for
+        # __init_subclass__), making this the earliest checkable point. Not
+        # re-run by model_rebuild, so forward-ref-incomplete classes escape.
+        _check_field_merge_mro(cls)
 
     @field_validator("bake_log")
     @classmethod

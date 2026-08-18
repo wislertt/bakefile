@@ -12,9 +12,16 @@
 [![downloads](https://static.pepy.tech/personalized-badge/bakefile?period=total&units=international_system&left_color=grey&right_color=blue&left_text=pypi%20downloads)](https://pepy.tech/projects/bakefile)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue?logo=python)](https://github.com/wislertt/bakefile/)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/img/brand/bakefile-lockup-dark.svg">
+    <img src="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/img/brand/bakefile-lockup.svg" width="360" alt="bakefile logo">
+  </picture>
+</p>
+
 # bakefile
 
-An OOP task runner in Python. It works like a Makefile, but tasks are Python class methods, so you can inherit and reuse them across projects.
+An OOP task runner. Write tasks once, reuse everywhere.
 
 ## Why bakefile?
 
@@ -859,3 +866,5 @@ Contributions are welcome. See [CLAUDE.md](/.claude/CLAUDE.md) for development g
 ## License
 
 Licensed under the Apache License 2.0. See [LICENSE](/LICENSE) for the full text.
+
+The wordmark in `docs/img/brand/` uses outlined paths from [Shantell Sans](https://fonts.google.com/specimen/Shantell+Sans), licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/).
