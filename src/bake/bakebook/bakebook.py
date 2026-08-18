@@ -212,21 +212,9 @@ def _remerge_private_attributes_mro(cls: type[BaseModel]) -> None:
     cls.__private_attributes__ = remerged
 
 
-def _check_field_merge_mro(cls: type[BaseModel]) -> None:
-    """Raise when pydantic would resolve an inherited field against the MRO.
-
-    pydantic merges flattened ``__pydantic_fields__`` snapshots in declared
-    base order, so a base that merely *inherits* a field shadows a later
-    base's override (https://github.com/pydantic/pydantic/issues/13678;
-    same declared-order merge family as #11700, no v2 fix planned).
-    """
-    pydantic_bases = [base for base in cls.__bases__ if issubclass(base, BaseModel)]
-    if len(pydantic_bases) < 2:
-        # Also covers parametrized aliases (``Something[X]``): their single
-        # base is the origin, and their field copies carry typevar
-        # substitutions invisible to get_annotations.
-        return
-
+def _field_merge_lookup(
+    pydantic_bases: list[type[BaseModel]],
+) -> tuple[dict[str, FieldInfo], dict[str, type[BaseModel]]]:
     # pydantic's own merge (collect_model_fields): earliest declared base
     # containing the name wins, inherited copies included.
     lookup: dict[str, FieldInfo] = {}
@@ -235,7 +223,12 @@ def _check_field_merge_mro(cls: type[BaseModel]) -> None:
         for name, field_info in base.__pydantic_fields__.items():
             lookup[name] = field_info
             source[name] = base
+    return lookup, source
 
+
+def _mro_declarers(
+    cls: type[BaseModel],
+) -> tuple[dict[str, type[BaseModel]], list[type[BaseModel]]]:
     # get_annotations yields own-body names only, so the first MRO hit is the
     # declarer. Aliases precede their origins in the MRO, hence two passes.
     declarer: dict[str, type[BaseModel]] = {}
@@ -250,7 +243,12 @@ def _check_field_merge_mro(cls: type[BaseModel]) -> None:
             continue
         for ann_name in get_annotations(klass):
             declarer.setdefault(ann_name, klass)
+    return declarer, aliases
 
+
+def _alias_claims(
+    aliases: list[type[BaseModel]], declarer: dict[str, type[BaseModel]]
+) -> dict[str, type[BaseModel]]:
     # A parametrized alias (e.g. ``EnvBakebook[SomeEnv]``) re-declares its
     # chain's substituted fields, so it claims those names at its own (earlier)
     # MRO slot — but only where substitution changed the annotation; the rest
@@ -267,6 +265,27 @@ def _check_field_merge_mro(cls: type[BaseModel]) -> None:
             if base_field is None or alias_field.annotation == base_field.annotation:
                 continue  # ClassVar declarer, or plain inherited copy
             winner[name] = alias_cls
+    return winner
+
+
+def _check_field_merge_mro(cls: type[BaseModel]) -> None:
+    """Raise when pydantic would resolve an inherited field against the MRO.
+
+    pydantic merges flattened ``__pydantic_fields__`` snapshots in declared
+    base order, so a base that merely *inherits* a field shadows a later
+    base's override (https://github.com/pydantic/pydantic/issues/13678;
+    same declared-order merge family as #11700, no v2 fix planned).
+    """
+    pydantic_bases = [base for base in cls.__bases__ if issubclass(base, BaseModel)]
+    if len(pydantic_bases) < 2:
+        # Also covers parametrized aliases (``Something[X]``): their single
+        # base is the origin, and their field copies carry typevar
+        # substitutions invisible to get_annotations.
+        return
+
+    lookup, source = _field_merge_lookup(pydantic_bases)
+    declarer, aliases = _mro_declarers(cls)
+    winner = _alias_claims(aliases, declarer)
 
     for name, resolved in lookup.items():
         expected = winner.get(name)
