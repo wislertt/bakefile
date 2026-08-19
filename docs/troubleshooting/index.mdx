@@ -1,7 +1,23 @@
 ---
 title: Troubleshooting
-description: Fixes for common bakefile errors - bakebook not found, wrong bakebook type, load failures, wrong Python, dry-run, and completion.
+description: Fixes for common bakefile errors - command not found, bakebook not found, wrong bakebook type, load failures, wrong Python, dry-run, and completion.
 ---
+
+## `bake` command not found
+
+```
+bake: command not found
+```
+
+bakefile is not installed, or its bin directory is not on your PATH. Install it with the tool you prefer:
+
+```bash
+uv tool install bakefile
+# or
+pip install bakefile
+```
+
+If `uv tool install` says it is already installed but the shell still cannot find `bake`, uv's tool bin directory is missing from PATH. The installer output prints the exact line to add to your shell config.
 
 ## Bakebook not found
 
@@ -107,6 +123,6 @@ Then restart the shell or open a new terminal.
 
 Tune levels per logger with `BAKE_LOG`, bump verbosity with `-v`, and switch to JSON logs with `--no-log-pretty`. See [Logging](/usage/logging).
 
-## Secrets print as **********
+## Secrets print as `**********`
 
 Masked by design. `SecretStr` values stay hidden in `bakefile env` and `bakefile export` until you pass `-s` / `--secret`. See [Settings](/usage/settings).
