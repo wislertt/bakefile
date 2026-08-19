@@ -3,22 +3,39 @@ title: bakefile
 description: An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reusable and in Python.
 ---
 
-<img src="/img/brand/og-card-light.png" className="sd-hero sd-hero-light" alt="An OOP task runner. Write tasks once, reuse everywhere." />
+<img
+    src="/img/brand/og-card-light.png"
+    className="sd-hero sd-hero-light"
+    alt="An OOP task runner. Write tasks once, reuse everywhere."
+/>
 
-<img src="/img/brand/og-card-dark.png" className="sd-hero sd-hero-dark" alt="An OOP task runner. Write tasks once, reuse everywhere." />
+<img
+    src="/img/brand/og-card-dark.png"
+    className="sd-hero sd-hero-dark"
+    alt="An OOP task runner. Write tasks once, reuse everywhere."
+/>
 
 <div className="not-prose sd-badges">
     <a href="https://github.com/wislertt/bakefile/actions/workflows/cd.yml">
-        <img src="https://img.shields.io/github/actions/workflow/status/wislertt/bakefile/cd.yml?branch=main&label=tests&logo=github" alt="tests" />
+        <img
+            src="https://img.shields.io/github/actions/workflow/status/wislertt/bakefile/cd.yml?branch=main&label=tests&logo=github"
+            alt="tests"
+        />
     </a>
     <a href="https://codecov.io/gh/wislertt/bakefile">
-        <img src="https://codecov.io/gh/wislertt/bakefile/graph/badge.svg?token=G0ZRDBGAJB" alt="codecov" />
+        <img
+            src="https://codecov.io/gh/wislertt/bakefile/graph/badge.svg?token=G0ZRDBGAJB"
+            alt="codecov"
+        />
     </a>
     <a href="https://pypi.python.org/pypi/bakefile">
         <img src="https://img.shields.io/pypi/v/bakefile.svg?color=blue" alt="pypi" />
     </a>
     <a href="https://github.com/wislertt/bakefile/">
-        <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue?logo=python" alt="python versions" />
+        <img
+            src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue?logo=python"
+            alt="python versions"
+        />
     </a>
     <a href="https://pypi.python.org/pypi/bakefile">
         <img src="https://img.shields.io/pypi/l/bakefile" alt="license" />
@@ -38,12 +55,14 @@ See the full [comparison](/getting-started/why-bakefile) against Make, Just, Tas
 ```python
 from bake import Bakebook, command, console
 
-bakebook = Bakebook()
+
+class MyBakebook(Bakebook):
+    @command()
+    def hello(self, name: str = "world"):
+        console.echo(f"Hello {name}!")
 
 
-@bakebook.command()
-def hello(name: str = "world"):
-    console.echo(f"Hello {name}!")
+bakebook = MyBakebook()
 ```
 
 ```bash
@@ -52,18 +71,10 @@ bake hello --name Alice
 ```
 
 <CardGroup cols={2}>
-    <Card
-        title="Installation"
-        icon="download"
-        href="/getting-started/installation"
-    >
+    <Card title="Installation" icon="download" href="/getting-started/installation">
         Install with pip or uv, plus the optional bakelib helpers.
     </Card>
-    <Card
-        title="Quickstart"
-        icon="rocket"
-        href="/getting-started/quickstart"
-    >
+    <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
         Create a bakefile.py, define tasks, and run them with bake.
     </Card>
 </CardGroup>
