@@ -1,0 +1,69 @@
+---
+title: bake
+description: Run tasks from bakefile.py. Chain commands, dry-run, pick a custom bakefile or bakebook, and control logging.
+---
+
+The `bake` command runs tasks from your `bakefile.py`. Run `bake --help` to see all available commands and options.
+
+## Basic execution
+
+```bash
+bake <command> [args]
+```
+
+```bash
+bake hello
+bake build
+bake test --verbose
+```
+
+Task arguments are typed CLI options, so `bake test --help` documents each task. See [Commands](/concepts/commands).
+
+## Dry-run mode
+
+Preview what would happen without executing:
+
+```bash
+bake -n build
+bake --dry-run deploy
+```
+
+Commands print instead of running. See [Context](/concepts/context) for how `ctx.run` respects dry-run.
+
+## Chaining commands
+
+Run multiple commands sequentially:
+
+```bash
+bake -c lint test build
+```
+
+If any command fails, the chain stops.
+
+## Options
+
+Override defaults when running bake:
+
+```bash
+bake --version                           # Show version
+bake -f tasks.py build                   # Custom filename
+bake -b my_bakebook build                # Custom bakebook object name
+bake -C /path/to/project build           # Run from different directory
+```
+
+| Option                            | Description                                          |
+| --------------------------------- | ---------------------------------------------------- |
+| `--version`                       | Show version                                         |
+| `-f, --file-name <name>`          | Custom bakefile filename (default `bakefile.py`)     |
+| `-b, --book-name <name>`          | Custom bakebook object name (default `bakebook`)     |
+| `-C, --chdir <path>`              | Change directory before running                      |
+| `-c, --chain`                     | Chain commands                                       |
+| `-n, --dry-run`                   | Show what would run without executing                |
+| `-v` (repeatable)                 | Log verbosity, `-v` to `-vvv`                        |
+| `--bake-log <levels>`             | Per-module log levels (env `BAKE_LOG`)               |
+| `--log-pretty` / `--no-log-pretty`| Pretty vs JSON log format (env `BAKE_LOG_PRETTY`)    |
+| `--install-completion`            | Install shell completion                             |
+
+## Logging flags
+
+`-v` / `-vv` / `-vvv` (env `BAKE_LOG_VERBOSITY` 0-3) control bakefile's internal logs, plus per-module levels with `--bake-log` and format with `--log-pretty`. See [Logging and Console Output](/usage/logging) for the full reference. This only affects logs, not `console.echo`, `print`, or command output.

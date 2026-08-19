@@ -29,6 +29,7 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
     def _get_mise_tools(self) -> set[str]:
         mise_tools = super()._get_mise_tools()
         mise_tools.remove("pipx:bakefile")
+        mise_tools.add("npm:mintlify")
         return mise_tools
 
     def _update_project(self) -> None:
@@ -76,6 +77,14 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
         with self._version_bump_context(new_version):
             editable_flag = "-e " if editable else ""
             self.ctx.run(f"uv tool install {editable_flag}.[lib] --reinstall --force")
+
+    @command()
+    def docs(self):
+        self.ctx.run("mintlify dev", cwd=Path("docs"))
+
+    @command()
+    def docs_check(self):
+        self.ctx.run("mintlify broken-links", cwd=Path("docs"))
 
 
 bakebook = MyBakebook()

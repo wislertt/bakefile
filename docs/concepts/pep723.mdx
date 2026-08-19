@@ -1,0 +1,40 @@
+---
+title: PEP 723 Support
+description: Declare your bakefile.py's dependencies inline with PEP 723 metadata, so a single file carries its own dependencies.
+---
+
+bakefile supports [PEP 723](https://peps.python.org/pep-0723/) inline script metadata, so your `bakefile.py` can declare its own dependencies:
+
+```python
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "bakefile>=0.0.0",
+# ]
+# ///
+
+from bake import Bakebook, command, console
+
+bakebook = Bakebook()
+
+
+@bakebook.command()
+def hello():
+    console.echo("Hello from standalone bakefile!")
+```
+
+Add the metadata to an existing bakefile with `bakefile add-inline`, or generate a new one with it from the start:
+
+```bash
+bakefile init --inline
+```
+
+## When to use it
+
+Inline metadata suits non-Python projects without a `pyproject.toml`. A single file carries its own dependencies, no project setup needed.
+
+For Python projects, add bakefile to your project's dependencies instead.
+
+## Managing dependencies
+
+The `bakefile` CLI wraps `uv` for PEP 723 bakefiles: `sync`, `lock`, `add`, and `pip` all target the bakefile's own environment. See the [bakefile CLI](/cli/bakefile).

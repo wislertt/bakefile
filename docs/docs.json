@@ -1,0 +1,105 @@
+{
+    "$schema": "https://www.mintlify.com/docs.json",
+    "theme": "mint",
+    "name": "bakefile",
+    "description": "An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reusable and in Python.",
+    "colors": {
+        "primary": "#4F8CC8",
+        "light": "#7AB0DE",
+        "dark": "#3B6FA5"
+    },
+    "background": {
+        "color": {
+            "light": "#F1F7FC",
+            "dark": "#152A40"
+        }
+    },
+    "styling": {
+        "codeblocks": {
+            "theme": {
+                "light": "github-light",
+                "dark": "github-dark"
+            }
+        }
+    },
+    "seo": {
+        "metatags": {
+            "og:image": "/img/brand/og-card-light.png"
+        }
+    },
+    "footer": {
+        "socials": {
+            "github": "https://github.com/wislertt/bakefile"
+        },
+        "links": [
+            {
+                "header": "Resources",
+                "items": [
+                    {
+                        "label": "PyPI",
+                        "href": "https://pypi.org/project/bakefile/"
+                    },
+                    {
+                        "label": "Examples",
+                        "href": "/examples/simple"
+                    }
+                ]
+            }
+        ]
+    },
+    "favicon": "/img/brand/favicon.ico",
+    "logo": {
+        "light": "/img/brand/bakefile-lockup.svg",
+        "dark": "/img/brand/bakefile-lockup-dark.svg"
+    },
+    "navbar": {
+        "links": [
+            {
+                "label": "GitHub",
+                "href": "https://github.com/wislertt/bakefile"
+            }
+        ]
+    },
+    "navigation": {
+        "groups": [
+            {
+                "group": "Getting Started",
+                "pages": [
+                    "getting-started/index",
+                    "getting-started/installation",
+                    "getting-started/quickstart",
+                    "getting-started/why-bakefile"
+                ]
+            },
+            {
+                "group": "Concepts",
+                "pages": [
+                    "concepts/bakebook",
+                    "concepts/commands",
+                    "concepts/context",
+                    "concepts/pep723"
+                ]
+            },
+            {
+                "group": "Usage",
+                "pages": ["usage/logging", "usage/settings"]
+            },
+            {
+                "group": "CLI Reference",
+                "pages": ["cli/bake", "cli/bakefile"]
+            },
+            {
+                "group": "bakelib",
+                "pages": ["bakelib/spaces", "bakelib/environments", "bakelib/cache", "bakelib/secrets"]
+            },
+            {
+                "group": "Examples",
+                "pages": ["examples/simple", "examples/python-package"]
+            },
+            {
+                "group": "Troubleshooting",
+                "pages": ["troubleshooting/index"]
+            }
+        ]
+    }
+}

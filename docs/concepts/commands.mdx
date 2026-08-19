@@ -1,0 +1,85 @@
+---
+title: Commands
+description: Tasks are Typer commands. Define them as class methods or standalone functions, with typed arguments that become CLI options.
+---
+
+Every task in a bakebook is a [Typer](https://typer.tiangolo.com/) command. That is what gives you typed arguments, per-task `--help`, and shell completion for free (`bake --install-completion`).
+
+There are two patterns, depending on whether you define the task before or after instantiating the bakebook:
+
+## Pattern 1: On the class
+
+Use `@command()` on class methods, and access the context through `self.ctx`:
+
+```python
+from bake import Bakebook, command, console
+
+
+class MyBakebook(Bakebook):
+    @command()
+    def task1(self) -> None:
+        console.echo("Task 1")
+        self.ctx.run("echo 'Task 1 complete'")
+
+
+bakebook = MyBakebook()
+```
+
+## Pattern 2: On the instance
+
+Use `@bakebook.command()` on standalone functions, and access the context through `bakebook.ctx`:
+
+```python
+from bake import Bakebook, console
+from typing import Annotated
+import typer
+
+bakebook = Bakebook()
+
+
+@bakebook.command(name="deploy", help="Deploy application")
+def deploy(
+    env: Annotated[str, typer.Option("dev", help="Environment to deploy")],
+):
+    console.echo(f"Deploying to {env}...")
+    bakebook.ctx.run(f"kubectl apply -f {env}.yaml")
+```
+
+## Decorator options
+
+`@command()` accepts all Typer options: `name`, `help`, `deprecated`, and so on. Rename a task or document it without touching its function:
+
+```python
+@command(name="deploy", help="Deploy application")
+```
+
+## Typed arguments
+
+Task parameters become typed CLI options. Defaults carry over, and `--help` documents itself:
+
+```python
+@bakebook.command()
+def hello(name: str = "world"):
+    console.echo(f"Hello {name}!")
+```
+
+```bash
+bake hello              # Hello world!
+bake hello --name Alice # Hello Alice!
+```
+
+Use `Annotated` with `typer.Option` for custom flags:
+
+```python
+@bakebook.command()
+def test(
+    verbose: Annotated[bool, typer.Option(False, "--verbose", "-v")] = False,
+):
+    if verbose:
+        console.echo("Running tests...")
+    bakebook.ctx.run("pytest")
+```
+
+Arguments are coerced and validated before your task runs, so a bad value fails at the CLI with a clear error instead of halfway through your task.
+
+See [Context](/concepts/context) for running commands inside tasks, and [Bakebook](/concepts/bakebook) for the class that holds them.

@@ -1,0 +1,43 @@
+---
+title: Why bakefile
+description: bakefile vs Make, Just, Task, mise, and Invoke. Tasks as Python class methods, typed arguments, validated config, and reusable task libraries.
+---
+
+- **Reusable** - Makefile and Justfile work well, but reusing tasks across projects is hard. bakefile makes tasks Python class methods, so you inherit and share them like any other code.
+- **Python** - Write Python instead of a DSL. Real language features, type checking with ruff and ty, and the rest of Python's tooling. `ctx.run()` still handles normal CLI commands through subprocess.
+- **Language-agnostic** - Tasks are Python, but the commands they run can target any language (Go, Rust, JS, etc.).
+
+## How it compares
+
+bakefile vs the runners you probably already know:
+
+|                                 | **bakefile**                                           | Make               | Just                   | Task              | mise                  | Invoke                                 |
+| ------------------------------- | ------------------------------------------------------ | ------------------ | ---------------------- | ----------------- | --------------------- | -------------------------------------- |
+| Tasks are                       | Python class methods (shell via `ctx.run()`)           | shell recipes      | shell recipes          | shell recipes     | shell recipes         | Python functions (shell via `c.run()`) |
+| Type-safe task args             | ✅ Typer                                               | ❌ positional `$@` | ❌ recipe params (str) | ❌ CLI vars (str) | ❌ env vars (str)     | ❌ named, unvalidated                  |
+| Auto help + completion\*        | ✅ Typer                                               | ❌                 | ⚠️                     | ⚠️                | ⚠️                    | ⚠️                                     |
+| Task reusability                | ✅ inherit + override + compose                        | ⚠️ include         | ⚠️ modules             | ⚠️ includes       | ⚠️ templates (extend) | ⚠️ import                              |
+| Prebuilt task libraries         | ✅ [bakelib Spaces](/bakelib/spaces)                   | ❌                 | ❌                     | ❌                | ❌                    | ✅ invocations                         |
+| Language                        | Python                                                 | Make DSL           | Just DSL               | YAML              | TOML                  | Python                                 |
+| Type-check / lint / format      | ✅ ruff + ty (native), any Python tool                 | ❌                 | ⚠️ `just --fmt`        | ❌                | ❌                    | ✅ any Python tool                     |
+| Logging & console               | ✅ [Rich + loguru](/usage/logging)                           | ❌                 | ❌                     | ❌                | ⚠️ log levels         | ⚠️ bring your own                      |
+| Typed & validated config\*\*    | ✅ Pydantic BaseSettings                               | ❌ shell vars      | ❌ shell vars          | ❌ templated vars | ❌ env vars           | ❌ Python dict                         |
+| Secrets management              | ✅ [SecretUtils](/bakelib/secrets)                     | ❌                 | ❌                     | ❌                | ❌                    | ❌                                     |
+| Multi-environment management    | ✅ [EnvBakebook](/bakelib/environments) (typed)        | ❌                 | ❌                     | ❌                | ✅ MISE_ENV files     | ❌                                     |
+| Single binary, no runtime\*\*\* | ❌ needs Python                                        | ✅                 | ✅                     | ✅                | ✅                    | ❌ needs Python                        |
+| Inline deps (PEP 723)\*\*\*\*   | ✅                                                     | N/A                | N/A                    | N/A               | N/A                   | ❌                                     |
+| Manages tool versions           | ⚠️ bakelib uses mise                                   | ❌                 | ❌                     | ❌                | ✅                    | ❌                                     |
+
+Legend: ✅ yes · ⚠️ partial · ❌ no · N/A not applicable.
+
+\* _Auto help + completion_: ⚠️ tools list and complete task names. bakefile's Typer renders full per-task `--help` (typed options) and completes flags too (`bake --install-completion`).
+
+\*\* _Typed & validated config_: typed Pydantic settings ([Pydantic Settings](/usage/settings)) that export to shell, dotenv, JSON, or YAML, or inject into a subprocess's environment ([`env`](/cli/bakefile), [`export`](/cli/bakefile)).
+
+\*\*\* _Single binary, no runtime_: bakefile needs a Python runtime, eased by [PEP 723](/concepts/pep723) and `uv`.
+
+\*\*\*\* _Inline deps (PEP 723)_: bakefile's `bakefile.py` can declare its own dependencies inline (`# /// script`), so a single file carries its own dependencies, no project setup needed. [PEP 723](/concepts/pep723) is a Python-only standard, so non-Python runners are N/A. bakefile also works with `pyproject.toml` for normal Python projects. PEP 723 is optional. Invoke has no inline-deps mechanism.
+
+Most runners are DSLs over shell recipes. Invoke is Python too, but its tasks are flat module functions with no inheritance or composition model. bakefile is the only one where tasks are class methods you inherit, override, and compose, so reusable task libraries ([bakelib Spaces](/bakelib/spaces)) just work.
+
+bakefile is new, built on modern typed Python ([Typer](https://typer.tiangolo.com) + [Pydantic](https://pydantic.dev/docs/validation/)). **Production-proven:** I run it daily at my company.

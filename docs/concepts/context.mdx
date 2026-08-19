@@ -1,0 +1,85 @@
+---
+title: Context
+description: ctx.run() executes CLI commands through subprocess. Control streaming, error handling, working directory, environment, timeout, and dry-run.
+---
+
+The `Bakebook` class provides a `.ctx` property for accessing CLI context. Tasks use it to run real commands:
+
+```python
+from bake import Bakebook, command
+
+
+class MyBakebook(Bakebook):
+    @command()
+    def my_command(self) -> None:
+        # Run a command
+        self.ctx.run("echo hello")
+
+        # Run with options
+        self.ctx.run(
+            "pytest",
+            capture_output=False,  # Stream to terminal
+            check=True,  # Raise on error
+            cwd="/tmp",  # Working directory
+            env={"KEY": "value"},  # Environment variables
+        )
+
+        # Run a multi-line script
+        self.ctx.run_script(
+            title="Setup",
+            script="""
+                echo "Step 1"
+                echo "Step 2"
+            """,
+        )
+```
+
+## run options
+
+| Option           | Default    | Description                                                      |
+| ---------------- | ---------- | ---------------------------------------------------------------- |
+| `capture_output` | `False`    | Capture stdout/stderr into the result. `False` streams live.      |
+| `check`          | `True`     | Raise an error if the command exits non-zero.                    |
+| `cwd`            | `None`     | Working directory for the command.                               |
+| `env`            | `None`     | Extra environment variables for the command.                     |
+| `timeout`        | `None`     | Kill the command after this many seconds.                        |
+| `echo`           | `True`     | Print the command (`❯ <cmd>`) before running it.                 |
+| `dry_run`        | from CLI   | Force dry-run on or off for this single call.                    |
+
+`run` returns a `subprocess.CompletedProcess`, so with `capture_output=True` you can read what the command printed:
+
+```python
+result = self.ctx.run("git rev-parse --short HEAD", capture_output=True)
+commit = result.stdout.strip()
+```
+
+Extra `subprocess.Popen` keyword arguments also pass through.
+
+## run_script
+
+`run_script(title=..., script=...)` runs a multi-line script. It pretty-prints the script under a title first, so the terminal shows what the block does before it runs:
+
+```python
+self.ctx.run_script(
+    title="Setup",
+    script="""
+        echo "Step 1"
+        echo "Step 2"
+    """,
+)
+```
+
+It accepts most of the same options as `run` (everything except `shell`, `echo_cmd`, and `timeout`).
+
+## Dry-run
+
+With `bake -n`, commands print instead of executing. `ctx.run` respects this automatically (see [bake CLI](/cli/bake)).
+
+Read the flag with `self.ctx.dry_run`, or flip it for a block. `override_dry_run(True)` previews commands inside a real run, and `override_dry_run(False)` forces a command to execute even under `bake -n`:
+
+```python
+@command()
+def build(self) -> None:
+    with self.ctx.override_dry_run(False):
+        self.ctx.run("cargo build")  # runs even under bake -n
+```

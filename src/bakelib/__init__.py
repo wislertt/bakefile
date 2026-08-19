@@ -1,3 +1,4 @@
+from bake.cli.utils.version import _get_version
 from bakelib import _params as params
 from bakelib.environ import (
     BaseEnv,
@@ -19,6 +20,8 @@ from bakelib.space.rust_lib import RustLibSpace
 from bakelib.space.service import BaseServiceSpace
 from bakelib.utils import suppress
 
+__version__ = _get_version()
+
 __all__ = [
     "BaseEnv",
     "BaseServiceSpace",
@@ -35,6 +38,7 @@ __all__ = [
     "RustSpace",
     "StagingEnvMixin",
     "SubmodulesUtils",
+    "__version__",
     "get_bakebook",
     "params",
     "suppress",

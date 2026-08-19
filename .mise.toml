@@ -5,6 +5,7 @@ pipx.uvx = true
 actionlint = "latest"
 bun = "latest"
 "npm:actions-up" = "latest"
+"npm:mintlify" = "latest"
 "pipx:pre-commit" = "latest"
 "pipx:toml-sort" = "latest"
 "pipx:zerv-version" = "latest"

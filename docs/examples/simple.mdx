@@ -1,0 +1,78 @@
+---
+title: Simple
+description: A minimal standalone bakefile with PEP 723 inline metadata. No project files, no venv to manage.
+---
+
+The [`simple` example](https://github.com/wislertt/bakefile/tree/main/examples/simple) is a standalone `bakefile.py`: the PEP 723 header at the top declares its own dependencies, so `uv` creates the environment and nothing else in the directory is required.
+
+```python
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "bakefile>=0.0.0",
+# ]
+#
+# [tool.uv.sources]
+# bakefile = { path = "../../", editable = true }
+# ///
+
+import logging
+from pathlib import Path
+
+import typer
+
+from bake import Bakebook, command, console, params
+
+logger = logging.getLogger(__name__)
+
+
+class MyBakebook(Bakebook):
+    foo_url: str = "https://example.com"
+
+    @command()
+    def foo(self):
+        console.echo(f"Doing foo with {self.foo_url}")
+
+    @command()
+    def update(
+        self,
+        fast: params.FastOption = 0,
+    ) -> None:
+        _ = fast
+        self.ctx.run("bakefile lock --upgrade")
+        self.ctx.run("bakefile sync")
+
+
+bakebook = MyBakebook()
+
+
+@bakebook.command(name="hello")
+def hello(name: str = typer.Option("world", help="Name to greet")) -> None:
+    logger.debug(f"Hello {name}!")
+    logger.info(f"Hello {name}!")
+    logger.warning(f"Hello {name}!")
+    logger.error(f"Hello {name}!")
+    console.echo(f"Hello {name}!")
+
+
+@bakebook.command()
+def cwd() -> None:
+    console.out.print(Path.cwd())
+```
+
+## What it shows
+
+- Both command patterns in one file: `@command()` on class methods, `@bakebook.command()` on standalone functions (see [Commands](/concepts/commands)).
+- A typed setting (`foo_url`) used inside a task (see [Settings](/usage/settings)).
+- A typed option via `params.FastOption`, reused from bakefile's own options.
+- Log calls at every level, so `bake -v hello` shows verbosity filtering in action (see [Logging](/usage/logging)).
+- The dev-only `[tool.uv.sources]` block pointing at the local repo. A real project would install from PyPI instead (see [PEP 723](/concepts/pep723)).
+
+## Try it
+
+```bash
+cd examples/simple
+bake --help
+bake hello --name Alice
+bake update      # lock --upgrade + sync for the inline deps
+```

@@ -1,0 +1,44 @@
+---
+title: Installation
+description: Install bakefile with pip or uv, plus the optional bakelib helpers.
+---
+
+## Requirements
+
+bakefile supports Python 3.10 through 3.14.
+
+## Install
+
+Install via pip:
+
+```bash
+pip install bakefile
+```
+
+Or via uv:
+
+```bash
+uv add bakefile          # as a project dependency
+uv tool install bakefile # as a global tool
+```
+
+## Verify the install
+
+```bash
+bake --version
+```
+
+Installing bakefile gives you two command-line tools:
+
+- **`bake`** - Runs tasks from your `bakefile.py`
+- **`bakefile`** - Manages your `bakefile.py` (init, lint, sync, and more)
+
+## Optional: bakelib
+
+**bakelib** is an optional collection of opinionated helpers built on top of Bakebook: preconfigured task [Spaces](/bakelib/spaces), multi-environment support, refreshable caches, and secrets management. Install it with the `lib` extra:
+
+```bash
+pip install bakefile[lib]
+```
+
+bakefile works without bakelib.

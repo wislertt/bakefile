@@ -1,0 +1,63 @@
+---
+title: Refreshable Cache
+description: RefreshableCacheRegistry caches fetched values and refreshes them at runtime when a service rejects the cached one. No Bakebook required.
+---
+
+`RefreshableCacheRegistry` is a standalone refreshable cache for secrets or any fetched values, usable in any Python project with no Bakebook required. Subclass `FetchFn` to declare how a value is fetched, register it under a key, and the first `get` fetches and caches it:
+
+```python
+from dataclasses import dataclass
+
+from bakelib.refreshable_cache import FetchFn, KeyringCache, MemoryCache, RefreshableCacheRegistry
+
+
+@dataclass(frozen=True)
+class GcpSecretFetchFn(FetchFn[str]):
+    project_id: str
+    secret_id: str
+
+    def __call__(self) -> str:
+        # Real implementation calls the GCP Secret Manager API here
+        return "dummy-secret-value"
+
+
+registry = RefreshableCacheRegistry[str](namespace="myapp", backends=[MemoryCache, KeyringCache])
+registry.insert_cache(
+    "api_key",
+    fetch_fn=GcpSecretFetchFn(key="api_key", project_id="my-project", secret_id="api-key"),
+)
+
+registry.get("api_key")  # fetches and caches on first call
+registry.refresh("api_key")  # force a re-fetch
+registry.has_value("api_key")  # True once cached
+```
+
+## Refreshing rotated secrets
+
+For secrets rotated while your process runs, wrap the call in `@cache.catch_refresh` and raise `RefreshNeededError` when the service rejects the cached value:
+
+```python
+cache = registry.get_cache("api_key")
+
+
+@cache.catch_refresh
+def call_api() -> str:
+    token = cache.get()
+    response = api_request(token)  # your code
+    if response.status == 401:  # token rejected (rotated server-side)
+        raise cache.RefreshNeededError
+    return response.body
+```
+
+The cache then clears and `call_api` retries, re-fetching a fresh token via `cache.get()`. Retries are tenacity-backed (`stop`/`wait`, defaults 2 attempts, no delay), so secrets refresh at runtime with no restart. `acatch_refresh` is the async variant.
+
+## Backends
+
+- `MemoryCache` - default, ephemeral
+- `KeyringCache` - system keyring, persistent
+- `ChainedCache` - several backends, read-first/write-all
+- `NullCache` - disabled
+
+A single backend is used directly, multiple are wrapped in `ChainedCache`. Pass `ttl=` for expiry.
+
+[Secrets](/bakelib/secrets) wires this registry into a Bakebook with `bake secret` commands.

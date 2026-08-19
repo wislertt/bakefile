@@ -1,0 +1,158 @@
+---
+title: bakefile
+description: Manage bakefile.py. Init, add-inline, lint, uv-based sync and lock, venv, run, env, and export.
+---
+
+The `bakefile` command (short: `bf`) manages your `bakefile.py`:
+
+## init
+
+Create a new `bakefile.py`:
+
+```bash
+bakefile init           # Basic bakefile
+bakefile init -i        # With PEP 723 inline metadata (--inline)
+bakefile init --force   # Force overwrite existing bakefile
+```
+
+See [PEP 723 Support](/concepts/pep723).
+
+## add-inline
+
+Add PEP 723 inline metadata to an existing bakefile:
+
+```bash
+bakefile add-inline
+```
+
+## lint
+
+Lint `bakefile.py` (or the entire project) with ruff format, ruff check, and ty. Disable any with `--no-ruff-format`, `--no-ruff-check`, or `--no-ty`:
+
+```bash
+bakefile lint                   # Lint bakefile.py and all Python files
+bakefile lint -b                # Lint only bakefile.py (--only-bakefile)
+bakefile lint --no-ty           # Skip type checking
+bakefile lint --line-length 88  # Override ruff line length (default 100)
+```
+
+## uv-based commands (PEP 723 bakefile.py only)
+
+Convenience wrappers around `uv` commands with `--script bakefile.py` added. For PEP 723 bakefile.py files only. For normal Python projects, use your preferred dependency manager (pip, poetry, uv, etc.):
+
+```bash
+bakefile sync                   # = uv sync --script bakefile.py
+bakefile sync --upgrade         # -U; upgrade package dependencies
+bakefile sync --reinstall       # Reinstall all packages
+bakefile lock                   # = uv lock --script bakefile.py
+bakefile lock --upgrade         # -U; upgrade locked dependencies
+bakefile add requests           # = uv add --script bakefile.py requests
+bakefile pip install            # = uv pip install --python <bakefile-python-path>
+```
+
+Extra args pass through to `uv` (e.g. `bakefile sync --frozen`, `bakefile lock --no-build`).
+
+## venv
+
+Ensure a `.venv` exists in the repo root. For PEP 723 standalone bakefiles, symlinks `.venv` to the uv-managed environment. For standard Python projects (`pyproject.toml`), it just runs `uv sync`, so prefer `uv` directly there:
+
+```bash
+bakefile venv            # Create or update .venv (standalone bakefiles)
+bakefile venv --force    # Replace an existing .venv symlink (standalone only)
+```
+
+## find-python
+
+Print the Python path used by `bake`, `bakefile env`, `bakefile export`, `bakefile run`, and `bakefile lint` (the bakefile's Python):
+
+```bash
+bakefile find-python
+```
+
+## which
+
+Diagnose which Python each command uses. `bake`, `bakefile env`, and `bakefile export` reinvoke under the bakefile's Python (they re-run themselves and load the bakebook). `bakefile run` and `bakefile lint` spawn that Python directly to run your code (no self-reinvoke, no bakebook). All other subcommands use the invoked Python:
+
+```bash
+bakefile which
+```
+
+## run
+
+Run a script or module under the bakefile's Python (like `uv run` for the bakefile's environment). If the first argument is an existing file, it runs as `python script.py`. Otherwise it runs as `python -m module`:
+
+```bash
+bakefile run test.py            # Run a script (python test.py)
+bakefile run pytest tests/      # Run as a module (python -m pytest tests/)
+bakefile run ruff check src/    # Module with arguments
+```
+
+## env
+
+Print or inject bakebook variables. Given this `bakefile.py`:
+
+```python
+from bake import Bakebook
+from pydantic import SecretStr
+
+
+class MyBakebook(Bakebook):
+    database_url: str = "postgres://localhost/myapp"
+    api_key: SecretStr = SecretStr("hunter2")
+
+
+bakebook = MyBakebook()
+```
+
+Print a value (output is shell-quoted):
+
+```bash
+bakefile env DATABASE_URL        # postgres://localhost/myapp
+bakefile env API_KEY             # '**********'  (SecretStr masked)
+bakefile env API_KEY -s          # hunter2       (--secret reveals it)
+```
+
+Inject variables into a command's environment with `--` (`printenv` reads the injected value):
+
+```bash
+# Inject all variables (none named before --)
+bakefile env -- printenv DATABASE_URL            # postgres://localhost/myapp
+
+# Inject only API_KEY, with -s to reveal the secret
+bakefile env -s API_KEY -- printenv API_KEY      # hunter2
+```
+
+## export
+
+Export bakebook variables to shell, dotenv, JSON, or YAML. By default it exports every field, including bake's internal settings, so use `-i` to focus on your own. Using the same `bakefile.py` as `env` above:
+
+```bash
+# Default: all fields
+bakefile export
+# export BAKE_LOG=warning,bake=debug,bakelib=debug,bakefile=debug
+# export BAKE_LOG_VERBOSITY=0
+# export BAKE_LOG_PRETTY=true
+# export DATABASE_URL=postgres://localhost/myapp
+# export API_KEY='**********'
+
+# Filter to specific fields with -i
+bakefile export -i database_url -i api_key
+# export DATABASE_URL=postgres://localhost/myapp
+# export API_KEY='**********'
+
+bakefile export -f json -i database_url -i api_key
+# {
+#   "database_url": "postgres://localhost/myapp",
+#   "api_key": "**********"
+# }
+```
+
+Formats: `sh` (default), `dotenv`, `json`, `yaml`. Secrets stay masked unless you pass `-s`. Write to a file with `-o`:
+
+```bash
+bakefile export -f dotenv -o .env          # .env file
+bakefile export -f json -o config.json     # JSON file
+bakefile export -f yaml -o config.yaml     # YAML file
+```
+
+See [Settings](/usage/settings) for how these variables are defined on the bakebook.
