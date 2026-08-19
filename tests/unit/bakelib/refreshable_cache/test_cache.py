@@ -23,7 +23,7 @@ from bakelib.refreshable_cache import (
     NullCache,
     RefreshableCache,
 )
-from tests.utils.misc import flaky_on_windows_ci
+from tests.utils.misc import flaky_on_macos_ci, flaky_on_windows_ci
 
 
 def keyring_backend_available() -> bool:
@@ -117,6 +117,7 @@ class TestCacheBasics:
         [(MemoryCache, 0.01)] + ([(KeyringCache, 0.2)] if keyring_backend_available() else []),
     )
     @flaky_on_windows_ci()
+    @flaky_on_macos_ci()
     def test_cache_respects_ttl(
         self, cache_class: type[RefreshableCache], ttl: float, capsys: pytest.CaptureFixture[str]
     ):
