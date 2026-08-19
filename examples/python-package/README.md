@@ -51,8 +51,11 @@ bake assert-setup-dev
 # Run linters and formatters
 bake lint
 
-# Run unit tests
+# Run unit tests (overridden to stop at the first failure)
 bake test
+
+# Build the package into dist/ (custom command)
+bake build
 
 # Upgrade all dependencies for bakefile.py
 bake update

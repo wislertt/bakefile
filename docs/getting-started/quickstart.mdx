@@ -1,0 +1,54 @@
+---
+title: Quickstart
+description: Create a bakefile.py, define tasks as class methods, and run them with bake.
+---
+
+Create a file named `bakefile.py`:
+
+```python
+from bake import Bakebook, command, console
+
+
+class MyBakebook(Bakebook):
+    @command()
+    def build(self) -> None:
+        console.echo("Building...")
+        # Use self.ctx to run commands
+        self.ctx.run("cargo build")
+
+
+bakebook = MyBakebook()
+
+
+@bakebook.command()
+def hello(name: str = "world"):
+    console.echo(f"Hello {name}!")
+```
+
+Or generate one automatically:
+
+```bash
+bakefile init           # Basic bakefile
+bakefile init --inline  # With PEP 723 standalone dependencies
+```
+
+Run your tasks:
+
+```bash
+bake hello              # Hello world!
+bake hello --name Alice # Hello Alice!
+bake build              # Building...
+```
+
+## What just happened
+
+- `MyBakebook` subclasses `Bakebook`, so its methods become tasks. Tasks defined **before** instantiating use the `@command()` decorator on class methods.
+- Standalone functions work too. Attach them **after** instantiating with `@bakebook.command()`.
+- Task arguments become typed CLI options. `name: str = "world"` gives you `--name` with a default, and `--help` documents itself.
+- `self.ctx.run()` executes real CLI commands through Python's subprocess. `console.echo()` prints your task's output.
+
+## Where to go next
+
+- [Bakebook](/concepts/bakebook) - classes, configuration, and the `@command` decorator
+- [Commands](/concepts/commands) - typed arguments, custom flags, and decorator options
+- [Context](/concepts/context) - `ctx.run()` and everything it accepts

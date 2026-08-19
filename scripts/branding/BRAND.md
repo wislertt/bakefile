@@ -19,6 +19,8 @@ Two hue families, never a third: cookie browns (brand core) + soft blue (complem
 - `surface-light #F1F7FC` — light mode background
 - `surface-dark #152A40` — dark mode background
 - `glaze #4F8CC8` — accent: links, marks, small technical hits
+- `glaze-hi #7AB0DE` — light glaze: interactive text on dark surfaces (6.3:1 on `surface-dark`), docs `colors.light`
+- `glaze-lo #3B6FA5` — deep glaze: interactive text on light surfaces where AA is required (4.8:1 on `surface-light`), docs `colors.dark`
 - `glow-light #FFFFFF` / `glow-dark #1F3552` — radial glow: card/hero background wash
 
 ### Rules

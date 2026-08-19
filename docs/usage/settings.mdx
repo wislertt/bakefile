@@ -1,0 +1,59 @@
+---
+title: Settings
+description: Bakebooks extend Pydantic BaseSettings, so configuration is typed class attributes with validation, env-var and .env loading, and export to shell, dotenv, JSON, or YAML.
+---
+
+Bakebooks extend [Pydantic](https://pydantic.dev/docs/validation/)'s `BaseSettings`, so every class attribute is typed, validated configuration:
+
+```python
+from bake import Bakebook
+from pydantic import Field
+
+
+class MyBakebook(Bakebook):
+    # Defaults
+    database_url: str = "sqlite:///db.sqlite3"
+
+    # With environment variable mapping
+    api_key: str = Field(default="default-key", env="API_KEY")
+
+    # With validation
+    port: int = Field(default=8000, ge=1, le=65535)
+```
+
+Settings are loaded from environment variables, `.env` files, or defaults. Values are validated when the bakebook instantiates, so a bad value fails with a Pydantic error before any task runs: `BAKE_PORT=99999` never reaches your task code.
+
+## Using settings in tasks
+
+Tasks read settings as plain attributes, so configuration and the tasks that use it live in the same class:
+
+```python
+from bake import Bakebook, command
+from pydantic import Field
+
+
+class MyBakebook(Bakebook):
+    api_url: str = Field(default="https://api.example.com", env="API_URL")
+
+    @command()
+    def fetch(self) -> None:
+        self.ctx.run(f"curl {self.api_url}")
+```
+
+Inherited bakebooks inherit configuration too, and subclasses can override individual fields (see [Bakebook](/concepts/bakebook)).
+
+## Secrets
+
+Use `SecretStr` for sensitive values. They stay masked in `bakefile env` and `bakefile export` output until you explicitly pass `--secret`:
+
+```python
+from pydantic import SecretStr
+
+
+class MyBakebook(Bakebook):
+    api_key: SecretStr = SecretStr("hunter2")
+```
+
+## Getting settings out
+
+`bakefile env` prints values or injects them into a command's environment, and `bakefile export` writes them to shell, dotenv, JSON, or YAML. See the [bakefile CLI](/cli/bakefile).

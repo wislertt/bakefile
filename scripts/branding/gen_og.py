@@ -132,6 +132,11 @@ def build(font, mode):
         "  <defs>",
         '    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.75">',
         f'      <stop offset="0%" stop-color="{m["glow"]}"/>',
+        # plateau: flat bg from 55% out so card edges land exactly on the
+        # page surface color (docs hero), glow stays a center-only wash.
+        # 55% < top-edge offset (cy 0.45 / r 0.75 = 60%) so the nearest edge
+        # lands inside the flat band
+        f'      <stop offset="55%" stop-color="{m["bg"]}"/>',
         f'      <stop offset="100%" stop-color="{m["bg"]}"/>',
         "    </radialGradient>",
         "  </defs>",

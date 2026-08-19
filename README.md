@@ -21,7 +21,7 @@
 
 # bakefile
 
-An OOP task runner. Write tasks once, reuse everywhere.
+An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reusable and in Python.
 
 ## Why bakefile?
 

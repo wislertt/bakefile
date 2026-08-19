@@ -1,0 +1,80 @@
+---
+title: Spaces
+description: bakelib Spaces are Bakebooks preconfigured for a project type. Use them as-is, or inherit and override.
+---
+
+**bakelib** is an optional collection of opinionated helpers built on top of Bakebook. Install it with the `lib` extra:
+
+```bash
+pip install bakefile[lib]
+```
+
+bakelib is optional. bakefile works without it, and you can write your own Bakebook classes if you prefer different conventions.
+
+A **Space** is a Bakebook preconfigured for a project type. Spaces share a common base and compose through inheritance: `BaseSpace` holds the shared tasks (lint, clean, setup-dev, tools, update, version), then `PythonSpace` and `RustSpace` add language-specific lint, test, and tool setup, and `PythonLibSpace` and `RustLibSpace` add publishing on top. `GitHubActionsTools`, `BaseServiceSpace`, and `SubmodulesUtils` extend `BaseSpace` directly.
+
+## Prebuilt spaces
+
+- `PythonSpace` - Python lint, test, and dev setup (ruff, ty, deptry, pytest)
+- `RustSpace` - Rust lint, tool setup, and update (clippy, fmt, rustup, cargo)
+- `PythonLibSpace` - `PythonSpace` plus `publish` (PyPI / TestPyPI)
+- `RustLibSpace` - `RustSpace` plus `publish` (crates.io)
+- `GitHubActionsTools` - GitHub Actions linting (actionlint) and updates
+- `BaseServiceSpace` - build / deploy / destroy hooks to override
+- `SubmodulesUtils` - sync git submodules
+
+## PythonSpace
+
+`PythonSpace` provides common tasks for Python projects:
+
+```python
+from bakelib import PythonSpace
+
+bakebook = PythonSpace()
+```
+
+Available commands:
+
+- `bake lint` - Run prettier, toml-sort, ruff format, ruff check, ty, deptry
+- `bake test` - Run pytest with coverage on `tests/unit/`
+- `bake test-integration` - Run integration tests from `tests/integration/`
+- `bake test-all` - Run all tests
+- `bake clean` - Clean gitignored files (with exclusions)
+- `bake clean-all` - Clean all gitignored files
+- `bake setup-dev` - Setup Python development environment
+- `bake tools` - List development tools
+- `bake update` - Upgrade dependencies (includes uv lock --upgrade)
+- ...and more (run `bake --help`)
+
+## Creating custom spaces
+
+Create custom spaces by inheriting from `BaseSpace`:
+
+```python
+from bakelib import BaseSpace
+
+
+class MySpace(BaseSpace):
+    def test(self) -> None:
+        self.ctx.run("npm test")
+
+
+bakebook = MySpace()
+```
+
+`BaseSpace` provides these tasks (override as needed):
+
+- `lint()` - Run prettier
+- `clean()` / `clean_all()` - Clean gitignored files
+- `setup_dev()` - Setup development environment
+- `tools()` - List development tools
+- `update()` - Upgrade dependencies
+- ...and more
+
+## Other bakelib helpers
+
+- [Environments](/bakelib/environments) - multi-environment bakebooks
+- [Refreshable cache](/bakelib/cache) - cached fetched values with refresh
+- [Secrets](/bakelib/secrets) - tracked secrets with `bake secret` commands
+
+For more details, see the [bakelib source](https://github.com/wislertt/bakefile/tree/main/src/bakelib).

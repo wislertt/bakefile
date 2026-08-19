@@ -1,0 +1,59 @@
+---
+title: Environments
+description: EnvBakebook and environment mixins give each environment (dev, staging, prod) its own typed bakebook, selected by the ENV variable.
+---
+
+For projects with multiple environments (dev, staging, prod), use environment mixins:
+
+```python
+from bakelib.environ import (
+    BaseEnv,
+    DevEnvMixin,
+    EnvBakebook,
+    ProdEnvMixin,
+    StagingEnvMixin,
+    get_bakebook,
+)
+
+
+# Compose env mixins with EnvBakebook
+class DevBakebook(DevEnvMixin, EnvBakebook[BaseEnv]): ...
+
+
+class StagingBakebook(StagingEnvMixin, EnvBakebook[BaseEnv]): ...
+
+
+class ProdBakebook(ProdEnvMixin, EnvBakebook[BaseEnv]): ...
+
+
+bakebook_dev = DevBakebook()
+bakebook_staging = StagingBakebook()
+bakebook_prod = ProdBakebook()
+
+# Select bakebook based on ENV environment variable
+bakebook = get_bakebook([bakebook_dev, bakebook_staging, bakebook_prod])
+```
+
+```bash
+ENV=prod bake deploy    # Uses prod bakebook
+ENV=dev bake deploy     # Uses dev bakebook
+bake deploy             # Defaults to dev (lowest priority)
+```
+
+## Custom environments
+
+Create custom environments by inheriting from `BaseEnv`:
+
+```python
+from bakelib.environ import BaseEnv, EnvBakebook
+
+
+class MyEnv(BaseEnv):
+    ENV_PRIORITY_ORDER = ("dev", "sit", "qa", "uat", "prod")
+
+
+class MyEnvBakebook(EnvBakebook[MyEnv]):
+    env: MyEnv = MyEnv("dev")
+```
+
+Each environment bakebook is a full [Bakebook](/concepts/bakebook), so tasks and settings can differ per environment through plain inheritance.
