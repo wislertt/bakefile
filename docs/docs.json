@@ -42,6 +42,10 @@
                     {
                         "label": "Examples",
                         "href": "/examples/simple"
+                    },
+                    {
+                        "label": "Made by Wisaroot Lertthaweedech",
+                        "href": "https://wisl.dev"
                     }
                 ]
             }
@@ -52,6 +56,12 @@
         "light": "/img/brand/bakefile-lockup.svg",
         "dark": "/img/brand/bakefile-lockup-dark.svg"
     },
+    "redirects": [
+        {
+            "source": "/getting-started",
+            "destination": "/"
+        }
+    ],
     "navbar": {
         "links": [
             {
@@ -63,9 +73,12 @@
     "navigation": {
         "groups": [
             {
+                "group": "Welcome",
+                "pages": ["index"]
+            },
+            {
                 "group": "Getting Started",
                 "pages": [
-                    "getting-started/index",
                     "getting-started/installation",
                     "getting-started/quickstart",
                     "getting-started/why-bakefile"

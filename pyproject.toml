@@ -53,6 +53,13 @@ bake = "bake.cli.bake:main"
 bakefile = "bake.cli.bakefile:main"
 bf = "bake.cli.bakefile:main"
 
+[project.urls]
+Changelog = "https://github.com/wislertt/bakefile/releases"
+Documentation = "https://bakefile.wisl.dev"
+Homepage = "https://bakefile.wisl.dev"
+Issues = "https://github.com/wislertt/bakefile/issues"
+Repository = "https://github.com/wislertt/bakefile"
+
 [dependency-groups]
 dev = [
   "deptry>=0.24.0",
