@@ -104,6 +104,10 @@ The project uses [uv](https://github.com/astral-sh/uv) for dependency management
 
 Contributions are welcome. See [CLAUDE.md](/.claude/CLAUDE.md) for development guidelines, including project structure, testing conventions, and the development workflow.
 
+## Author
+
+Wisaroot Lertthaweedech – [wisl.dev](https://wisl.dev)
+
 ## License
 
 Licensed under the Apache License 2.0. See [LICENSE](/LICENSE) for the full text.
