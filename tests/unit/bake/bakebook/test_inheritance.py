@@ -2,12 +2,11 @@ import types
 from typing import ClassVar, Generic, TypeVar
 
 import pytest
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, PrivateAttr, field_validator
 from pydantic_settings import SettingsConfigDict
 
 from bake import Bakebook, BakebookMixin, command
 from bake.bakebook.bakebook import _remerge_private_attributes_mro
-from bake.utils.exceptions import FieldMroConflictError
 from tests.unit.bake.bakebook.utils import ExpectedCommand, assert_commands
 
 E = TypeVar("E")
@@ -603,7 +602,7 @@ def test_non_field_kinds_follow_mro_in_swapped_shape() -> None:
         )
 
 
-def test_field_override_swapped_base_order_raises() -> None:
+def test_field_override_swapped_base_order_resolves_mro() -> None:
     class MatrixBase(Bakebook):
         plain_field: str = "base-field"
 
@@ -613,16 +612,111 @@ def test_field_override_swapped_base_order_raises() -> None:
     class MatrixPlain(MatrixBase):
         pass
 
-    with pytest.raises(FieldMroConflictError, match="plain_field") as exc_info:
+    class Swapped(MatrixPlain, MatrixOverride):
+        pass
 
-        class Swapped(MatrixPlain, MatrixOverride):
-            pass
+    # Native mirror of the same shape resolves via the MRO.
+    class NativeBase:
+        plain_field = "base-field"
 
-    message = str(exc_info.value)
-    assert "MatrixPlain" in message
-    assert "MatrixOverride" in message
-    assert "redeclare" in message
-    assert "BakebookMixin" in message
+    class NativeOverride(NativeBase):
+        plain_field = "override-field"
+
+    class NativePlain(NativeBase):
+        pass
+
+    class NativeSwapped(NativePlain, NativeOverride):
+        pass
+
+    assert Swapped().plain_field == NativeSwapped().plain_field == "override-field"
+    assert Swapped(plain_field="from-kwargs").plain_field == "from-kwargs"
+
+
+def test_field_merge_fix_survives_further_subclassing() -> None:
+    # The swapped FieldInfo flattens into the snapshot subclasses inherit.
+    class SpaceBase(Bakebook):
+        knob: str = "base"
+
+    class OverrideSpace(SpaceBase):
+        knob: str = "override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class Swapped(PlainSpace, OverrideSpace):
+        pass
+
+    class Further(Swapped):
+        pass
+
+    assert Further().knob == "override"
+    assert Further.__pydantic_fields__["knob"].default == "override"
+
+
+def test_field_merge_fixed_field_still_env_overridable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The rebuild keeps the settings-source path: env vars still win.
+    class SpaceBase(Bakebook):
+        knob: str = "base"
+
+    class OverrideSpace(SpaceBase):
+        knob: str = "override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class Swapped(PlainSpace, OverrideSpace):
+        pass
+
+    monkeypatch.setenv("KNOB", "from-env")
+    assert Swapped().knob == "from-env"
+
+
+def test_field_merge_fixed_field_keeps_declarer_validator() -> None:
+    class SpaceBase(Bakebook):
+        knob: str = "base"
+
+        @field_validator("knob", mode="after")
+        @classmethod
+        def _tag_base(cls, v: str) -> str:
+            return v + "/base"
+
+    class OverrideSpace(SpaceBase):
+        knob: str = "override"
+
+        @field_validator("knob", mode="after")
+        @classmethod
+        def _tag_override(cls, v: str) -> str:
+            return v + "/override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class Swapped(PlainSpace, OverrideSpace):
+        pass
+
+    # Declarer-chain validators survive the rebuild and still run (defaults
+    # are not validated, so exercise the input path).
+    assert Swapped(knob="from-kwargs").knob == "from-kwargs/base/override"
+
+
+def test_field_merge_fixed_field_schema_default() -> None:
+    # The regenerated core schema carries the declarer's default, not the
+    # inherited copy's.
+    class SpaceBase(Bakebook):
+        knob: str = "base"
+
+    class OverrideSpace(SpaceBase):
+        knob: str = "override"
+
+    class PlainSpace(SpaceBase):
+        pass
+
+    class Swapped(PlainSpace, OverrideSpace):
+        pass
+
+    assert Swapped.model_json_schema()["properties"]["knob"]["default"] == "override"
 
 
 def test_field_merge_own_redeclaration_wins() -> None:
@@ -686,7 +780,20 @@ def test_field_merge_both_declared_swapped_follows_declared_order() -> None:
     class Swapped(Override2Space, OverrideSpace):
         pass
 
-    assert Swapped().knob == "override2"
+    # Native mirror: declared order is also MRO order here.
+    class NativeBase:
+        knob = "base"
+
+    class NativeOverride(NativeBase):
+        knob = "override"
+
+    class NativeOverride2(NativeBase):
+        knob = "override2"
+
+    class NativeSwapped(NativeOverride2, NativeOverride):
+        pass
+
+    assert Swapped().knob == NativeSwapped().knob == "override2"
 
 
 def test_field_merge_mixin_first_wins() -> None:
@@ -708,9 +815,9 @@ def test_field_merge_mixin_first_wins() -> None:
     assert Composed().knob == "mixin"
 
 
-def test_field_merge_raises_mixin_after_overriding_space() -> None:
-    # The documented footgun: a mixin listed after the spaces silently lost;
-    # now rejected loudly.
+def test_field_merge_mixin_after_overriding_space_resolves_mro() -> None:
+    # The documented footgun: a mixin listed after the spaces sits late in the
+    # MRO natively too, so the overriding space wins.
     class SpaceBase(Bakebook):
         knob: str = "base"
 
@@ -723,10 +830,26 @@ def test_field_merge_raises_mixin_after_overriding_space() -> None:
     class KnobMixin(BakebookMixin):
         knob: str = "mixin"
 
-    with pytest.raises(FieldMroConflictError, match="knob"):
+    class Composed(PlainSpace, OverrideSpace, KnobMixin):
+        pass
 
-        class Composed(PlainSpace, OverrideSpace, KnobMixin):
-            pass
+    # Native mirror: the mixin sits after the base in the MRO natively too.
+    class NativeBase:
+        knob = "base"
+
+    class NativeOverride(NativeBase):
+        knob = "override"
+
+    class NativePlain(NativeBase):
+        pass
+
+    class NativeMixin:
+        knob = "mixin"
+
+    class NativeComposed(NativePlain, NativeOverride, NativeMixin):
+        pass
+
+    assert Composed().knob == NativeComposed().knob == "override"
 
 
 def test_field_merge_mixin_after_space_matches_mro() -> None:
@@ -808,9 +931,9 @@ def test_field_merge_generic_alias_first_wins_no_raise() -> None:
     assert Composed(knob="override").knob == "override"
 
 
-def test_field_merge_generic_branch_bug_shape_still_raises() -> None:
-    # Detection still fires: the plain sibling's inherited snapshot beats the
-    # alias's substituted override.
+def test_field_merge_generic_branch_bug_shape_resolves_mro() -> None:
+    # The plain sibling's inherited snapshot no longer beats the alias's
+    # substituted override.
     class SpaceBase(Bakebook):
         knob: str = "base"
 
@@ -820,10 +943,11 @@ def test_field_merge_generic_branch_bug_shape_still_raises() -> None:
     class PlainSpace(SpaceBase):
         pass
 
-    with pytest.raises(FieldMroConflictError, match="knob"):
+    class Swapped(PlainSpace, GenericOverrideSpace[str]):
+        pass
 
-        class Swapped(PlainSpace, GenericOverrideSpace[str]):
-            pass
+    assert Swapped.__pydantic_fields__["knob"].is_required()
+    assert Swapped(knob="override").knob == "override"
 
 
 def test_field_merge_generic_alias_does_not_claim_inherited_field() -> None:
@@ -883,9 +1007,9 @@ def test_field_merge_generic_subclass_alias_no_raise() -> None:
     assert bakebook.extra == "extra"
 
 
-def test_field_merge_generic_subclass_alias_bug_shape_still_raises() -> None:
-    # Detection survives subclass aliases: inherited snapshot still shadows
-    # the substituted override.
+def test_field_merge_generic_subclass_alias_bug_shape_resolves_mro() -> None:
+    # Resolution survives subclass aliases: inherited snapshot no longer
+    # shadows the substituted override.
     class SpaceBase(Bakebook):
         knob: str = "base"
 
@@ -898,15 +1022,18 @@ def test_field_merge_generic_subclass_alias_bug_shape_still_raises() -> None:
     class PlainSpace(SpaceBase):
         pass
 
-    with pytest.raises(FieldMroConflictError, match="knob"):
+    class Swapped(PlainSpace, SubOverrideSpace[str]):
+        pass
 
-        class Swapped(PlainSpace, SubOverrideSpace[str]):
-            pass
+    assert Swapped.__pydantic_fields__["knob"].is_required()
+    bakebook = Swapped(knob="override")
+    assert bakebook.knob == "override"
+    assert bakebook.extra == "extra"
 
 
 def test_field_merge_alias_does_not_claim_parallel_branch_field() -> None:
     # 'knob' comes from a parallel branch, so the alias does not claim it —
-    # its inherited snapshot shadows the override and still raises.
+    # its inherited snapshot no longer shadows the override.
     class SpaceBase(Bakebook):
         knob: str = "base"
 
@@ -916,10 +1043,24 @@ def test_field_merge_alias_does_not_claim_parallel_branch_field() -> None:
     class OverrideSpace(SpaceBase):
         knob: str = "override"
 
-    with pytest.raises(FieldMroConflictError, match="knob"):
+    class Swapped(GenericSiblingSpace[str], OverrideSpace):
+        pass
 
-        class Swapped(GenericSiblingSpace[str], OverrideSpace):
-            pass
+    # Native mirror of the knob resolution ('other' is generic machinery).
+    class NativeBase:
+        knob = "base"
+
+    class NativeSibling(NativeBase):
+        pass
+
+    class NativeOverride(NativeBase):
+        knob = "override"
+
+    class NativeSwapped(NativeSibling, NativeOverride):
+        pass
+
+    assert Swapped(other="sibling").knob == NativeSwapped().knob == "override"
+    assert Swapped(other="sibling").other == "sibling"
 
 
 def test_field_merge_two_aliases_first_claim_wins() -> None:
@@ -1010,12 +1151,12 @@ def test_pydantic_raw_private_attr_mro_bug_still_present() -> None:
     reason="pydantic resolves fields from flattened base snapshots in "
     "declared-base order, so an inherited copy shadows a later base's "
     "override (pydantic/pydantic#13678; kin of #11700, no v2 fix planned). "
-    "Once this XPasses, upstream fixed it: remove FieldMroConflictError "
-    "and _check_field_merge_mro from bake/bakebook/bakebook.py",
+    "Once this XPasses, upstream fixed it: remove _fix_field_merge_mro "
+    "from bake/bakebook/bakebook.py",
 )
 def test_pydantic_raw_field_mro_bug_still_present() -> None:
-    """Pins the raw pydantic bug; the Bakebook-level raise cannot signal an
-    upstream fix because Bakebook rejects the shape at class creation."""
+    """Pins the raw pydantic bug; the Bakebook-level fix cannot signal an
+    upstream fix because it re-resolves the shape after class creation."""
 
     class RawBase(BaseModel):
         f: str = "base"

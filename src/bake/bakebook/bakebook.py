@@ -27,7 +27,6 @@ from bake.utils.constants import (
 from bake.utils.exceptions import (
     CommandConflictError,
     ContextNotAvailableError,
-    FieldMroConflictError,
 )
 from bake.utils.settings import bake_settings
 
@@ -268,13 +267,14 @@ def _alias_claims(
     return winner
 
 
-def _check_field_merge_mro(cls: type[BaseModel]) -> None:
-    """Raise when pydantic would resolve an inherited field against the MRO.
+def _fix_field_merge_mro(cls: type[BaseModel]) -> None:
+    """Re-resolve inherited fields against the MRO.
 
     pydantic merges flattened ``__pydantic_fields__`` snapshots in declared
     base order, so a base that merely *inherits* a field shadows a later
     base's override (https://github.com/pydantic/pydantic/issues/13678;
-    same declared-order merge family as #11700, no v2 fix planned).
+    same declared-order merge family as #11700, no v2 fix planned). Swap the
+    MRO-declarer's FieldInfo back in and rebuild the core schema.
     """
     pydantic_bases = [base for base in cls.__bases__ if issubclass(base, BaseModel)]
     if len(pydantic_bases) < 2:
@@ -287,6 +287,7 @@ def _check_field_merge_mro(cls: type[BaseModel]) -> None:
     declarer, aliases = _mro_declarers(cls)
     winner = _alias_claims(aliases, declarer)
 
+    fixed = False
     for name, resolved in lookup.items():
         expected = winner.get(name)
         if expected is None or expected is cls or expected is source[name]:
@@ -297,13 +298,13 @@ def _check_field_merge_mro(cls: type[BaseModel]) -> None:
         if repr(resolved) == repr(expected_field):
             # Equal-value copies: branches redeclared identically.
             continue
-        raise FieldMroConflictError(
-            f"Field '{name}' on '{cls.__name__}' resolves from '{source[name].__name__}', "
-            f"but the MRO expects '{expected.__name__}' to win: a base that merely "
-            f"inherits '{name}' shadows a later base's override. Fix: redeclare "
-            f"'{name}' on '{cls.__name__}', reorder bases so '{expected.__name__}' "
-            "comes first, or compose a BakebookMixin declaring it first."
-        )
+        cls.__pydantic_fields__[name] = expected_field
+        fixed = True
+
+    if fixed:
+        # model_rebuild keeps the swapped entries (it does not re-collect
+        # from bases) and regenerates validator + core schema from them.
+        cls.model_rebuild(force=True)
 
 
 class Bakebook(BaseSettings):
@@ -362,9 +363,9 @@ class Bakebook(BaseSettings):
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
         super().__pydantic_init_subclass__(**kwargs)
         # Field snapshots are collected after type.__new__ (too early for
-        # __init_subclass__), making this the earliest checkable point. Not
+        # __init_subclass__), making this the earliest fixable point. Not
         # re-run by model_rebuild, so forward-ref-incomplete classes escape.
-        _check_field_merge_mro(cls)
+        _fix_field_merge_mro(cls)
 
     @field_validator("bake_log")
     @classmethod
