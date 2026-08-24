@@ -22,10 +22,30 @@
             }
         }
     },
+    "markdown": {
+        "instructions": [
+            "bakefile is a Python task runner with two CLIs: bake runs tasks from bakefile.py, bakefile manages the project. It is not a service or platform.",
+            "Tasks are methods on Bakebook classes in bakefile.py, decorated with @command. Subprocesses run through self.ctx.run().",
+            "Examples are backed by tests; copy them verbatim."
+        ]
+    },
     "seo": {
         "metatags": {
-            "og:image": "/img/brand/og-card-light.png"
+            "canonical": "https://bakefile.wisl.dev",
+            "og:image": "/img/brand/og-card-light.png",
+            "twitter:card": "summary_large_image"
+        },
+        "organization": {
+            "url": "https://bakefile.wisl.dev",
+            "sameAs": [
+                "https://github.com/wislertt/bakefile",
+                "https://pypi.org/project/bakefile/",
+                "https://wisl.dev"
+            ]
         }
+    },
+    "metadata": {
+        "timestamp": true
     },
     "footer": {
         "socials": {

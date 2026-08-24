@@ -63,6 +63,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        _encoding: str | None = None,
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[str]: ...
 
@@ -82,6 +83,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        _encoding: str | None = None,
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[None]: ...
 

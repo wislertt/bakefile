@@ -51,19 +51,31 @@ bake -b my_bakebook build                # Custom bakebook object name
 bake -C /path/to/project build           # Run from different directory
 ```
 
-| Option                            | Description                                          |
-| --------------------------------- | ---------------------------------------------------- |
-| `--version`                       | Show version                                         |
-| `-f, --file-name <name>`          | Custom bakefile filename (default `bakefile.py`)     |
-| `-b, --book-name <name>`          | Custom bakebook object name (default `bakebook`)     |
-| `-C, --chdir <path>`              | Change directory before running                      |
-| `-c, --chain`                     | Chain commands                                       |
-| `-n, --dry-run`                   | Show what would run without executing                |
-| `-v` (repeatable)                 | Log verbosity, `-v` to `-vvv`                        |
-| `--bake-log <levels>`             | Per-module log levels (env `BAKE_LOG`)               |
-| `--log-pretty` / `--no-log-pretty`| Pretty vs JSON log format (env `BAKE_LOG_PRETTY`)    |
-| `--install-completion`            | Install shell completion                             |
+| Option                             | Description                                       |
+| ---------------------------------- | ------------------------------------------------- |
+| `--version`                        | Show version                                      |
+| `-f, --file-name <name>`           | Custom bakefile filename (default `bakefile.py`)  |
+| `-b, --book-name <name>`           | Custom bakebook object name (default `bakebook`)  |
+| `-C, --chdir <path>`               | Change directory before running                   |
+| `-c, --chain`                      | Chain commands                                    |
+| `-n, --dry-run`                    | Show what would run without executing             |
+| `-v` (repeatable)                  | Log verbosity, `-v` to `-vvv`                     |
+| `--bake-log <levels>`              | Per-module log levels (env `BAKE_LOG`)            |
+| `--log-pretty` / `--no-log-pretty` | Pretty vs JSON log format (env `BAKE_LOG_PRETTY`) |
+| `--install-completion`             | Install shell completion                          |
 
 ## Logging flags
 
 `-v` / `-vv` / `-vvv` (env `BAKE_LOG_VERBOSITY` 0-3) control bakefile's internal logs, plus per-module levels with `--bake-log` and format with `--log-pretty`. See [Logging and Console Output](/usage/logging) for the full reference. This only affects logs, not `console.echo`, `print`, or command output.
+
+## Machine-readable docs
+
+The docs site serves machine-readable endpoints alongside the HTML pages. `bake --help` and `bakefile --help` advertise these in their afterword:
+
+| Endpoint                                  | Purpose                                                       |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `https://bakefile.wisl.dev/llms.txt`      | Docs index for AI agents                                      |
+| `https://bakefile.wisl.dev/llms-full.txt` | All pages in one file                                         |
+| `https://bakefile.wisl.dev/skill.md`      | Agent skill file (`npx skills add https://bakefile.wisl.dev`) |
+| `https://bakefile.wisl.dev/mcp`           | Search MCP server for MCP clients                             |
+| Any page URL + `.md`                      | Markdown export, e.g. `/cli/bake.md`                          |

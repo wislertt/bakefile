@@ -48,6 +48,27 @@ class TestMain:
         else:
             assert "hello" not in captured.out
 
+    def test_main_help_contains_agent_docs_pointers(
+        self,
+        examples_simple_dir: Path,
+        run_cli: RunCli,
+    ) -> None:
+        captured = run_cli(
+            command=CMD_BAKE,
+            dir_path=examples_simple_dir,
+            args=["--help"],
+            columns=200,
+        )
+        assert "Docs: https://bakefile.wisl.dev" in captured.out
+        assert (
+            "Full docs in one file (for AI agents): https://bakefile.wisl.dev/llms-full.txt"
+            in captured.out
+        )
+        assert "Docs index: https://bakefile.wisl.dev/llms.txt" in captured.out
+        assert "Agent skill: https://bakefile.wisl.dev/skill.md" in captured.out
+        assert "Install agent skill: `npx skills add https://bakefile.wisl.dev`" in captured.out
+        assert "Docs search via MCP: https://bakefile.wisl.dev/mcp" in captured.out
+
     @pytest.mark.parametrize(
         "dir_fixture,args",
         list(

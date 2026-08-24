@@ -37,10 +37,21 @@ class RunCli:
         self.monkeypatch = monkeypatch
         self.capfd: CaptureFixture[str] = capfd
 
-    def __call__(self, command: str, dir_path: Path | None, args: list[str]) -> CaptureOutput:
+    def __call__(
+        self,
+        command: str,
+        dir_path: Path | None,
+        args: list[str],
+        columns: int | None = None,
+    ) -> CaptureOutput:
         main_func = COMMANDS[command]
         argv: list[str] = [command, "-C", str(dir_path), *args] if dir_path else [command, *args]
         self.monkeypatch.setattr(sys, "argv", argv)
+        if columns is not None:
+            # Rich wraps help text at the detected terminal width, which varies
+            # by platform (legacy Windows consoles report one column less), so
+            # assertions on multi-word help lines must pin a wide width.
+            self.monkeypatch.setenv("COLUMNS", str(columns))
 
         _ = self.capfd.readouterr()
 

@@ -27,7 +27,6 @@ from bake.utils.constants import (
 from bake.utils.exceptions import (
     CommandConflictError,
     ContextNotAvailableError,
-    FieldMroConflictError,
 )
 from bake.utils.settings import bake_settings
 
@@ -161,10 +160,8 @@ class BakebookMixin(BaseSettings):
     for typed access to base class members (the case methods would hit).
     Use ``Bakebook`` subclasses for methods and ``@command()`` definitions.
 
-    ``model_config`` on a mixin is shadowed by ``Bakebook``'s: pydantic
-    merges base configs last-declared-wins and ``Bakebook`` is declared
-    last (https://github.com/pydantic/pydantic/issues/9992). Declare it
-    on the final bakebook class instead.
+    ``model_config`` keys resolve per MRO like every other attribute: a
+    mixin listed before the bakebook wins the keys it declares.
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -179,9 +176,10 @@ def _remerge_private_attributes_mro(cls: type[BaseModel]) -> None:
     pydantic merges base snapshots in declared order — last base wins,
     inverted vs MRO — dropping overrides on mid-MRO bases
     (https://github.com/pydantic/pydantic/issues/11700; fix deferred to v3).
-    Own-body declarations are fresh ModelPrivateAttr objects, inherited ones
-    shared references — identity separates them; own entries are re-applied
-    on top.
+    Resolution mirrors native attribute lookup: the first MRO class that
+    declares the name wins. Declarations create fresh ModelPrivateAttr
+    objects, inheritance shares references — identity separates them,
+    annotated or not.
     """
     if "__private_attributes__" not in cls.__dict__:
         return
@@ -197,33 +195,34 @@ def _remerge_private_attributes_mro(cls: type[BaseModel]) -> None:
 
     own = cls.__dict__["__private_attributes__"]
 
-    declared_order: dict[str, Any] = {}  # pydantic's merge — diff target only
-    for snapshot in base_snapshots:
-        declared_order.update(snapshot)
+    declarer_snapshot: dict[str, dict[str, Any]] = {}
+    for klass in cls.__mro__:
+        snap = klass.__dict__.get("__private_attributes__")
+        if snap is None:
+            continue
+        inherited = {
+            id(attr)
+            for base in klass.__bases__
+            for attr in base.__dict__.get("__private_attributes__", {}).values()
+        }
+        for name, attr in snap.items():
+            if name not in declarer_snapshot and id(attr) not in inherited:
+                declarer_snapshot[name] = snap
 
-    remerged: dict[str, Any] = {}
-    for snapshot in reversed(base_snapshots):  # least-derived first → MRO wins
-        remerged.update(snapshot)
-
-    for name, attr in own.items():
-        if name not in declared_order or attr is not declared_order[name]:
-            remerged[name] = attr
+    remerged = dict(own)
+    for name, snap in declarer_snapshot.items():
+        remerged[name] = snap[name]
 
     cls.__private_attributes__ = remerged
 
 
-def _field_merge_lookup(
-    pydantic_bases: list[type[BaseModel]],
-) -> tuple[dict[str, FieldInfo], dict[str, type[BaseModel]]]:
+def _field_merge_lookup(pydantic_bases: list[type[BaseModel]]) -> dict[str, FieldInfo]:
     # pydantic's own merge (collect_model_fields): earliest declared base
     # containing the name wins, inherited copies included.
     lookup: dict[str, FieldInfo] = {}
-    source: dict[str, type[BaseModel]] = {}
     for base in reversed(pydantic_bases):
-        for name, field_info in base.__pydantic_fields__.items():
-            lookup[name] = field_info
-            source[name] = base
-    return lookup, source
+        lookup.update(base.__pydantic_fields__)
+    return lookup
 
 
 def _mro_declarers(
@@ -268,13 +267,14 @@ def _alias_claims(
     return winner
 
 
-def _check_field_merge_mro(cls: type[BaseModel]) -> None:
-    """Raise when pydantic would resolve an inherited field against the MRO.
+def _fix_field_merge_mro(cls: type[BaseModel]) -> None:
+    """Re-resolve inherited fields against the MRO.
 
     pydantic merges flattened ``__pydantic_fields__`` snapshots in declared
     base order, so a base that merely *inherits* a field shadows a later
     base's override (https://github.com/pydantic/pydantic/issues/13678;
-    same declared-order merge family as #11700, no v2 fix planned).
+    same declared-order merge family as #11700, no v2 fix planned). Swap the
+    MRO-declarer's FieldInfo back in and rebuild the core schema.
     """
     pydantic_bases = [base for base in cls.__bases__ if issubclass(base, BaseModel)]
     if len(pydantic_bases) < 2:
@@ -283,27 +283,72 @@ def _check_field_merge_mro(cls: type[BaseModel]) -> None:
         # substitutions invisible to get_annotations.
         return
 
-    lookup, source = _field_merge_lookup(pydantic_bases)
+    lookup = _field_merge_lookup(pydantic_bases)
     declarer, aliases = _mro_declarers(cls)
     winner = _alias_claims(aliases, declarer)
 
-    for name, resolved in lookup.items():
+    fixed = False
+    for name in lookup:
         expected = winner.get(name)
-        if expected is None or expected is cls or expected is source[name]:
+        if expected is None or expected is cls:
             continue
         expected_field = expected.__pydantic_fields__.get(name)
         if expected_field is None:
+            # ClassVar declarer: natively shadows the name, pydantic drops
+            # the field too — both resolve to the class attribute.
             continue
-        if repr(resolved) == repr(expected_field):
-            # Equal-value copies: branches redeclared identically.
+        current = cls.__pydantic_fields__.get(name)
+        if current is expected_field or current == expected_field:
+            # Equal-value copies: branches redeclared identically, or
+            # pydantic kept the declarer's entry. FieldInfo equality (not
+            # repr) — repr renders every default_factory as "<lambda>",
+            # falsely equal.
             continue
-        raise FieldMroConflictError(
-            f"Field '{name}' on '{cls.__name__}' resolves from '{source[name].__name__}', "
-            f"but the MRO expects '{expected.__name__}' to win: a base that merely "
-            f"inherits '{name}' shadows a later base's override. Fix: redeclare "
-            f"'{name}' on '{cls.__name__}', reorder bases so '{expected.__name__}' "
-            "comes first, or compose a BakebookMixin declaring it first."
-        )
+        cls.__pydantic_fields__[name] = expected_field
+        fixed = True
+
+    if fixed:
+        # model_rebuild keeps the swapped entries (it does not re-collect
+        # from bases) and regenerates validator + core schema from them.
+        cls.model_rebuild(force=True)
+
+
+def _fix_model_config_mro(cls: type[BaseModel]) -> None:
+    """Re-resolve ``model_config`` keys against the MRO.
+
+    pydantic folds base configs in declared-base order — the last base's
+    value wins per key, inverted vs MRO — so a mixin's config is shadowed
+    by a later base's defaults (https://github.com/pydantic/pydantic/issues/9992;
+    v3 fix planned). Resolution mirrors native attribute lookup per key:
+    the first MRO class that declares the key wins. A class declares a key
+    when its config value differs from the fold of its bases' configs —
+    declarations change values, inheritance copies them. A redeclaration
+    that keeps the inherited value is invisible to the diff but resolves
+    to the same value either way.
+    """
+    if len([base for base in cls.__bases__ if issubclass(base, BaseModel)]) < 2:
+        # Single pydantic base: folding one chain already resolves per key
+        # closest-declarer-first, which is the MRO order.
+        return
+
+    resolved: dict[str, Any] = {}
+    for klass in reversed(cls.__mro__):
+        own = klass.__dict__.get("model_config")
+        if not isinstance(own, dict):
+            continue
+        inherited = {
+            key: value
+            for base in klass.__bases__
+            if isinstance(base.__dict__.get("model_config"), dict)
+            for key, value in base.__dict__["model_config"].items()
+        }
+        for key, value in own.items():
+            if key in inherited and inherited[key] == value:
+                continue
+            resolved[key] = value
+
+    if resolved != cls.__dict__.get("model_config"):
+        cls.model_config = resolved  # ty: ignore[invalid-assignment]
 
 
 class Bakebook(BaseSettings):
@@ -362,9 +407,10 @@ class Bakebook(BaseSettings):
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
         super().__pydantic_init_subclass__(**kwargs)
         # Field snapshots are collected after type.__new__ (too early for
-        # __init_subclass__), making this the earliest checkable point. Not
+        # __init_subclass__), making this the earliest fixable point. Not
         # re-run by model_rebuild, so forward-ref-incomplete classes escape.
-        _check_field_merge_mro(cls)
+        _fix_model_config_mro(cls)
+        _fix_field_merge_mro(cls)
 
     @field_validator("bake_log")
     @classmethod
