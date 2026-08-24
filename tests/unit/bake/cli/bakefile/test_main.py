@@ -45,7 +45,7 @@ class TestMain:
         # bakefile CLI does NOT have --chain option (only bake CLI does)
 
     def test_main_help_contains_agent_docs_pointers(self, run_cli: RunCli) -> None:
-        captured = run_cli(command=CMD_BAKEFILE, dir_path=None, args=["--help"])
+        captured = run_cli(command=CMD_BAKEFILE, dir_path=None, args=["--help"], columns=200)
         assert "Docs: https://bakefile.wisl.dev" in captured.out
         assert (
             "Full docs in one file (for AI agents): https://bakefile.wisl.dev/llms-full.txt"

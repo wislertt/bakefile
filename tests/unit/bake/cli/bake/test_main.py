@@ -53,7 +53,12 @@ class TestMain:
         examples_simple_dir: Path,
         run_cli: RunCli,
     ) -> None:
-        captured = run_cli(command=CMD_BAKE, dir_path=examples_simple_dir, args=["--help"])
+        captured = run_cli(
+            command=CMD_BAKE,
+            dir_path=examples_simple_dir,
+            args=["--help"],
+            columns=200,
+        )
         assert "Docs: https://bakefile.wisl.dev" in captured.out
         assert (
             "Full docs in one file (for AI agents): https://bakefile.wisl.dev/llms-full.txt"
