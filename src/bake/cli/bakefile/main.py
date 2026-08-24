@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from bake.cli.common.app import (
+    AGENT_DOCS_EPILOG,
     BakefileApp,
     add_completion,
     call_app_with_chdir,
@@ -67,6 +68,7 @@ def main():
 
     bakefile_app = BakefileApp(
         help=f"Manage bakefile.py. Use {style.code('bake')} to run tasks.",
+        epilog=AGENT_DOCS_EPILOG,
         add_completion=add_completion,
         rich_markup_mode=rich_markup_mode,
     )

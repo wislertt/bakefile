@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 
 from bake.cli.common.app import (
+    AGENT_DOCS_EPILOG,
     add_completion,
     call_app_with_chdir,
     rich_markup_mode,
@@ -100,6 +101,7 @@ def main():
 
     bake_app = typer.Typer(
         help=f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it.",
+        epilog=AGENT_DOCS_EPILOG,
         add_completion=add_completion,
         rich_markup_mode=rich_markup_mode,
     )
