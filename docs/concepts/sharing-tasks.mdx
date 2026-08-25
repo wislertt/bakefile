@@ -1,5 +1,6 @@
 ---
 title: Reuse tasks across projects
+sidebarTitle: Sharing tasks
 description: Publish a Bakebook as a Python package. Every project installs it next to bakefile, imports it, inherits every task, and overrides what differs.
 ---
 
@@ -100,6 +101,19 @@ dependencies = [
 A bare URL with no `@ref` also works - it tracks the repository's default branch. With a lockfile (`uv.lock`), uv records the exact commit either way, so the pin only moves when the lock is upgraded.
 
 For private repositories, use SSH instead: `bakelib-fastapi @ git+ssh://git@github.com/my-org/bakelib-fastapi.git`.
+
+With uv, the pin can also live in `[tool.uv.sources]` instead of the dependency string:
+
+```toml
+dependencies = [
+  "bakelib-fastapi",
+]
+
+[tool.uv.sources]
+bakelib-fastapi = { git = "https://github.com/my-org/bakelib-fastapi.git", tag = "v1.2.0" }
+```
+
+This keeps the dependency by-name, so the consumer project itself stays publishable to PyPI, which rejects direct-URL dependencies. `tag` swaps for `rev` (exact commit) or `branch`.
 
 The same string works in a [PEP 723](/concepts/pep723) `# dependencies` block. If the Bakebook lives in a monorepo subdirectory, add a fragment: `#subdirectory=packages/bakelib-fastapi`.
 
