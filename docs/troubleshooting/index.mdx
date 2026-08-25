@@ -1,111 +1,18 @@
 ---
-title: Troubleshooting
+title: Common errors and fixes
 description: Fixes for common bakefile errors - command not found, bakebook not found, wrong bakebook type, load failures, wrong Python, dry-run, and completion.
 ---
 
-## `bake` command not found
+Fixes for the errors bakefile users hit most. Each page shows the exact error, the cause, and the fix.
 
-```
-bake: command not found
-```
+## Errors
 
-bakefile is not installed, or its bin directory is not on your PATH. Install it with the tool you prefer:
-
-```bash
-uv tool install bakefile
-# or
-pip install bakefile
-```
-
-If `uv tool install` says it is already installed but the shell still cannot find `bake`, uv's tool bin directory is missing from PATH. The installer output prints the exact line to add to your shell config.
-
-## Bakebook not found
-
-```
-BakebookError: No 'bakebook' found in /path/to/project/bakefile.py
-Searched in: /path/to/project
-```
-
-`bake` looks for a variable named `bakebook` (the default). Fixes:
-
-- The variable has a different name? Select it with `-b`:
-
-```bash
-bake -b my_bakebook build
-```
-
-- Running from another directory? Change it with `-C`, or pick another file with `-f`:
-
-```bash
-bake -C /path/to/project build
-bake -f tasks.py build
-```
-
-- Check the file actually defines and instantiates the bakebook:
-
-```python
-from bake import Bakebook
-
-bakebook = Bakebook()
-```
-
-## Wrong bakebook type
-
-```
-BakebookError: Bakebook 'bakebook' must be a Bakebook, got Typer
-```
-
-The `bakebook` variable must be a `Bakebook` instance (or a subclass like a bakelib Space). A `typer.Typer()` app or a plain dict does not work. Tasks use Typer syntax, but the bakebook itself is a `Bakebook` (see [Bakebook](/concepts/bakebook)).
-
-## Directory or file name errors
-
-```
-Directory not found: /path/to/project/bakefile.py
-File name must not contain path separators: tasks/bakefile.py
-File name must end with .py: bakefile
-```
-
-`-f` takes a file name only, never a path. Change directories with `-C` instead:
-
-```bash
-# Bad: path in -f
-bake -f tasks/bakefile.py build
-
-# Good: -C for the directory, -f for the name
-bake -C tasks -f bakefile.py build
-```
-
-The first error also appears when `bakefile.py` simply does not exist yet. Create one with `bakefile init`.
-
-## Import errors and dependency sync
-
-When `bakefile.py` fails to import because a dependency is missing, `bake` runs `uv sync` automatically and retries. If loading still fails:
-
-```
-Failed to load bakebook after dependency sync. Try running `uv cache clean` to resolve potential caching issues.
-```
-
-Fixes, in order:
-
-1. Run `uv cache clean` and retry.
-2. For a [PEP 723](/concepts/pep723) bakefile, check that every import is declared in the inline `# dependencies` block.
-3. For a `pyproject.toml` project, run `uv sync --all-extras --all-groups`.
-4. A traceback here usually means a real bug in `bakefile.py`. Check it compiles:
-
-```bash
-python -m py_compile bakefile.py
-```
-
-## Wrong Python
-
-`bake`, `bakefile env`, and `bakefile export` reinvoke themselves under the bakefile's Python. If a module is importable in your shell but not from a task, check which interpreter each command uses:
-
-```bash
-bakefile which
-bakefile find-python
-```
-
-See the [bakefile CLI](/cli/bakefile) for the full breakdown.
+- [`bake: command not found`](/troubleshooting/command-not-found) - bakefile not installed, or its bin directory missing from PATH.
+- [`BakebookError: No 'bakebook' found`](/troubleshooting/bakebook-not-found) - bake cannot find the bakebook variable.
+- [Bakebook must be a Bakebook, got Typer](/troubleshooting/wrong-bakebook-type) - the bakebook variable is not a Bakebook instance.
+- [Directory not found and file name errors](/troubleshooting/file-name-errors) - `-f` takes a file name, never a path.
+- [Failed to load bakebook after dependency sync](/troubleshooting/import-errors) - imports fail after `uv sync`.
+- [Tasks use the wrong Python interpreter](/troubleshooting/wrong-python) - module importable in your shell but not from a task.
 
 ## Commands print but never run
 

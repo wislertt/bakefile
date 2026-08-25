@@ -1,0 +1,29 @@
+---
+title: Directory not found and file name errors
+sidebarTitle: File name errors
+description: bake -f takes a file name only, never a path. Use -C to change directory and -f for the name, or create bakefile.py with bakefile init if it does not exist yet.
+---
+
+```
+Directory not found: /path/to/project/bakefile.py
+File name must not contain path separators: tasks/bakefile.py
+File name must end with .py: bakefile
+```
+
+`-f` takes a file name only, never a path. Change directories with `-C` instead:
+
+```bash
+# Bad: path in -f
+bake -f tasks/bakefile.py build
+
+# Good: -C for the directory, -f for the name
+bake -C tasks -f bakefile.py build
+```
+
+The first error also appears when `bakefile.py` simply does not exist yet. Create one with:
+
+```bash
+bakefile init
+```
+
+See the [bakefile CLI](/cli/bakefile) for `init` and the other project commands.

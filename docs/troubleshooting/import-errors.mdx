@@ -1,0 +1,22 @@
+---
+title: Failed to load bakebook after dependency sync
+sidebarTitle: Import errors
+description: bakefile.py fails to import after uv sync. Clean the uv cache, check PEP 723 dependencies, sync all extras and groups, or compile-check the file for real bugs.
+---
+
+When `bakefile.py` fails to import because a dependency is missing, `bake` runs `uv sync` automatically and retries. If loading still fails:
+
+```
+Failed to load bakebook after dependency sync. Try running `uv cache clean` to resolve potential caching issues.
+```
+
+Fixes, in order:
+
+1. Run `uv cache clean` and retry.
+2. For a [PEP 723](/concepts/pep723) bakefile, check that every import is declared in the inline `# dependencies` block.
+3. For a `pyproject.toml` project, run `uv sync --all-extras --all-groups`.
+4. A traceback here usually means a real bug in `bakefile.py`. Check it compiles:
+
+```bash
+python -m py_compile bakefile.py
+```

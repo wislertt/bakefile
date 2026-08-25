@@ -1,0 +1,194 @@
+---
+title: Reuse tasks across projects
+description: Publish a Bakebook as a Python package. Every project installs it next to bakefile, imports it, inherits every task, and overrides what differs.
+---
+
+A Bakebook is an ordinary Python class, and an ordinary Python class can live in a package. That is how tasks are shared in bakefile: a reusable task library is just a Python package - write tasks once, publish, and every project installs it like any other dependency. No include files, no templating, no copy-paste.
+
+Make reaches for `include`, Just for modules, Task for `includes`. bakefile uses the mechanism Python already has.
+
+## Publish the Bakebook as a package
+
+Put the Bakebook in its own package and publish it - public PyPI, a private index, a git reference, or a local path all work (see [Where to publish](#where-to-publish)). The package declares bakefile as a dependency and ships the class:
+
+```python
+from bake import Bakebook, command
+
+
+class ProjectTasks(Bakebook):
+    @command()
+    def build(self) -> None:
+        self.ctx.run("cargo build --release")
+```
+
+Nothing else is required. It is a normal Python package whose export happens to be a Bakebook.
+
+**Naming convention:** use `bakelib` as the key when naming shared Bakebooks. Either name the package `bakelib-fastapi` (imported as `bakelib_fastapi`), or keep it as a module inside a package you already publish:
+
+```python
+from bakelib_fastapi import ProjectBakebook
+
+# or as a module inside an existing package
+from my_org_python_package.bakelib import ProjectBakebook
+```
+
+The key mirrors bakefile's own [bakelib](/bakelib/spaces), so anyone reading a `bakefile.py` can spot shared books at a glance.
+
+## Where to publish
+
+Four places a shared Bakebook can live. From the consumer's side all four install the same way - only the reference changes.
+
+### Public PyPI
+
+For Bakebooks anyone can use. Publish with `uv publish` or twine, then depend on it by name. bakefile's own [Spaces](/bakelib/spaces) ship this way.
+
+```toml
+dependencies = [
+  "bakelib-fastapi>=1.0.0",
+]
+```
+
+### Private index
+
+Same package, same tooling, different index. Any PEP 503-compatible registry works:
+
+- GCP Artifact Registry
+- AWS CodeArtifact
+- Azure Artifacts
+- GitLab package registry
+- Self-hosted devpi or pypiserver
+
+With uv, declare the index once in the consuming project and pin the package to it:
+
+```toml
+[[tool.uv.index]]
+name = "my-org"
+url = "https://us-central1-python.pkg.dev/my-project/my-repo/simple/"
+explicit = true
+
+[tool.uv.sources]
+bakelib-fastapi = { index = "my-org" }
+```
+
+The `explicit = true` + `sources` pin keeps the private index from shadowing public PyPI for everything else.
+
+### Git
+
+No registry at all. Reference the repository with a PEP 508 direct URL - by tag, exact commit, or branch:
+
+```toml
+dependencies = [
+  # tag - recommended, reproducible
+  "bakelib-fastapi @ git+https://github.com/my-org/bakelib-fastapi.git@v1.2.0",
+]
+```
+
+```toml
+dependencies = [
+  # exact commit - fully reproducible, lockfile territory
+  "bakelib-fastapi @ git+https://github.com/my-org/bakelib-fastapi.git@1a2b3c4",
+]
+```
+
+```toml
+dependencies = [
+  # branch - always moving, fine while iterating, risky for shared teams
+  "bakelib-fastapi @ git+https://github.com/my-org/bakelib-fastapi.git@refs/heads/main",
+]
+```
+
+A bare URL with no `@ref` also works - it tracks the repository's default branch. With a lockfile (`uv.lock`), uv records the exact commit either way, so the pin only moves when the lock is upgraded.
+
+For private repositories, use SSH instead: `bakelib-fastapi @ git+ssh://git@github.com/my-org/bakelib-fastapi.git`.
+
+The same string works in a [PEP 723](/concepts/pep723) `# dependencies` block. If the Bakebook lives in a monorepo subdirectory, add a fragment: `#subdirectory=packages/bakelib-fastapi`.
+
+### Local path
+
+The Bakebook lives beside the consumer - a monorepo subdirectory or a sibling checkout. No publishing at all:
+
+```toml
+dependencies = [
+  "bakelib-fastapi",
+]
+
+[tool.uv.sources]
+bakelib-fastapi = { path = "../bakelib-fastapi", editable = true }
+```
+
+`editable = true` installs the Bakebook in place, so edits to it are immediately live in every consuming project - the loop to use while authoring it. This is the same pattern bakefile's own [python-package example](/examples/python-package) uses.
+
+## Depend on it from any project
+
+A standalone `bakefile.py` lists the package in its [PEP 723](/concepts/pep723) block, next to bakefile:
+
+```python
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "bakefile>=0.0.0",
+#     "my-org-python-package>=1.0.0",
+# ]
+# ///
+
+from bake import command
+from my_org_python_package.bakelib import ProjectTasks
+
+
+class MyBakebook(ProjectTasks):
+    @command()
+    def release(self) -> None:
+        self.ctx.run("gh release create v1.0.0")
+
+
+bakebook = MyBakebook()
+```
+
+Run `bakefile sync` to install the declared dependencies into the bakefile's own environment.
+
+A Python project instead lists it in `pyproject.toml`, next to bakefile:
+
+```toml
+dependencies = [
+  "bakefile[lib]",
+  "my-org-python-package"
+]
+```
+
+The [python-package example](/examples/python-package) shows a full project consuming a Bakebook this way.
+
+## Inherit, override, compose
+
+Subclassing is the whole API:
+
+- Inherit every task by subclassing the Bakebook.
+- Override a task by redefining its method.
+- Compose task sets through multiple inheritance.
+
+```python
+# In another project: inherit every task, override what differs
+class AppTasks(ProjectTasks):
+    version: str = "2.0.0"
+
+    @command()
+    def release(self) -> None:
+        self.ctx.run(f"gh release create v{self.version}")
+```
+
+Inherited Bakebooks inherit configuration too, and subclasses can override individual fields. See [Bakebook](/concepts/bakebook) for the mechanism and [Commands](/concepts/commands) for decorator options.
+
+## Prebuilt Bakebooks: bakelib Spaces
+
+[bakelib Spaces](/bakelib/spaces) follow the same shape. They are Bakebooks published as part of bakefile and installed as a dependency with the `lib` extra:
+
+```bash
+pip install bakefile[lib]
+```
+
+```python
+from bakelib import PythonSpace
+
+bakebook = PythonSpace()
+```
+
+Use a Space as-is, or inherit and override it like any other Bakebook. Publishing your own Space for your organization works exactly like publishing your own Bakebook.

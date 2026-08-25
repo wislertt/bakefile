@@ -30,7 +30,7 @@ Helpers:
 - `console.echo(msg)` prints to stdout (your task's normal output).
 - `console.success`, `info`, `warning`, `error(msg)` print a labeled line to stderr. In GitHub Actions, `warning` and `error` become `::warning::` / `::error::` annotations.
 - `console.prefix(msg, label=..., emoji_code=..., label_style=...)` prints a custom labeled line when the built-in labels don't fit. `label` is required - use `info` for the default `INFO` label.
-- `console.cmd(cmd_str)` prints a command as `❯ <cmd>`, which is what `ctx.run` uses to show the command it runs. The arrow accepts `arrow_style=` (default green, e.g. `arrow_style="bold red"` for failed commands). The command text always stays plain.
+- `console.cmd(cmd_str)` prints a command as `❯ <cmd>`, which is what [`ctx.run`](/concepts/context) uses to show the command it runs. The arrow accepts `arrow_style=` (default green, e.g. `arrow_style="bold red"` for failed commands). The command text always stays plain.
 - `console.script_block(title, script)` pretty-prints a multi-line script, used by `run_script`.
 
 Every helper accepts rich print kwargs (`style`, `emoji`, `markup`, `highlight`, ...) and they apply to the message only - the label chrome is rendered as a `Text` object and is never affected. Chrome styling has its own param names (`label_style` on `prefix`, `arrow_style` on `cmd`) so rich kwargs are never shadowed. So `console.success("tests[unit] passed", markup=False)` keeps the green label but prints the message literally. Note that with markup on (the default), rich parses the message: `[unit]`-style tags are consumed.

@@ -122,7 +122,7 @@ class AppTasks(ProjectTasks):
         self.ctx.run(f"gh release create v{self.version}")
 ```
 
-Override a task by redefining its method. Add tasks by defining new ones. Compose task sets through multiple inheritance. No include files, no templating, no copy-paste.
+Override a task by redefining its method. Add tasks by defining new ones. Compose task sets through multiple inheritance. No include files, no templating, no copy-paste. The [python-package example](/examples/python-package) shows a full project doing exactly this on top of a [Space](/bakelib/spaces). To share the class across projects, publish it as a package - see [Reuse tasks across projects](/concepts/sharing-tasks).
 
 ## Instantiating
 

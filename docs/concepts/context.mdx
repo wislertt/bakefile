@@ -43,7 +43,7 @@ class MyBakebook(Bakebook):
 | `cwd`            | `None`     | Working directory for the command.                               |
 | `env`            | `None`     | Extra environment variables for the command.                     |
 | `timeout`        | `None`     | Kill the command after this many seconds.                        |
-| `echo`           | `True`     | Print the command (`❯ <cmd>`) before running it.                 |
+| `echo`           | `True`     | Print the command (`❯ <cmd>`) before running it, via [`console.cmd`](/usage/logging). |
 | `dry_run`        | from CLI   | Force dry-run on or off for this single call.                    |
 
 `run` returns a `subprocess.CompletedProcess`, so with `capture_output=True` you can read what the command printed:

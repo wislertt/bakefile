@@ -1,0 +1,25 @@
+---
+title: "bake: command not found"
+sidebarTitle: Command not found
+description: The bake command is not on your PATH. Install bakefile with uv or pip, and add uv's tool bin directory to PATH if the shell still cannot find bake.
+---
+
+bakefile is not installed, or its bin directory is not on your PATH.
+
+```
+bake: command not found
+```
+
+## Fix
+
+Install it with the tool you prefer:
+
+```bash
+uv tool install bakefile
+# or
+pip install bakefile
+```
+
+If `uv tool install` says it is already installed but the shell still cannot find `bake`, uv's tool bin directory is missing from PATH. The installer output prints the exact line to add to your shell config.
+
+See [Install bakefile](/getting-started/installation) for the full installation guide.
