@@ -35,6 +35,8 @@ Inline metadata suits non-Python projects without a `pyproject.toml`. A single f
 
 For Python projects, add bakefile to your project's dependencies instead.
 
+Either way, a shared Bakebook's package can be declared in the same block - see [Reuse tasks across projects](/concepts/sharing-tasks).
+
 ## Managing dependencies
 
 The `bakefile` CLI wraps `uv` for PEP 723 bakefiles: `sync`, `lock`, `add`, and `pip` all target the bakefile's own environment. See the [bakefile CLI](/cli/bakefile).

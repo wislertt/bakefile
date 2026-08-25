@@ -1,0 +1,14 @@
+---
+title: Tasks use the wrong Python interpreter
+sidebarTitle: Wrong Python
+description: bake, bakefile env, and bakefile export reinvoke under the bakefile's Python. Check which interpreter each command uses with bakefile which and bakefile find-python.
+---
+
+`bake`, `bakefile env`, and `bakefile export` reinvoke themselves under the bakefile's Python. If a module is importable in your shell but not from a task, check which interpreter each command uses:
+
+```bash
+bakefile which
+bakefile find-python
+```
+
+See the [bakefile CLI](/cli/bakefile) for the full breakdown.

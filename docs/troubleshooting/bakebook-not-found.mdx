@@ -1,0 +1,41 @@
+---
+title: "BakebookError: No 'bakebook' found"
+sidebarTitle: Bakebook not found
+description: bake cannot find a bakebook variable. Name the variable bakebook, select one with -b, or point bake at the right directory with -C or file with -f.
+---
+
+`bake` looks for a variable named `bakebook` (the default) and did not find one.
+
+```
+BakebookError: No 'bakebook' found in /path/to/project/bakefile.py
+Searched in: /path/to/project
+```
+
+## The variable has a different name
+
+Select it with `-b`:
+
+```bash
+bake -b my_bakebook build
+```
+
+## Running from another directory
+
+Change it with `-C`, or pick another file with `-f`:
+
+```bash
+bake -C /path/to/project build
+bake -f tasks.py build
+```
+
+## The file does not define a bakebook
+
+Check the file actually defines and instantiates the bakebook:
+
+```python
+from bake import Bakebook
+
+bakebook = Bakebook()
+```
+
+See [Bakebook](/concepts/bakebook) for how bakebooks are defined.

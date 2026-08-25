@@ -1,0 +1,21 @@
+---
+title: Bakebook must be a Bakebook, got Typer
+sidebarTitle: Wrong bakebook type
+description: The bakebook variable must be a Bakebook instance, not a typer.Typer() app or a dict. Tasks use Typer syntax, but the bakebook itself is a Bakebook.
+---
+
+```
+BakebookError: Bakebook 'bakebook' must be a Bakebook, got Typer
+```
+
+The `bakebook` variable must be a `Bakebook` instance (or a subclass, like a bakelib Space). A `typer.Typer()` app or a plain dict does not work.
+
+Tasks use Typer syntax, but the bakebook itself is a `Bakebook`:
+
+```python
+from bake import Bakebook
+
+bakebook = Bakebook()
+```
+
+See [Bakebook](/concepts/bakebook) and [Commands](/concepts/commands) for the difference between the two.

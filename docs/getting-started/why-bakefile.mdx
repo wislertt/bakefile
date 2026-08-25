@@ -1,5 +1,6 @@
 ---
-title: Why bakefile
+title: Why bakefile vs Make, Just, Task, mise
+sidebarTitle: Why bakefile
 description: bakefile vs Make, Just, Task, mise, and Invoke. Tasks as Python class methods, typed arguments, validated config, and reusable task libraries.
 ---
 
@@ -39,5 +40,65 @@ Legend: ✅ yes · ⚠️ partial · ❌ no · N/A not applicable.
 \*\*\*\* _Inline deps (PEP 723)_: bakefile's `bakefile.py` can declare its own dependencies inline (`# /// script`), so a single file carries its own dependencies, no project setup needed. [PEP 723](/concepts/pep723) is a Python-only standard, so non-Python runners are N/A. bakefile also works with `pyproject.toml` for normal Python projects. PEP 723 is optional. Invoke has no inline-deps mechanism.
 
 Most runners are DSLs over shell recipes. Invoke is Python too, but its tasks are flat module functions with no inheritance or composition model. bakefile is the only one where tasks are class methods you inherit, override, and compose, so reusable task libraries ([bakelib Spaces](/bakelib/spaces)) just work.
+
+## Make vs bakefile
+
+Make is everywhere. It ships with every Unix-like system, has decades of documentation, and its dependency tracking (rebuild only what changed) is still the model build tools copy. If you are compiling artifacts from source files and need incremental builds, keep Make.
+
+Where Make hurts: reusing tasks across projects (`include` pulls in a file, but you cannot override a recipe), string-interpolated `$@` arguments, and shell-in-a-DSL debugging. bakefile gives tasks a real inheritance model and typed arguments, at the cost of needing a Python runtime.
+
+## Just vs bakefile
+
+Just is the easiest runner to pick up. Clean syntax, single binary, fast startup, and recipe arguments. If your tasks live in one repo and one Justfile does the job, Just is a fine choice.
+
+Just's modules import tasks from other files, but there is no override or composition story, and arguments stay strings. When you start copy-pasting recipes between repos, that is the point where class methods and [bakelib Spaces](/bakelib/spaces) pay off.
+
+## Task vs bakefile
+
+Task files are YAML with `includes`, so polyglot teams can share task files without agreeing on a language. If YAML is the common denominator your team wants, Task works.
+
+YAML gives you no types, no validation, and no way to unit-test task logic. bakefile moves that layer into Python: typed task arguments, [validated config](/usage/settings), and tasks that are ordinary methods you can test like any other code.
+
+## mise vs bakefile
+
+mise earns its place as a runtime version manager first; tasks are a bonus. If you already run mise to pin node/python/go versions, its tasks keep everything in one tool.
+
+That bundling is also the ceiling: task templates and `extend` are string-level, and config stays untyped env vars. bakefile pairs with mise instead of replacing it - bakelib uses it for tool versions - while keeping the task layer typed and composable.
+
+## Invoke vs bakefile
+
+Invoke gets Python right: tasks are plain functions, `c.run()` runs shell commands, and anything importable is usable. If you want minimal Python task definitions and nothing more, Invoke delivers.
+
+The gap is structure. Invoke tasks are flat module functions - no inheritance, no overrides, no composition. bakefile keeps the Python ergonomics but puts tasks on classes, so a [Space](/bakelib/spaces) is a subclass you extend rather than a module you call into.
+
+## FAQ
+
+### Is bakefile a drop-in replacement for Make?
+
+No. Make is a build tool with dependency tracking on file timestamps. bakefile is a task runner. Many Makefiles (run tests, lint, build, clean) translate directly, but anything relying on incremental compilation should stay in Make or another build tool.
+
+### Can I use bakefile in a non-Python project?
+
+Yes. Tasks are Python, but the commands they run through `ctx.run()` are ordinary CLI commands, so the same bakefile can drive Go, Rust, or JS toolchains. With [PEP 723](/concepts/pep723) inline metadata, the project does not even need Python tooling set up - `uv` fetches what `bakefile.py` needs.
+
+### Do I need a Python project to use bakefile?
+
+No. A standalone `bakefile.py` with inline [PEP 723](/concepts/pep723) dependencies carries its own environment. For actual Python projects, bakefile reads `pyproject.toml` via `uv` instead.
+
+### How do I share tasks between projects?
+
+Publish the `Bakebook` subclass as a Python package - PyPI, a private index, or a plain git dependency. Every project then installs it next to bakefile and inherits every task, overriding what differs. See [Reuse tasks across projects](/concepts/sharing-tasks).
+
+### Is bakefile as fast as Make or Just?
+
+Startup is slower. bakefile pays Python interpreter and import cost on every invocation; single-binary runners do not. For the interactive commands task runners exist for (test, lint, build, deploy), that difference is milliseconds against seconds of real work.
+
+### Can bakefile coexist with an existing Makefile?
+
+Yes. bakefile reads `bakefile.py` and never touches a `Makefile`. Migrate one task at a time, or keep Make for compilation and bakefile for everything else.
+
+### Why Python instead of a DSL?
+
+Because you already tool Python: type checking, linting, testing, and editor support apply to your task definitions. A DSL re-implements a slice of that badly. When a task needs real logic - conditionals, retries, data munging - you write Python, not string interpolation.
 
 bakefile is new, built on modern typed Python ([Typer](https://typer.tiangolo.com) + [Pydantic](https://pydantic.dev/docs/validation/)). **Production-proven:** I run it daily at my company.
