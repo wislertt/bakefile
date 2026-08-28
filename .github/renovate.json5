@@ -1,4 +1,16 @@
 {
     $schema: "https://docs.renovatebot.com/renovate-schema.json",
     extends: ["config:recommended"],
+    packageRules: [
+        {
+            // Exact pins in [project.optional-dependencies.locked] are rewritten
+            // from uv.lock by `bake update` only; never bump them from PyPI here
+            description: "locked pins flow through bake update only",
+            matchManagers: ["pep621"],
+            matchJsonata: [
+                "depType = 'project.optional-dependencies' and $contains(currentValue, '==')",
+            ],
+            enabled: false,
+        },
+    ],
 }

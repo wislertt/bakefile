@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, overload
 
 import typer
-from typer.core import TyperCommand
 from typing_extensions import Unpack
 
+from bake._typer_compat import TyperCommand
 from bake.ui.run import CmdType, StrOrNoneCompletedProcess
 from bake.ui.run import run as _run
 from bake.ui.run.main import PopenKwargs

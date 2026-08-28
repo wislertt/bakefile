@@ -1,6 +1,6 @@
 ---
 title: Common errors and fixes
-description: Fixes for common bakefile errors - command not found, bakebook not found, wrong bakebook type, load failures, wrong Python, dry-run, and completion.
+description: Fixes for common bakefile errors - command not found, bakebook not found, wrong bakebook type, load failures, dependency import errors, wrong Python, dry-run, and completion.
 ---
 
 Fixes for the errors bakefile users hit most. Each page shows the exact error, the cause, and the fix.
@@ -12,6 +12,7 @@ Fixes for the errors bakefile users hit most. Each page shows the exact error, t
 - [Bakebook must be a Bakebook, got Typer](/troubleshooting/wrong-bakebook-type) - the bakebook variable is not a Bakebook instance.
 - [Directory not found and file name errors](/troubleshooting/file-name-errors) - `-f` takes a file name, never a path.
 - [Failed to load bakebook after dependency sync](/troubleshooting/import-errors) - imports fail after `uv sync`.
+- [ImportError at startup from a dependency](/troubleshooting/dependency-import-error) - the CLI crashes before doing anything after a dependency released a breaking change.
 - [Tasks use the wrong Python interpreter](/troubleshooting/wrong-python) - module importable in your shell but not from a task.
 
 ## Commands print but never run

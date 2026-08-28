@@ -12,11 +12,10 @@ from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from pydantic.fields import FieldInfo
 from pydantic.warnings import PydanticDeprecationWarning
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typer._click.globals import get_current_context
-from typer.core import TyperCommand, TyperGroup
 from typer.main import get_command_name
 from typer.models import CommandFunctionType, Default
 
+from bake._typer_compat import TyperCommand, TyperGroup, get_current_context
 from bake.cli.common.context import BakeCommand, Context
 from bake.utils.constants import (
     BAKE_COMMAND_KWARGS,

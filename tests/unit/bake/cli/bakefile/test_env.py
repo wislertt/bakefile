@@ -192,10 +192,10 @@ class TestLookupField:
         assert _lookup_field(data, "Name") == "app"
 
     def test_not_found(self) -> None:
-        import typer
+        from bake._typer_compat import BadParameter
 
         data = {"name": "app", "count": 42}
-        with pytest.raises(typer.BadParameter, match="not found"):
+        with pytest.raises(BadParameter, match="not found"):
             _lookup_field(data, "missing")
 
 
@@ -312,7 +312,7 @@ class TestEnvSecret:
 
 class TestEnvParseEnvInput:
     def test_unknown_option_exits(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from typer._click.exceptions import NoSuchOption
+        from bake._typer_compat import NoSuchOption
 
         monkeypatch.setattr("sys.argv", ["bakefile", "env", "NAME", "-d"])
 
@@ -341,7 +341,7 @@ class TestEnvParseEnvInput:
         assert result.var_names == ["bakefile", "NAME"]
 
     def test_double_dash_no_command_exits(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from typer._click.exceptions import UsageError
+        from bake._typer_compat import UsageError
 
         monkeypatch.setattr("sys.argv", ["bakefile", "env", "--"])
 

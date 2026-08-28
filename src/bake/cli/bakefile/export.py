@@ -8,8 +8,8 @@ import typer
 import yaml
 from pydantic import SecretBytes, SecretStr
 from pydantic.fields import FieldInfo
-from typer._click.exceptions import BadParameter
 
+from bake._typer_compat import BadParameter
 from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
 from bake.ui import console

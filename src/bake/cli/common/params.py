@@ -3,15 +3,16 @@ from typing import Annotated
 
 import typer
 
+from bake._typer_compat import BadParameter
 from bake.cli.utils.version import make_version_callback
 
 
 def validate_file_name(value: str) -> str:
     """Validate file name for --file-name option."""
     if "/" in value or "\\" in value:
-        raise typer.BadParameter(f"File name must not contain path separators: {value}")
+        raise BadParameter(f"File name must not contain path separators: {value}")
     if not value.endswith(".py"):
-        raise typer.BadParameter(f"File name must end with .py: {value}")
+        raise BadParameter(f"File name must end with .py: {value}")
     return value
 
 
@@ -20,7 +21,7 @@ def verbosity_callback(
 ) -> int | None:
     """Validate verbosity level (max 3)."""
     if value is not None and (value < 0 or value > 3):
-        raise typer.BadParameter("Maximum verbosity is -vvv")
+        raise BadParameter("Maximum verbosity is -vvv")
     return value
 
 

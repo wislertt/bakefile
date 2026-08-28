@@ -1,6 +1,6 @@
 ---
 title: Install bakefile
-description: Install bakefile with pip or uv, plus the optional bakelib helpers.
+description: Install bakefile with pip or uv, pin exact versions with the locked extra, plus the optional bakelib helpers.
 ---
 
 ## Requirements
@@ -21,6 +21,23 @@ Or via uv:
 uv add bakefile          # as a project dependency
 uv tool install bakefile # as a global tool
 ```
+
+## Exact dependency versions
+
+The commands above float dependencies within their supported ranges. To install the exact, tested set of every dependency instead, use the `locked` extra:
+
+```bash
+uv tool install "bakefile[locked]"
+```
+
+With pipx or mise:
+
+```bash
+pipx install "bakefile[locked]"
+mise use -g 'pipx:bakefile[extras=locked]'
+```
+
+A mise install created earlier as bare `pipx:bakefile` keeps working but does not gain the extra. Re-run the `mise use` command above to switch.
 
 ## Verify the install
 

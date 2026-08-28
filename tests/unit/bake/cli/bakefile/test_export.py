@@ -389,7 +389,7 @@ class TestFilterData:
         assert result == {"FOO": 1, "Bar": 2}
 
     def test_filter_data_unknown_keys_raises(self) -> None:
-        from typer._click.exceptions import BadParameter
+        from bake._typer_compat import BadParameter
 
         data = {"foo": 1}
         with pytest.raises(BadParameter, match="Unknown keys"):
@@ -430,7 +430,7 @@ class TestExportWithInclude:
         assert set(exported.keys()) == {"NAME", "Count"}
 
     def test_export_with_include_unknown_key_exits(self) -> None:
-        from typer._click.exceptions import BadParameter
+        from bake._typer_compat import BadParameter
 
         bakebook = ComplexVarsBakebook()
         with pytest.raises(BadParameter, match="Unknown keys"):

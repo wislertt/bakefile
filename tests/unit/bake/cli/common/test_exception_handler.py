@@ -2,8 +2,8 @@ import errno
 from unittest.mock import patch
 
 import pytest
-from typer._click.exceptions import Abort, ClickException, Exit
 
+from bake._typer_compat import Abort, ClickException, Exit
 from bake.cli.common.exception_handler import typer_exception_handler
 
 

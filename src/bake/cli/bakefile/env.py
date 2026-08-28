@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 
 import typer
-from typer._click.exceptions import BadArgumentUsage, NoSuchOption, UsageError
 
+from bake._typer_compat import BadArgumentUsage, BadParameter, NoSuchOption, UsageError
 from bake.bakebook.bakebook import Bakebook
 from bake.cli.common.context import Context
 from bake.ui import console
@@ -21,7 +21,7 @@ def _lookup_field(data: dict[str, Any], field_name: str) -> Any:
     lookup = field_name.lower()
     if lookup not in lower_map:
         available = ", ".join(sorted(data.keys()))
-        raise typer.BadParameter(f"Field '{field_name}' not found. Available fields: {available}")
+        raise BadParameter(f"Field '{field_name}' not found. Available fields: {available}")
     return data[lower_map[lookup]]
 
 

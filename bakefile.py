@@ -17,6 +17,15 @@ from bake import (
     spawn_env,
 )
 from bakelib import GitHubActionsTools, PythonLibSpace
+from scripts.locked_pins import (
+    PYPROJECT_PATH,
+    UV_LOCK_PATH,
+    guard_invariants,
+    locked_pin_specs,
+    parse_lock_versions,
+    relax_locked_pins,
+    rewrite_locked_pins,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +37,54 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
 
     def _get_mise_tools(self) -> set[str]:
         mise_tools = super()._get_mise_tools()
-        mise_tools.remove("pipx:bakefile")
+        mise_tools.remove("pipx:bakefile[extras=locked]")
         mise_tools.add("npm:mintlify")
         return mise_tools
 
     def _update_project(self) -> None:
         super()._update_project()
+        self._update_locked_pins()
         self._update_examples()
         self._update_hooks()
+
+    def _update_locked_pins(self) -> None:
+        original_text = PYPROJECT_PATH.read_text()
+        relaxed_text, relaxed = relax_locked_pins(original_text)
+        if relaxed:
+            console.info(f"Relaxed {len(relaxed)} [locked] pins to base floors")
+        if relaxed and not self.ctx.dry_run:
+            PYPROJECT_PATH.write_text(relaxed_text)
+
+        self.ctx.run("uv lock --upgrade")
+
+        lock_map = parse_lock_versions(UV_LOCK_PATH.read_text())
+        new_text, _changes = rewrite_locked_pins(lock_map, PYPROJECT_PATH.read_text())
+        before = locked_pin_specs(original_text)
+        after = locked_pin_specs(new_text)
+        for name in sorted(after):
+            if before.get(name) != after[name]:
+                console.info(f"[locked] {name}: {before.get(name)} -> {after[name]}")
+        if new_text == PYPROJECT_PATH.read_text():
+            return
+        if self.ctx.dry_run:
+            console.info(f"Would update {PYPROJECT_PATH} (dry run)")
+            return
+        PYPROJECT_PATH.write_text(new_text)
+        console.success(f"Updated {PYPROJECT_PATH}")
+
+    def lint(self) -> None:
+        super().lint()
+        self._guard_locked_pins()
+
+    def _guard_locked_pins(self) -> None:
+        lock_map = parse_lock_versions(UV_LOCK_PATH.read_text())
+        violations = guard_invariants(lock_map, PYPROJECT_PATH.read_text())
+        if not violations:
+            console.success("[locked] pins consistent with base floors and uv.lock")
+            return
+        for violation in violations:
+            console.error(violation)
+        raise typer.Exit(1)
 
     def _example_tasks(self, bake_command: str) -> list[CliTask]:
         examples_dir = Path("examples")

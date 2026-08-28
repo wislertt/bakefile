@@ -1,0 +1,39 @@
+---
+title: "ImportError at startup from a dependency"
+sidebarTitle: Dependency import errors
+description: bake or bakefile crashes with an ImportError before doing anything, usually after a dependency released a breaking change. Upgrade bakefile, or reinstall with the locked extra.
+---
+
+`bake` and `bakefile` can crash at startup when a floating dependency releases a breaking change and the old bakefile version still imports the moved name:
+
+```
+ImportError: cannot import name 'Abort' from 'typer._click.exceptions'
+```
+
+This exact error hit bakefile up to 0.0.76 when typer 0.27.2 moved its private modules.
+
+## Fix
+
+Upgrade to the latest bakefile:
+
+```bash
+uv tool install --upgrade bakefile
+# or
+pipx upgrade bakefile
+```
+
+If you need to stay on the old version, reinstall it together with the dependency version that worked before:
+
+```bash
+uv tool install bakefile "typer<0.27.2"
+```
+
+## Prevent it
+
+From 0.0.77 on, install with the `locked` extra to get exact, tested versions of every dependency instead of floating ranges:
+
+```bash
+uv tool install "bakefile[locked]"
+```
+
+See [Install bakefile](/getting-started/installation) for all install forms.

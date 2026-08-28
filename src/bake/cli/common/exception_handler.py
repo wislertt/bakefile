@@ -4,14 +4,15 @@ from contextlib import contextmanager
 from gettext import gettext
 from typing import TextIO, cast
 
-from typer._click import echo
-from typer._click.exceptions import (
+from bake._typer_compat import (
+    HAS_RICH,
     Abort,
     ClickException,
     Exit,
+    MarkupMode,
+    PacifyFlushWrapper,
+    echo,
 )
-from typer._click.utils import PacifyFlushWrapper
-from typer.core import HAS_RICH, MarkupMode
 
 
 @contextmanager

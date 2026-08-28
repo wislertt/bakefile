@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from typer.core import MarkupMode
 
+from bake._typer_compat import MarkupMode
 from bake.cli.common.context import Context
 from bake.ui import console, style
 
