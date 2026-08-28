@@ -313,9 +313,9 @@ class TestBakebookCtxProperty:
     def test_ctx_raises_when_wrong_context_type(self) -> None:
         bakebook = Bakebook()
 
-        # Create a plain typer._click.Context (not bake.Context)
-        from typer._click import Context as _PlainContext
-        from typer.core import TyperCommand
+        # Create a plain click Context (not bake.Context)
+        from bake._typer_compat import ClickContext as _PlainContext
+        from bake._typer_compat import TyperCommand
 
         plain_ctx = _PlainContext(command=TyperCommand("test"))
 

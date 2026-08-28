@@ -10,10 +10,9 @@ from typing import TYPE_CHECKING, Any
 import typer
 from pydantic import ValidationError
 from rich.traceback import Traceback
-from typer._click.utils import _expand_args
-from typer.core import MarkupMode
 from typer.main import get_command_from_info
 
+from bake._typer_compat import MarkupMode, _expand_args
 from bake.bakebook.get import (
     get_bakebook_from_target_dir_path,
     resolve_bakefile_path,

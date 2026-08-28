@@ -7,6 +7,7 @@ import pytest
 import typer
 
 from bake import Context
+from bake._typer_compat import BadParameter
 from bake.cli.common import app as app_module
 from bake.cli.common.app import (
     BakefileApp,
@@ -69,7 +70,7 @@ class TestValidateFileName:
     )
     def test_validate_file_name_invalid(self, file_name: str) -> None:
         """validate_file_name should raise BadParameter for invalid file names."""
-        with pytest.raises(typer.BadParameter):
+        with pytest.raises(BadParameter):
             validate_file_name(file_name)
 
 
@@ -86,7 +87,7 @@ class TestVerbosityCallback:
         """verbosity_callback should raise BadParameter when value exceeds 3."""
         mock_ctx = MagicMock()
         mock_param = MagicMock()
-        with pytest.raises(typer.BadParameter, match="Maximum verbosity is -vvv"):
+        with pytest.raises(BadParameter, match="Maximum verbosity is -vvv"):
             verbosity_callback(mock_ctx, mock_param, 4)
 
 

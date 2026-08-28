@@ -47,6 +47,12 @@ def _semver_normalize(value: str) -> str:
     return zerv.render(version=value, output_format="semver")
 
 
+def _strip_mise_options(tool: str) -> str:
+    # mise reports installed tools by bare id; inline options like
+    # "pipx:bakefile[extras=locked]" never appear in `mise list` keys
+    return tool.split("[", 1)[0]
+
+
 class BaseSpace(CleanUtils, Bakebook):
     _version_schema: zerv.StandardSchema = "standard-base-prerelease-post-dev"
 
@@ -209,7 +215,7 @@ class BaseSpace(CleanUtils, Bakebook):
     def _get_mise_tools(self) -> set[str]:
         return {
             "bun",
-            "pipx:bakefile",
+            "pipx:bakefile[extras=locked]",
             "pipx:toml-sort",
             "pipx:zerv-version",
             "pipx:pre-commit",
@@ -235,16 +241,18 @@ class BaseSpace(CleanUtils, Bakebook):
         current_tools: set[str] = set()
         if result and result.stdout:
             data = orjson.loads(result.stdout)
-            current_tools = set(data.keys())
+            current_tools = {_strip_mise_options(tool) for tool in data}
 
         required_tools = self._get_mise_tools()
-        missing_tools = sorted(required_tools - current_tools)
+        missing_tools = sorted(
+            tool for tool in required_tools if _strip_mise_options(tool) not in current_tools
+        )
 
         if missing_tools:
             console.start("Adding missing mise tools")
 
         for tool in missing_tools:
-            self.ctx.run(f"mise use {tool}")
+            self.ctx.run(f"mise use '{tool}'")
 
     def _setup_tools(self) -> None:
         self._add_mise_tools()

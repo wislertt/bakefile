@@ -139,6 +139,7 @@
                     "troubleshooting/wrong-bakebook-type",
                     "troubleshooting/file-name-errors",
                     "troubleshooting/import-errors",
+                    "troubleshooting/dependency-import-error",
                     "troubleshooting/wrong-python"
                 ]
             }

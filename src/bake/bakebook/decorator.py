@@ -1,9 +1,9 @@
 from collections.abc import Callable
 from typing import Any
 
-from typer.core import TyperCommand
 from typer.models import CommandFunctionType
 
+from bake._typer_compat import TyperCommand
 from bake.bakebook.bakebook import CommandKwargs
 from bake.cli.common.context import BakeCommand
 from bake.utils.constants import BAKE_COMMAND_KWARGS

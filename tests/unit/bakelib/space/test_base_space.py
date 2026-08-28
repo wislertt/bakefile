@@ -834,4 +834,22 @@ class TestAddMiseTools:
 
         assert run_calls[0] == "mise list --local --current --json"
         missing = sorted(base_space._get_mise_tools() - {"bun", "uv"})
-        assert run_calls[1:] == [f"mise use {tool}" for tool in missing]
+        assert run_calls[1:] == [f"mise use '{tool}'" for tool in missing]
+
+    def test_installed_bare_id_satisfies_inline_options_tool(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+
+        # mise reports "pipx:bakefile" even when installed with [extras=locked]
+        mock_result = MagicMock()
+        mock_result.stdout = orjson.dumps({"bun": {}, "uv": {}, "pipx:bakefile": {}})
+        run_calls: list[str] = []
+
+        def capture_run(cmd: str, **_: object) -> object:
+            run_calls.append(cmd)
+            return mock_result
+
+        with mock_ctx, patch.object(mock_ctx, "run", side_effect=capture_run):
+            base_space._add_mise_tools()
+
+        assert run_calls[0] == "mise list --local --current --json"
+        assert not [c for c in run_calls[1:] if "bakefile" in c]

@@ -48,8 +48,9 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     # Verify lint runs successfully
     assert "prettier" in stderr and "ruff" in stderr
 
-    # Check that .venv path appears in output (may be line-wrapped)
-    assert ".venv" in stdout and examples_python_package_dir.name in stdout
+    # Check that the example project's module and .venv appear in output
+    # (may be line-wrapped)
+    assert ".venv" in stdout and "src/python_package/__init__.py" in stdout
 
     # assert tools
     assert "✅ [SUCCESS] bun" in stderr

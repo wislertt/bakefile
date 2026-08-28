@@ -41,6 +41,26 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Exact pins for tool installs (uv tool / pipx / mise): `uv tool install
+# "bakefile[locked]"`. Tested set, resolves reproducibly. Rewritten from
+# uv.lock by `bake update`; keep pin >= base floor for every dep. To freeze
+# a pin, add a trailing `# hold` comment to its line; `bake update` skips it.
+locked = [
+  "beautysh==6.4.3",
+  "loguru==0.7.3",
+  "orjson==3.12.0",
+  "pydantic-settings==2.15.0",
+  "pydantic==2.13.5",
+  "python-dotenv==1.2.3",
+  "pyyaml==6.0.3",
+  "rich==15.0.0",
+  "ruff==0.16.5",
+  "tomli==2.4.1; python_version < '3.11'",
+  "ty==0.0.75",
+  "typer==0.27.2",
+  "typing-extensions==4.16.0",
+  "uv==0.12.7"
+]
 lib = [
   "keyring>=25.7.0",
   "pathspec>=1.0.3",
@@ -63,12 +83,14 @@ Repository = "https://github.com/wislertt/bakefile"
 [dependency-groups]
 dev = [
   "deptry>=0.24.0",
+  "packaging>=26.3",
   "pandas>=2.3.3",
   "pre-commit>=4.5.1",
   "pytest-cov>=7.0.0",
   "pytest>=9.0.2",
   "python-package",
-  "toml-sort>=0.24.3"
+  "toml-sort>=0.24.3",
+  "tomlkit>=0.15.1"
 ]
 
 [build-system]
@@ -84,6 +106,7 @@ pydantic = ["pydantic", "pydantic_core"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

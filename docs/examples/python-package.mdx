@@ -13,7 +13,7 @@ from bakelib import PythonSpace
 class MyBakebook(PythonSpace):
     def _get_mise_tools(self) -> set[str]:
         mise_tools = super()._get_mise_tools()
-        mise_tools.remove("pipx:bakefile")
+        mise_tools.remove("pipx:bakefile[extras=locked]")
         return mise_tools
 
     # Override an inherited task: same tests, but stop at the first failure
@@ -39,7 +39,7 @@ def hello(name: str = "world"):
 - Inheriting a Space: `lint`, `test`, `setup-dev`, `tools`, `update`, `version`, `clean`, and more arrive preconfigured (ruff, ty, deptry, pytest with coverage, uv).
 - Overriding one inherited task. `test` reuses the space's own `_test` helper with `extra_args="-x"` to stop at the first failure. No `@command()` needed, the inherited registration carries over.
 - Adding a project-specific task (`build`) with `@command()` as usual.
-- A private hook tweak: `_get_mise_tools` drops `pipx:bakefile` because this project gets bakefile from its own venv (`bakefile[lib]` in `pyproject.toml`), so the pipx copy would be redundant.
+- A private hook tweak: `_get_mise_tools` drops `pipx:bakefile[extras=locked]` because this project gets bakefile from its own venv (`bakefile[lib]` in `pyproject.toml`), so the pipx copy would be redundant.
 
 ## Try it
 

@@ -152,6 +152,30 @@ bake command → get_bakefile_object() → BakefileObject
 | **pytest**   | Testing                                              |
 | **ty**       | Linting                                              |
 
+## Dependency Maintenance ([locked] extra)
+
+Two channels in `pyproject.toml`:
+
+- **`[project.dependencies]`** - true minimum floors for lib consumers (`typer>=0.26.1`). Stays loose.
+- **`[project.optional-dependencies.locked]`** - exact pins (`typer==0.27.2`) for tool installs (`uv tool install "bakefile[locked]"`). Reproducible tested set.
+
+Invariants (enforced by `scripts/locked_pins.py` guard, runs inside `bake lint`):
+base set ⊆ locked set, every locked entry exact `==`, pin >= floor, pin == uv.lock version, lock satisfies floors.
+
+**`bake update` flow** (`bakefile.py` `DevUtils._update_locked_pins`, logic in `scripts/locked_pins.py`):
+
+1. `relax_locked_pins` - lift non-held pins down to base floors (exact pins participate in uv resolution and would cap the upgrade)
+2. `uv lock --upgrade`
+3. `rewrite_locked_pins` - re-pin every non-held entry from uv.lock, align floors down if a pin drifted below
+
+Order matters. `uv lock --upgrade` before relax = pins cap themselves, nothing moves. Crash between relax and pin leaves floors in pyproject → guard fails lint with "not an exact pin" → rerun `bake update` heals.
+
+**Hold a pin:** trailing comment on the line, e.g. `"rich==14.3.4", # hold`. `bake update` skips it (survives relax and rewrite, caps uv resolution itself, ships to `[locked]` users). Release = delete the comment, run `bake update`. Detection is regex `#\s*hold\b` on the rendered array (tomlkit hides trailing comments from item trivia).
+
+**Renovate:** `.github/renovate.json5` disables updates for exact-pin optional-deps entries. Pin changes flow through `bake update` only.
+
+**mise:** bakelib default tool is `pipx:bakefile[extras=locked]`. Existing bare `pipx:bakefile` installs count as satisfied and never gain the extras - one manual `mise use 'pipx:bakefile[extras=locked]'` migrates.
+
 ## File Organization
 
 ```
