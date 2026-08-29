@@ -95,8 +95,7 @@ ALTERNATIVE_MULTI_LINES = """
 def get_str_from_inline_env(inline_env: str) -> str:
     # Unix shell syntax (bash/sh)
     cmd = f'VALUE={inline_env} python -c \'import os; print(os.environ["VALUE"], end="")\''
-    # Byte-exact capture: stream=False (no PTY, no \r-collapse) and
-    # clean_capture_output=False to pin the intent if the mode ever changes
+    # Byte-exact capture: values with control characters must round-trip
     parsed = run(
         cmd,
         check=False,

@@ -585,11 +585,9 @@ def demo11():
     console.echo(f"captured: {plain.stdout!r}", markup=False)
 
 
-# demo12: resize the terminal mid-run. bake DOES propagate the new size to the
-# PTY (polling children see it), but bake children run start_new_session=True
-# without a controlling terminal, so the kernel never delivers SIGWINCH to the
-# child itself. Signal-reactive children stay stale under bake. A plain
-# subprocess child sits in the foreground process group and does get the signal.
+# demo12: resize the terminal mid-run on the PTY path (stream+capture).
+# bake forwards the parent resize onto the PTY masters; the child (ctty
+# acquired in preexec) receives SIGWINCH like a plain foreground subprocess.
 _RESIZE_CHILD = r"""
 import fcntl, signal, struct, sys, termios, time
 
@@ -630,3 +628,58 @@ def demo12():
     _demo_section("2. plain subprocess: RESIZE TERMINAL NOW (~4s)")
     console.echo("width lines track resize AND signal count goes up on each resize")
     subprocess.run([sys.executable, "-c", _RESIZE_CHILD], check=False)
+
+
+# demo13: resize the terminal mid-run on the stream-only pipe path (what
+# `bake test` uses). The child inherits the tty and CAN ioctl the true size,
+# but two things freeze it: bake bakes COLUMNS into the env at spawn (shutil
+# prefers env over ioctl), and start_new_session=True detaches the child from
+# the foreground process group so the kernel never delivers SIGWINCH. A plain
+# subprocess child stays in the foreground group and gets both.
+_PIPE_RESIZE_CHILD = r"""
+import fcntl, os, signal, struct, sys, termios, time
+
+def width():
+    try:
+        return struct.unpack("HHHH", fcntl.ioctl(1, termios.TIOCGWINSZ, b"\x00" * 8))[1] or 80
+    except OSError:
+        return 0
+
+winch = 0
+
+def on_winch(signum, frame):
+    global winch
+    winch += 1
+
+signal.signal(signal.SIGWINCH, on_winch)
+
+for _ in range(40):  # ~4s, one report per 0.1s - resize and watch
+    print(f"ioctl={width()}c env={os.environ.get('COLUMNS', '<unset>')} winch={winch}", flush=True)
+    time.sleep(0.1)
+sys.exit(0 if winch else 1)
+"""
+
+
+@bakebook.command()
+def demo13():
+    _demo_section("1. bake stream-only (the bake test path): RESIZE TERMINAL NOW (~4s)")
+    console.echo("watch: ioctl= follows the resize, env= stays frozen, winch stays 0")
+    result = run(
+        [sys.executable, "-c", _PIPE_RESIZE_CHILD],
+        stream=True,
+        capture_output=False,
+        check=False,
+        echo=False,
+    )
+    _demo_status(
+        result.returncode == 0,
+        "stream-only child receives SIGWINCH (pipe path forwards resizes)",
+    )
+
+    _demo_section("2. plain subprocess: RESIZE TERMINAL NOW (~4s)")
+    console.echo("ioctl= follows, env=<unset>, winch climbs on every resize")
+    completed = subprocess.run([sys.executable, "-c", _PIPE_RESIZE_CHILD], check=False)
+    _demo_status(
+        completed.returncode == 0,
+        "plain subprocess child receives SIGWINCH (foreground process group)",
+    )

@@ -512,11 +512,8 @@ def _check_exit_code(
 
 
 def _clean_captured_pty_output(text: str) -> str:
-    # Children draw progress bars on a PTY by rewriting the line (\r frames
-    # wrapped in ANSI colors). The stream passthrough shows the animation, but
-    # the captured text should read like the final screen state: strip ANSI
-    # and keep only the last non-empty \r segment per line. An empty trailing
-    # segment means the child was cut mid-frame - keep the previous one.
+    # Capture should read like the final screen state: strip ANSI, keep the
+    # last non-empty \r segment per line (empty = cut mid-frame, keep previous)
     text = strip_ansi(text)
     return "\n".join(
         next((segment for segment in reversed(line.split("\r")) if segment != ""), "")
@@ -573,9 +570,7 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
 
 
 def _get_parent_terminal_size() -> tuple[int, int] | None:
-    # Real window size via TIOCGWINSZ on our std streams. Unlike
-    # os.get_terminal_size() this never consults COLUMNS/LINES env, so
-    # children see the true window size instead of a stale env value.
+    # ioctl, not os.get_terminal_size(): never consults COLUMNS/LINES env
     import fcntl
     import struct
     import termios
@@ -623,8 +618,7 @@ def _setup_pty_stream(
         # our thread which writes to sys.stderr (allows pytest to capture it)
         stderr_fd, slave_stderr = pty.openpty()
 
-        # Children size their output from the PTY winsize; without this a fresh
-        # PTY reports 0x0 and polite children fall back to hard-coded 80x24
+        # Fresh PTYs report 0x0 winsize; children then fall back to 80x24
         winsize = _get_parent_terminal_size()
         if winsize is None:
             fallback = shutil.get_terminal_size()
@@ -636,10 +630,8 @@ def _setup_pty_stream(
         user_preexec: Callable[[], Any] | None = kwargs.get("preexec_fn")
 
         def _acquire_ctty_preexec() -> None:
-            # Runs in the child after setsid (start_new_session=True): adopt the
-            # PTY slave as controlling terminal so the kernel can deliver SIGWINCH
-            # (resize) and SIGHUP (master close) to the child instead of nobody.
-            # Same pattern as stdlib pty.fork().
+            # Adopt the PTY slave as ctty so the kernel delivers SIGWINCH/SIGHUP
+            # to the child (stdlib pty.fork pattern)
             import fcntl
 
             request = _TIOCSCTTY.get(sys.platform)
@@ -749,9 +741,7 @@ def _run_with_split(
             setup.proc.wait()
             setup.splitter.finalize(setup.threads)
             if isinstance(exc, subprocess.TimeoutExpired):
-                # Parity with subprocess.run: TimeoutExpired carries whatever
-                # was captured before the kill. bake's capture API is str, so
-                # the partial output is decoded like the capture path.
+                # Parity with subprocess.run: attach the partial capture
                 partial = _process_stream_output(
                     splitter=setup.splitter,
                     proc=setup.proc,
@@ -816,8 +806,7 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
 
 @contextlib.contextmanager
 def _sigwinch_forwarder(master_fds: tuple[int, ...]):
-    # Forward parent window resizes onto the child PTYs while the proc runs,
-    # so children that react to SIGWINCH redraw at the new width
+    # Forward parent resizes onto the child PTYs so SIGWINCH reaches the child
     def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
         _ = signum, frame
         size = _get_parent_terminal_size()

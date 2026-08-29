@@ -210,9 +210,7 @@ class TestPtyCtty:
         )
         os.close(sfd)
 
-        # Resize only after the child reports its handler is installed - a
-        # fixed sleep races the bake import + Popen on slow machines and the
-        # resize lands before _sigwinch_forwarder exists.
+        # Resize only after the child reports readiness - a fixed sleep races Popen
         deadline = time.time() + 15
         out = b""
         resized = False
@@ -418,10 +416,8 @@ print('\\033[1;34mBlue bold text\\033[0m')
 print('\\033[33mYellow text\\033[0m')"""
     script = [sys.executable, "-c", python_code]
 
-    # With stream=True, PTY should preserve ANSI codes in the stream view
     result = run(script, stream=True, capture_output=True)
 
-    # Captured output is cleaned of ANSI codes (task 6)
     assert "[32m" not in result.stdout
     assert "Green text" in result.stdout
     assert "Blue bold text" in result.stdout
@@ -675,11 +671,9 @@ class TestStringCommand:
     @pytest.mark.parametrize(
         "cmd_type,cmd,shell_override",
         [
-            # String commands with different shell overrides
             ("str", "echo test", None),  # Auto-detect: shell=True
             ("str", "echo test && echo success", None),  # Auto-detect with chaining
             ("str", "echo test", True),  # Explicit shell=True
-            # List commands (backward compatibility)
             ("list", ["echo", "test"], None),  # Auto-detect: shell=False
             ("list", ["echo", "test"], False),  # Explicit shell=False
         ],
@@ -720,7 +714,6 @@ class TestStringCommand:
         result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
 
         assert result.returncode == 0
-        # Stream view keeps the ANSI codes, capture is cleaned (task 6)
         assert "[32m" in capfd.readouterr().out
         assert "[32m" not in result.stdout
         assert "Green" in result.stdout
@@ -745,17 +738,12 @@ class TestStringCommand:
         assert result.stderr is None
 
     def test_explicit_shell_false(self) -> None:
-        # When shell=False, a string command is treated as a single executable name
-        # On Unix: "echo hello" is not a valid executable -> raises FileNotFoundError
-        # On Windows: Windows CreateProcess may handle this differently
         if sys.platform == "win32":
-            # On Windows, CreateProcess tokenizes the command, so "echo hello" finds echo.exe/bat
-            # and "hello" is passed as an argument. Output is captured in stdout.
+            # Windows CreateProcess tokenizes string commands into exe + args
             result = run("echo hello", shell=False, capture_output=True)
             assert result.returncode == 0
             assert "hello" in result.stdout
         else:
-            # On Unix, this should raise FileNotFoundError
             result = run("echo hello", shell=True, capture_output=True)
             with pytest.raises(FileNotFoundError):
                 run("echo hello", shell=False)

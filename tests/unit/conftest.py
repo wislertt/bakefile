@@ -21,10 +21,7 @@ class _InMemoryKeyring(keyring.backend.KeyringBackend):
 
 @pytest.fixture(autouse=True)
 def isolate_keyring_backend():
-    # Unit tests must never touch the OS keychain: entries persist across runs
-    # and xdist workers share the real backend, so concurrent set/delete on the
-    # same (service, username) races. A fresh dict per test makes every unit
-    # test hermetic.
+    # Unit tests must not touch the OS keychain: xdist workers race on shared entries
     original = keyring.get_keyring()
     keyring.set_keyring(_InMemoryKeyring())
     yield

@@ -58,8 +58,7 @@ class PythonSpace(BaseSpace):
                 " --cov-report=term-missing --cov-report=xml"
             )
 
-        # Runtime detect, not an import: consuming projects may not install
-        # pytest-xdist, and extra_args can still override with its own -n.
+        # Runtime detect, not an import: consuming projects may not install pytest-xdist
         if parallel and importlib.util.find_spec("xdist") is not None:
             cmd += " -n auto"
 
