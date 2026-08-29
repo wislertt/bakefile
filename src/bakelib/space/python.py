@@ -1,3 +1,4 @@
+import importlib.util
 from pathlib import Path
 
 import zerv
@@ -44,6 +45,8 @@ class PythonSpace(BaseSpace):
         coverage_path: str = "src",
         markers: str | None = None,
         extra_args: str = "",
+        parallel: bool = False,
+        durations: int | None = None,
     ) -> None:
         paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
 
@@ -55,11 +58,19 @@ class PythonSpace(BaseSpace):
                 " --cov-report=term-missing --cov-report=xml"
             )
 
+        # Runtime detect, not an import: consuming projects may not install
+        # pytest-xdist, and extra_args can still override with its own -n.
+        if parallel and importlib.util.find_spec("xdist") is not None:
+            cmd += " -n auto"
+
         if verbose:
             cmd += " -s -v"
 
         if markers:
             cmd += f' -m "{markers}"'
+
+        if durations is not None:
+            cmd += f" --durations={durations}"
 
         if extra_args:
             cmd += f" {extra_args}"
@@ -77,10 +88,10 @@ class PythonSpace(BaseSpace):
         else:
             self._command_not_available("test_integration")
 
-    def test(self) -> None:
+    def test(self, durations: params.DurationsOption = None) -> None:
         unit_tests_path = "tests/unit/"
         tests_path = unit_tests_path if Path(unit_tests_path).exists() else "tests/"
-        self._test(tests_paths=tests_path)
+        self._test(tests_paths=tests_path, durations=durations)
 
     def test_all(self) -> None:
         unit_tests_path = "tests/unit/"

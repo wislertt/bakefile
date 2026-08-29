@@ -103,6 +103,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "python-package", editable = "." },
     { name = "toml-sort", specifier = ">=0.24.3" },
     { name = "tomlkit", specifier = ">=0.15.1" },

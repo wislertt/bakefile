@@ -34,19 +34,19 @@ stream+capture → collapsed to last segment → switched to `stream=False`.
 
 ## Demo ↔ issue map
 
-| Demo   | Issue                                     | In fix scope                                                                                  |
-| ------ | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| demo1  | multi-line redraw garble from winsize lie | yes (task 4, done) — bake modes run honest child now; overdraw child kept as no-bake contrast |
-| demo2  | PTY winsize `0x0` + capture pollution     | yes (tasks 4, 6)                                                                              |
-| demo3  | grandchild tail lost (~0.8s drain giveup) | no — backlog                                                                                  |
-| demo4  | lossy decode errors="replace"             | no — backlog                                                                                  |
-| demo5  | PTY backpressure ~4× slower than pipe     | no — backlog                                                                                  |
-| demo6  | forced ANSI through pipes (CI)            | partially — task 3 covers NO_COLOR case                                                       |
-| demo7  | overload type lie                         | yes (task 1)                                                                                  |
-| demo8  | TimeoutExpired drops partial output       | yes (task 5)                                                                                  |
-| demo9  | SIGTERM orphans, SIGINT guard works       | no — backlog (plus race before guard installs)                                                |
-| demo10 | fd leak on failed spawn                   | yes (task 2)                                                                                  |
-| demo11 | NO_COLOR stomped by FORCE_COLOR           | yes (task 3)                                                                                  |
+| Demo   | Issue                                     | In fix scope                                                                                                                        |
+| ------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| demo1  | multi-line redraw garble from winsize lie | yes (task 4, done) — bake modes run honest child now; overdraw child kept as no-bake contrast                                       |
+| demo2  | PTY winsize `0x0` + capture pollution     | yes (tasks 4, 6)                                                                                                                    |
+| demo3  | grandchild tail lost (~0.8s drain giveup) | no — backlog                                                                                                                        |
+| demo4  | lossy decode errors="replace"             | no — backlog                                                                                                                        |
+| demo5  | PTY backpressure ~4× slower than pipe     | no — backlog                                                                                                                        |
+| demo6  | forced ANSI through pipes (CI)            | partially — task 3 covers NO_COLOR case                                                                                             |
+| demo7  | overload type lie                         | yes (task 1)                                                                                                                        |
+| demo8  | TimeoutExpired drops partial output       | yes (task 5)                                                                                                                        |
+| demo9  | SIGTERM orphans, SIGINT guard works       | SIGTERM orphan fixed as task 4 side effect (ctty → SIGHUP on master close, PTY path only); race before guard installs still backlog |
+| demo10 | fd leak on failed spawn                   | yes (task 2)                                                                                                                        |
+| demo11 | NO_COLOR stomped by FORCE_COLOR           | yes (task 3)                                                                                                                        |
 
 ## Decisions
 

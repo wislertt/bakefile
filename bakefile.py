@@ -42,6 +42,9 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace):
     bake_log_verbosity: params.BakeLogVerbosityField = 3
     bake_log_pretty: bool = DEFAULT_BAKE_LOG_PRETTY
 
+    def test(self, durations: params.DurationsOption = None) -> None:
+        self._test(tests_paths="tests/unit/", parallel=True, durations=durations)
+
     def _get_mise_tools(self) -> set[str]:
         mise_tools = super()._get_mise_tools()
         mise_tools.remove("pipx:bakefile[extras=locked]")

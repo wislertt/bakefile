@@ -108,7 +108,7 @@ captured: '[child] isatty=True ... \n\r[##                  ] 10%\r[####        
 
 ## Wrap-up
 
-- [ ] 7.1 `bake lint` clean
-- [ ] 7.2 `bake test` green
-- [ ] 7.3 Full demo sweep `demo1`-`demo11`, confirm each before/after matches expectations in this file
+- [x] 7.1 `bake lint` clean
+- [x] 7.2 `bake test` green
+- [x] 7.3 Full demo sweep 2026-08-29: demo1 ✅ (raw ws_col=80 + FIXED), demo2 ✅ (winsize real, capture = final frame no ANSI), demo3/4/5 ✅ backlog unchanged, demo6 ✅ (capture ANSI-free too, task 6 bonus), demo7 ✅ ty honest, demo8 ✅ `exc.stdout: 'START\n'`, demo9 ✅ SIGINT guard works + SIGTERM orphan BONUS-FIXED by task 4 ctty (outer dies → masters close → SIGHUP to child's fg pgrp kills sleep; proven vs pipe path which still orphans), demo10 ✅ delta 0, demo11 ✅ NO_COLOR wins, demo12 verified earlier in real terminal + automated test
 - [ ] 7.4 Decide fate of demo code in bakefile.py (keep as live probes vs strip before commit)
