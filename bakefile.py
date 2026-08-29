@@ -544,7 +544,7 @@ else:
 
 @bakebook.command()
 def demo11():
-    _demo_section("user sets NO_COLOR=1: bake still injects FORCE_COLOR, child colors anyway")
+    _demo_section("user sets NO_COLOR=1: bake must not inject FORCE_COLOR")
     result = run(
         [sys.executable, "-c", _RICH_COLOR_CHILD],
         capture_output=True,
@@ -552,6 +552,10 @@ def demo11():
         echo=False,
     )
     console.echo(f"captured: {result.stdout!r}", markup=False)
+    _demo_status(
+        "\x1b" not in result.stdout,
+        "NO_COLOR beats injected FORCE_COLOR (child prints PLAIN)",
+    )
 
     _demo_section("plain subprocess honors NO_COLOR")
     plain_env = dict(os.environ, NO_COLOR="1")

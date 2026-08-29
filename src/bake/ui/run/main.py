@@ -515,8 +515,11 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
 
     if env:
         merged_env.update(env)
-    merged_env.setdefault("FORCE_COLOR", "1")
-    merged_env.setdefault("CLICOLOR_FORCE", "1")
+
+    # no-color.org: any non-empty NO_COLOR means skip color forcing entirely
+    if merged_env.get("NO_COLOR", "") == "":
+        merged_env.setdefault("FORCE_COLOR", "1")
+        merged_env.setdefault("CLICOLOR_FORCE", "1")
 
     # Disable progress indicators for tools that support it
     merged_env.setdefault("UV_NO_PROGRESS", "1")  # uv

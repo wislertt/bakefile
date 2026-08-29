@@ -48,9 +48,9 @@ captured: '\x1b[31mCOLORED\x1b[0m\n'
 captured: b'PLAIN\n'
 ```
 
-- [ ] 3.1 In `_prepare_subprocess_env` (`main.py:518-519`): after merging user env, skip `FORCE_COLOR`/`CLICOLOR_FORCE` setdefault when `NO_COLOR` present (non-empty, per no-color.org)
-- [ ] 3.2 Unit test: `run(..., env={"NO_COLOR": "1"})` → child sees no `FORCE_COLOR`; without NO_COLOR → still injected
-- [ ] 3.3 Verify: `bake demo11` → first section `captured: 'PLAIN\n'`
+- [x] 3.1 In `_prepare_subprocess_env` (`main.py:518-519`): after merging user env, skip `FORCE_COLOR`/`CLICOLOR_FORCE` setdefault when `NO_COLOR` present (non-empty, per no-color.org)
+- [x] 3.2 Unit test: `run(..., env={"NO_COLOR": "1"})` → child sees no `FORCE_COLOR`; without NO_COLOR → still injected — TDD: `test_no_color_suppresses_color_forcing` written first, confirmed red, then green. Note: autouse `disable_colors` fixture sets NO_COLOR for every test, so `test_terminal_size_oserror_fallback` needed `monkeypatch.delenv("NO_COLOR")` to still see injection
+- [x] 3.3 Verify: `bake demo11` → `captured: 'PLAIN\n'` + `FIXED: NO_COLOR beats injected FORCE_COLOR` ✓ (2026-08-29)
 
 ## Task 4: Set PTY winsize + forward SIGWINCH (demo1, demo2)
 

@@ -321,132 +321,114 @@ def test_run_stderr_is_captured_and_streamed(
         assert capture.err == ""
 
 
-# ============================================================================
-# String Command Tests (Shell Support)
-# ============================================================================
+class TestStringCommand:
+    @flaky_on_macos_ci()
+    @pytest.mark.parametrize(
+        "cmd,expected_in_output",
+        [
+            ("echo hello from shell", "hello from shell"),
+            ("echo hello && echo world", ["hello", "world"]),
+            ("echo hello | tr h H", "Hello"),
+        ],
+    )
+    def test_shell_features(self, cmd: str, expected_in_output: str | list[str]) -> None:
+        result = run(cmd, capture_output=True)
 
-
-@flaky_on_macos_ci()
-@pytest.mark.parametrize(
-    "cmd,expected_in_output",
-    [
-        ("echo hello from shell", "hello from shell"),
-        ("echo hello && echo world", ["hello", "world"]),
-        ("echo hello | tr h H", "Hello"),
-    ],
-)
-def test_run_string_command_shell_features(
-    cmd: str,
-    expected_in_output: str | list[str],
-) -> None:
-    result = run(cmd, capture_output=True)
-
-    assert result.returncode == 0
-    if isinstance(expected_in_output, str):
-        assert expected_in_output in result.stdout
-    else:
-        for expected in expected_in_output:
-            assert expected in result.stdout
-
-
-@flaky_on_macos_ci()
-@pytest.mark.parametrize(
-    "cmd_type,cmd,shell_override",
-    [
-        # String commands with different shell overrides
-        ("str", "echo test", None),  # Auto-detect: shell=True
-        ("str", "echo test && echo success", None),  # Auto-detect with chaining
-        ("str", "echo test", True),  # Explicit shell=True
-        # List commands (backward compatibility)
-        ("list", ["echo", "test"], None),  # Auto-detect: shell=False
-        ("list", ["echo", "test"], False),  # Explicit shell=False
-    ],
-)
-def test_run_command_auto_detection(
-    cmd_type: str,
-    cmd: str | list[str],
-    shell_override: bool | None,
-) -> None:
-    result = run(cmd, shell=shell_override, capture_output=True)
-
-    assert result.returncode == 0
-    if cmd_type == "str" and "&&" in str(cmd):
-        assert "test" in result.stdout
-        assert "success" in result.stdout
-    else:
-        assert "test" in result.stdout
-
-
-def test_run_string_command_wildcards(tmp_path: Path) -> None:
-    """Test wildcards expand in string commands."""
-    (tmp_path / "test1.py").write_text("# test1")
-    (tmp_path / "test2.py").write_text("# test2")
-    (tmp_path / "README.md").write_text("# readme")
-
-    result = run("ls *.py", cwd=tmp_path, capture_output=True)
-
-    assert result.returncode == 0
-    assert "test1.py" in result.stdout
-    assert "test2.py" in result.stdout
-    assert "README.md" not in result.stdout
-
-
-def test_run_string_command_redirects(tmp_path: Path) -> None:
-    result = run("echo test content > test.txt", cwd=tmp_path, capture_output=True)
-
-    assert result.returncode == 0
-    content = (tmp_path / "test.txt").read_text()
-    assert content.strip() == "test content"
-
-
-def test_run_string_command_preserves_colors_with_pty() -> None:
-    result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
-
-    assert result.returncode == 0
-    assert "[32m" in result.stdout
-    assert "Green" in result.stdout
-
-
-@pytest.mark.parametrize(
-    "cmd,capture_output",
-    [
-        ("echo test", False),
-        (["echo", "test"], False),
-    ],
-)
-def test_run_command_capture_output_false(
-    capfd: pytest.CaptureFixture[str],
-    cmd: str | list[str],
-    capture_output: bool,
-) -> None:
-    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capfd.readouterr()
-
-    result = run(cmd, capture_output=capture_output)
-
-    assert result.returncode == 0
-    assert result.stdout is None
-    assert result.stderr is None
-
-
-def test_run_string_command_with_explicit_shell_false() -> None:
-    # When shell=False, a string command is treated as a single executable name
-    # On Unix: "echo hello" is not a valid executable -> raises FileNotFoundError
-    # On Windows: Windows CreateProcess may handle this differently
-    if sys.platform == "win32":
-        # On Windows, CreateProcess tokenizes the command, so "echo hello" finds echo.exe/bat
-        # and "hello" is passed as an argument. Output is captured in stdout.
-        result = run("echo hello", shell=False, capture_output=True)
         assert result.returncode == 0
-        assert "hello" in result.stdout
-    else:
-        # On Unix, this should raise FileNotFoundError
-        result = run("echo hello", shell=True, capture_output=True)
-        with pytest.raises(FileNotFoundError):
-            run("echo hello", shell=False)
+        if isinstance(expected_in_output, str):
+            assert expected_in_output in result.stdout
+        else:
+            for expected in expected_in_output:
+                assert expected in result.stdout
+
+    @flaky_on_macos_ci()
+    @pytest.mark.parametrize(
+        "cmd_type,cmd,shell_override",
+        [
+            # String commands with different shell overrides
+            ("str", "echo test", None),  # Auto-detect: shell=True
+            ("str", "echo test && echo success", None),  # Auto-detect with chaining
+            ("str", "echo test", True),  # Explicit shell=True
+            # List commands (backward compatibility)
+            ("list", ["echo", "test"], None),  # Auto-detect: shell=False
+            ("list", ["echo", "test"], False),  # Explicit shell=False
+        ],
+    )
+    def test_command_auto_detection(
+        self, cmd_type: str, cmd: str | list[str], shell_override: bool | None
+    ) -> None:
+        result = run(cmd, shell=shell_override, capture_output=True)
+
+        assert result.returncode == 0
+        if cmd_type == "str" and "&&" in str(cmd):
+            assert "test" in result.stdout
+            assert "success" in result.stdout
+        else:
+            assert "test" in result.stdout
+
+    def test_wildcards(self, tmp_path: Path) -> None:
+        """Test wildcards expand in string commands."""
+        (tmp_path / "test1.py").write_text("# test1")
+        (tmp_path / "test2.py").write_text("# test2")
+        (tmp_path / "README.md").write_text("# readme")
+
+        result = run("ls *.py", cwd=tmp_path, capture_output=True)
+
+        assert result.returncode == 0
+        assert "test1.py" in result.stdout
+        assert "test2.py" in result.stdout
+        assert "README.md" not in result.stdout
+
+    def test_redirects(self, tmp_path: Path) -> None:
+        result = run("echo test content > test.txt", cwd=tmp_path, capture_output=True)
+
+        assert result.returncode == 0
+        content = (tmp_path / "test.txt").read_text()
+        assert content.strip() == "test content"
+
+    def test_preserves_colors_with_pty(self) -> None:
+        result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
+
+        assert result.returncode == 0
+        assert "[32m" in result.stdout
+        assert "Green" in result.stdout
+
+    @pytest.mark.parametrize(
+        "cmd,capture_output",
+        [
+            ("echo test", False),
+            (["echo", "test"], False),
+        ],
+    )
+    def test_capture_output_false(
+        self, capfd: pytest.CaptureFixture[str], cmd: str | list[str], capture_output: bool
+    ) -> None:
+        setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+        _ = capfd.readouterr()
+
+        result = run(cmd, capture_output=capture_output)
+
+        assert result.returncode == 0
+        assert result.stdout is None
+        assert result.stderr is None
+
+    def test_explicit_shell_false(self) -> None:
+        # When shell=False, a string command is treated as a single executable name
+        # On Unix: "echo hello" is not a valid executable -> raises FileNotFoundError
+        # On Windows: Windows CreateProcess may handle this differently
+        if sys.platform == "win32":
+            # On Windows, CreateProcess tokenizes the command, so "echo hello" finds echo.exe/bat
+            # and "hello" is passed as an argument. Output is captured in stdout.
+            result = run("echo hello", shell=False, capture_output=True)
+            assert result.returncode == 0
+            assert "hello" in result.stdout
+        else:
+            # On Unix, this should raise FileNotFoundError
+            result = run("echo hello", shell=True, capture_output=True)
+            with pytest.raises(FileNotFoundError):
+                run("echo hello", shell=False)
 
 
-# Tests for internal helper functions
 class TestParseShebang:
     """Tests for _parse_shebang internal function."""
 
@@ -521,11 +503,6 @@ class TestResolveInterpreter:
 
         result = _resolve_interpreter(interpreter)
         assert check_func(result)
-
-
-# ============================================================================
-# echo_cmd Tests (Command Display Override)
-# ============================================================================
 
 
 @flaky_on_macos_ci()
@@ -609,11 +586,6 @@ def test_echo_cmd_edge_cases(
         assert "echo hello" in capture.err
 
 
-# ============================================================================
-# Windows CI Tests
-# ============================================================================
-
-
 class TestCrossPlatformSubprocess:
     """Tests for cross-platform subprocess execution.
 
@@ -692,11 +664,6 @@ class TestCrossPlatformSubprocess:
             pytest.raises(RuntimeError, match=r"sh\.exe not found"),
         ):
             run("echo line1\necho line2", shell=True, echo=False)
-
-
-# ============================================================================
-# _check_exit_code Tests (stream=False error output)
-# ============================================================================
 
 
 class TestCheckExitCodeStreamFalse:
@@ -832,11 +799,6 @@ class TestCheckExitCodeStreamFalse:
         assert "failed with exit code" not in capture.err
 
 
-# ============================================================================
-# Timeout Tests
-# ============================================================================
-
-
 class TestTimeout:
     """Tests for the timeout parameter."""
 
@@ -903,11 +865,6 @@ class TestTimeout:
         # If process wasn't killed, this would take ~60 seconds
         # With kill, it should be near the timeout value
         assert elapsed < 2.0, f"Process may not have been killed, elapsed={elapsed}s"
-
-
-# ============================================================================
-# Signature Compatibility Tests
-# ============================================================================
 
 
 class TestSignatureCompatibility:
@@ -983,18 +940,14 @@ class TestPopenKwargs:
         )
 
 
-# ============================================================================
-# _prepare_subprocess_env Tests (Terminal Size OSError)
-# ============================================================================
-
-
 class TestPrepareSubprocessEnv:
     """Tests for _prepare_subprocess_env internal function."""
 
-    def test_terminal_size_oserror_fallback(self) -> None:
+    def test_terminal_size_oserror_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When os.get_terminal_size raises OSError, env is still prepared."""
         from bake.ui.run.main import _prepare_subprocess_env
 
+        monkeypatch.delenv("NO_COLOR", raising=False)
         with mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")):
             env = _prepare_subprocess_env()
 
@@ -1019,10 +972,14 @@ class TestPrepareSubprocessEnv:
         # System defaults should still be present
         assert "UV_NO_PROGRESS" in env
 
+    def test_no_color_suppresses_color_forcing(self) -> None:
+        """NO_COLOR in env prevents FORCE_COLOR/CLICOLOR_FORCE injection."""
+        from bake.ui.run.main import _prepare_subprocess_env
 
-# ============================================================================
-# _encoding Parameter Tests (stream=False path)
-# ============================================================================
+        env = _prepare_subprocess_env(env={"NO_COLOR": "1"})
+
+        assert "FORCE_COLOR" not in env
+        assert "CLICOLOR_FORCE" not in env
 
 
 class TestEncodingParameter:
@@ -1058,11 +1015,6 @@ class TestEncodingParameter:
         assert result.returncode == 0
         # Invalid bytes should be replaced with replacement character
         assert "\ufffd" in result.stdout
-
-
-# ============================================================================
-# OutputSplitter OSError Tests
-# ============================================================================
 
 
 class TestOutputSplitterErrorPaths:
@@ -1284,11 +1236,6 @@ class TestOutputSplitterErrorPaths:
             splitter._drain_pty(1, sys.stdout, [])
 
 
-# ============================================================================
-# KeyboardInterrupt Tests
-# ============================================================================
-
-
 class TestKeyboardInterrupt:
     """Tests for KeyboardInterrupt handling during command execution."""
 
@@ -1337,11 +1284,6 @@ class TestKeyboardInterrupt:
             # With passthrough guard, only proc.wait is called.
             mock_kill.assert_not_called()
             mock_proc.wait.assert_called_once()
-
-
-# ============================================================================
-# _sigint_guard Tests
-# ============================================================================
 
 
 class TestSigintGuard:
@@ -1422,11 +1364,6 @@ class TestSigintGuard:
 
             last_call = mock_signal.signal.call_args_list[-1]
             assert last_call[0][1] is old_handler
-
-
-# ============================================================================
-# _kill_process_tree Tests
-# ============================================================================
 
 
 class TestKillProcessTree:
