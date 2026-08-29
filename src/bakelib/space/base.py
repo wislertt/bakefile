@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -47,10 +48,18 @@ def _semver_normalize(value: str) -> str:
     return zerv.render(version=value, output_format="semver")
 
 
+# mirrors mise's tool-arg grammar (src/cli/args/tool_arg.rs parse_input)
+_MISE_TOOL_SPEC = re.compile(
+    r"^(?P<name>(?:[^:@\[]+:)?(?:@[^@\[]+)?[^@\[]*)"
+    r"(?:\[(?P<options>[^\]]*)\])?"
+    r"(?:@(?P<version>.*))?$"
+)
+
+
 def _strip_mise_options(tool: str) -> str:
-    # mise reports installed tools by bare id; inline options like
-    # "pipx:bakefile[extras=locked]" never appear in `mise list` keys
-    return tool.split("[", 1)[0]
+    # mise list keys are bare ids: no [options], no @version
+    match = _MISE_TOOL_SPEC.match(tool)
+    return match["name"] if match is not None else tool
 
 
 class BaseSpace(CleanUtils, Bakebook):
@@ -235,8 +244,14 @@ class BaseSpace(CleanUtils, Bakebook):
         }
 
     def _add_mise_tools(self) -> None:
+        # read-only: run even in dry-run so the preview shows real missing tools
         result = self.ctx.run(
-            "mise list --local --current --json", stream=False, echo=False, capture_output=True
+            "mise list --local --current --json",
+            stream=False,
+            echo=False,
+            capture_output=True,
+            dry_run=False,
+            check=False,
         )
         current_tools: set[str] = set()
         if result and result.stdout:

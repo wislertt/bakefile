@@ -1,4 +1,5 @@
 import os
+import shutil
 from contextlib import nullcontext, suppress
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -9,9 +10,10 @@ import typer
 import zerv
 
 from bake import Context
+from bake.ui import run
 from bake.ui.logger import strip_ansi
 from bake.utils.settings import PlatformType, bake_settings
-from bakelib.space.base import BaseSpace, _global_keyring_env
+from bakelib.space.base import BaseSpace, _global_keyring_env, _strip_mise_options
 
 
 class MinimalTestSpace(BaseSpace):
@@ -817,6 +819,90 @@ class TestGlobalKeyringEnv:
         assert _global_keyring_env() == {"PATH": f"{global_dir}{os.pathsep}{base_path}"}
 
 
+class TestStripMiseOptions:
+    # vectors mirror mise's own tool-arg parser tests (src/cli/args/tool_arg.rs)
+    @pytest.mark.parametrize(
+        ("tool", "expected"),
+        [
+            ("bun", "bun"),
+            ("npm:prettier", "npm:prettier"),
+            ("npm:", "npm:"),
+            ("asdf:mise-plugins/mise-poetry", "asdf:mise-plugins/mise-poetry"),
+            ("bun@1.2.3", "bun"),
+            ("node@20", "node"),
+            ("nodejs@lts", "nodejs"),
+            ("erlang@", "erlang"),
+            ("npm:prettier@1.0.0", "npm:prettier"),
+            ("cargo:some-tool@branch:main", "cargo:some-tool"),
+            ("node@tag-v1.2.3", "node"),
+            ("python@path:/opt/python3.12", "python"),
+            ("python@system", "python"),
+            # scoped npm packages: leading @ belongs to the name
+            ("@biomejs/biome", "@biomejs/biome"),
+            ("@biomejs/biome@1.0.0", "@biomejs/biome"),
+            ("npm:@antfu/ni", "npm:@antfu/ni"),
+            ("npm:@antfu/ni@1.0.0", "npm:@antfu/ni"),
+            # version itself may contain @ (mise test case)
+            ("npm:@antfu/ni@1.0.0@1", "npm:@antfu/ni"),
+            ("pipx:bakefile[extras=locked]", "pipx:bakefile"),
+            ("pipx:psf/black[extras=jupyter]@latest", "pipx:psf/black"),
+            ("pipx:bakefile[extras=locked]@0.5.0", "pipx:bakefile"),
+            ("ubi:BurntSushi/ripgrep[exe=rg,match=musl]@1.0.0", "ubi:BurntSushi/ripgrep"),
+            ("go:github.com/foo/bar@v1.2.3", "go:github.com/foo/bar"),
+            ("aqua:BurntSushi/ripgrep@14.0.3", "aqua:BurntSushi/ripgrep"),
+            ("http:https://example.com/my-tool.tar.gz", "http:https://example.com/my-tool.tar.gz"),
+            ("cargo:some-tool@ref:abc123", "cargo:some-tool"),
+            ("cargo:some-tool@rev:deadbeef", "cargo:some-tool"),
+            ("cargo:some-tool@branch-main", "cargo:some-tool"),
+            ("node@prefix:20", "node"),
+            ("python@sub-3.12:3.12.1", "python"),
+            ("python@3.13.0rc1", "python"),
+            ("pipx:poetry@1.7.0", "pipx:poetry"),
+            ("gem:rails@7.0.0", "gem:rails"),
+            ("npm:@scope/pkg[bin=x]@1.0.0", "npm:@scope/pkg"),
+            ("", ""),
+            ("bun[]", "bun"),
+            ("pipx:zerv-version", "pipx:zerv-version"),
+            ("pipx:zerv-version@latest", "pipx:zerv-version"),
+        ],
+    )
+    def test_strips_options_and_version(self, tool: str, expected: str) -> None:
+        assert _strip_mise_options(tool) == expected
+
+
+# concrete versions: avoids network version resolution, fake package names are fine
+REAL_MISE_TOOLS = {
+    "bun": "1.2.3",
+    "node": "20",
+    "pipx:bakefile[extras=locked]": "0.5.0",
+    "pipx:psf/black[extras=jupyter]": "24.0.0",
+    "npm:@antfu/ni": "1.0.0",
+    "ubi:BurntSushi/ripgrep[exe=rg]": "14.0.3",
+    "aqua:BurntSushi/ripgrep": "14.0.3",
+    "cargo:some-tool": "1.0.0",
+}
+
+
+@pytest.mark.skipif(shutil.which("mise") is None, reason="mise not installed")
+def test_strip_matches_real_mise_list_keys(tmp_path: Path) -> None:
+    lines = ["[tools]"]
+    lines += [f'"{tool}" = "{version}"' for tool, version in REAL_MISE_TOOLS.items()]
+    (tmp_path / "mise.toml").write_text("\n".join(lines) + "\n")
+
+    result = run(
+        ["mise", "list", "--local", "--json"],
+        cwd=tmp_path,
+        capture_output=True,
+        stream=False,
+        echo=False,
+    )
+    assert result.returncode == 0, result.stderr
+    reported_keys = set(orjson.loads(result.stdout))
+
+    stripped_keys = {_strip_mise_options(tool) for tool in REAL_MISE_TOOLS}
+    assert stripped_keys == reported_keys
+
+
 class TestAddMiseTools:
     def test_parses_current_tools_and_installs_missing(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
@@ -853,3 +939,24 @@ class TestAddMiseTools:
 
         assert run_calls[0] == "mise list --local --current --json"
         assert not [c for c in run_calls[1:] if "bakefile" in c]
+
+    def test_detection_query_bypasses_dry_run(self, mock_ctx: Context) -> None:
+        base_space = MinimalTestSpace()
+        calls: list[tuple[str, dict[str, object]]] = []
+
+        def capture_run(cmd: str, **kwargs: object) -> object:
+            calls.append((cmd, kwargs))
+            mock_result = MagicMock()
+            mock_result.stdout = orjson.dumps({"bun": {}, "uv": {}})
+            return mock_result
+
+        with mock_ctx, patch.object(mock_ctx, "run", side_effect=capture_run):
+            base_space._add_mise_tools()
+
+        detection_cmd, detection_kwargs = calls[0]
+        assert detection_cmd == "mise list --local --current --json"
+        assert detection_kwargs["dry_run"] is False
+        assert detection_kwargs["check"] is False
+        for cmd, kwargs in calls[1:]:
+            assert cmd.startswith("mise use")
+            assert "dry_run" not in kwargs

@@ -18,8 +18,7 @@ _HOLD_PATTERN = re.compile(r"#\s*hold\b")
 
 
 def _held_locked_names(locked_array_text: str) -> set[str]:
-    # tomlkit keeps trailing comments out of item trivia, so detect holds from
-    # the rendered array: one requirement per line, `# hold` marks the version
+    # tomlkit drops trailing comments from item trivia, so detect holds from rendered text
     held: set[str] = set()
     for line in locked_array_text.splitlines():
         if '"' not in line or not _HOLD_PATTERN.search(line):
@@ -64,8 +63,7 @@ def _lock_version(lock_map: dict[str, set[str]], name: str) -> str:
 
 
 def relax_locked_pins(pyproject_text: str) -> tuple[str, list[str]]:
-    # Lift exact pins down to their base floors so `uv lock --upgrade` can move
-    # every dependency. Held pins (marked `# hold`) keep capping resolution.
+    # lift pins to base floors so `uv lock --upgrade` can move every dependency
     doc = tomlkit.parse(pyproject_text)
     base = doc["project"]["dependencies"]
     locked = doc["project"]["optional-dependencies"]["locked"]
@@ -185,13 +183,3 @@ def guard_invariants(lock_map: dict[str, set[str]], pyproject_text: str) -> list
             violations.append(f"uv.lock version {lock_version} < floor {floor} for {name}")
 
     return violations
-
-
-if __name__ == "__main__":
-    lock_versions = parse_lock_versions(UV_LOCK_PATH.read_text())
-    issues = guard_invariants(lock_versions, PYPROJECT_PATH.read_text())
-    for issue in issues:
-        print(f"error: {issue}", file=sys.stderr)
-    if issues:
-        sys.exit(1)
-    print("OK: [locked] pins consistent with base floors and uv.lock")
