@@ -54,10 +54,27 @@ run_uv/ctx.run/ctx.run_script. TestDecodeErrorsParameter covers every
 Literal value (handler semantics + raising handlers + drift guard via
 `get_args(DecodeErrors) == TESTED_HANDLERS`) on both paths.
 
-## Throughput today (demo5)
+## Throughput (demo5, ACCEPTED COST)
 
-`bake demo5` shows PTY path ~4x pipe. Chunk size and write batching unmeasured.
-Write the bench BEFORE any tuning change so numbers compare.
+Verdict: transport-bound, tuning plateau. `bake demo5` now benches 16MB,
+3 reps, median, temp-file sink. Numbers (this machine, macOS):
+
+- bake PTY stream+capture: ~40 MB/s, pipe subprocess ~370 MB/s → ~8.5x
+- raw openpty + blocking os.read (no bake code): 74 MB/s — the kernel
+  line-discipline ceiling, ~3.9x pipe. Target <=1.5x unreachable by tuning.
+- bake-shape loop (fcntl pair + poll per chunk) hits 67 MB/s of that 74 —
+  loop overhead ~8%, not the bottleneck. Post-processing (join/decode/ansi
+  clean over 16MB) ~15ms total. Remaining bake gap vs raw = tee write-through
+    - thread machinery, per-byte cost.
+
+Experiments (both reverted — no measurable win, transport dominates):
+
+- read chunk 4096 → 64k: 9.77x vs 8.89x baseline (noise). tty line
+  discipline delivers ~4KB per read regardless of ask. Kept the
+  `_READ_CHUNK` constant in splitter.py documenting the knob.
+- boundary flush batching (drop per-chunk flush, flush at EAGAIN/EOF):
+  9.58x (noise). Writes already coalesce via BufferedWriter 8KB buffer
+  sizing against the 4KB arrival rate; per-chunk flush not the cost.
 
 ## Gotchas (carried from 01)
 

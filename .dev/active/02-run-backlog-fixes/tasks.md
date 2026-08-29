@@ -24,12 +24,12 @@ Before-outputs: run `bake demo3`, `bake demo4`, `bake demo5`, `bake demo13`, sav
 
 ## Task 3: PTY throughput tuning (demo5)
 
-- [ ] 3.1 Bench harness: pipe vs PTY, MB/s through run() (temp file, repeat 3x, report median)
-- [ ] 3.2 Experiment: splitter read chunk 4096 → 64k
-- [ ] 3.3 Experiment: batch terminal write-through (accumulate chunk burst, single write)
-- [ ] 3.4 Re-bench after each; keep what helps, revert what doesn't
-- [ ] 3.5 Verdict: if <=1.5x pipe → done; if plateau → document accepted cost in context.md, no transport switch
-- [ ] 3.6 No regression: demo1/demo2 (streaming display + clean capture), test_run.py green
+- [x] 3.1 Bench harness: pipe vs PTY, MB/s through run() (temp file, repeat 3x, report median). demo5 rewritten: 16MB payload (2MB hid steady state behind startup noise), median of 3, temp-file sink, MB/s + ratio vs 1.5x target
+- [x] 3.2 Experiment: splitter read chunk 4096 → 64k → 9.77x vs 8.89x baseline (noise). tty line discipline delivers ~4KB per read regardless of ask
+- [x] 3.3 Experiment: batch terminal write-through (drop per-chunk flush, flush at EAGAIN/EOF boundaries) → 9.58x (noise). BufferedWriter already coalesces
+- [x] 3.4 Re-bench after each; both reverted per keep-what-helps. Kept only `_READ_CHUNK` constant in splitter.py (zero behavior change). Isolation bench added the missing data: raw openpty+blocking read = 74 MB/s ceiling (~3.9x pipe), bake-shape loop = 67 MB/s (loop overhead ~8%), join/decode/clean ~15ms — transport-bound, not loop-bound
+- [x] 3.5 Verdict: plateau — accepted cost documented in context.md (raw PTY kernel ceiling ~3.9x pipe makes <=1.5x unreachable; bake sits ~1.7x above its own ceiling from tee write-through, per-byte). No transport switch
+- [x] 3.6 No regression: demo1/demo2 (streaming display + clean capture), test_run.py 137 green, run pkg 222 green, ty clean, ruff clean
 
 ## Task 4: Pipe-path resize forwarding (demo13)
 

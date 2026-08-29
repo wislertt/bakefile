@@ -375,30 +375,47 @@ _FAST_OUTPUT_CHILD = r"""
 import sys
 
 chunk = "x" * 4096 + "\n"
-for _ in range(512):  # ~2MB
+for _ in range(4096):  # ~16MB
     sys.stdout.write(chunk)
 """
+
+_BENCH_BYTES = 4096 * 4097
 
 
 @bakebook.command()
 def demo5():
     import contextlib
+    import statistics
+    import tempfile
     import time as time_mod
 
-    _demo_section("backpressure: 2MB fast output, PTY tee vs plain pipe")
-    with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
-        start = time_mod.perf_counter()
+    _demo_section("throughput: 16MB fast output, PTY tee vs plain pipe (median of 3)")
+
+    def median_secs(fn) -> float:
+        samples = []
+        for _ in range(3):
+            with tempfile.TemporaryFile("w") as sink, contextlib.redirect_stdout(sink):
+                start = time_mod.perf_counter()
+                fn()
+            samples.append(time_mod.perf_counter() - start)
+        return statistics.median(samples)
+
+    def bake_run() -> int:
         result = run([sys.executable, "-c", _FAST_OUTPUT_CHILD], capture_output=True, echo=False)
-        bake_secs = time_mod.perf_counter() - start
+        return len(result.stdout)
 
-    start = time_mod.perf_counter()
-    plain = subprocess.run(
-        [sys.executable, "-c", _FAST_OUTPUT_CHILD], capture_output=True, check=True
-    )
-    plain_secs = time_mod.perf_counter() - start
+    def plain_run() -> int:
+        plain = subprocess.run(
+            [sys.executable, "-c", _FAST_OUTPUT_CHILD], capture_output=True, check=True
+        )
+        return len(plain.stdout)
 
-    console.echo(f"bake run stream+capture: {bake_secs:.2f}s ({len(result.stdout)} bytes captured)")
-    console.echo(f"plain subprocess pipe:   {plain_secs:.2f}s ({len(plain.stdout)} bytes captured)")
+    bake_secs = median_secs(bake_run)
+    plain_secs = median_secs(plain_run)
+    mb_per_sec = _BENCH_BYTES / 1e6
+    console.echo(f"bake PTY stream+capture: {bake_secs:.2f}s ({mb_per_sec / bake_secs:.0f} MB/s)")
+    console.echo(f"plain pipe subprocess:   {plain_secs:.2f}s ({mb_per_sec / plain_secs:.0f} MB/s)")
+    console.echo(f"ratio PTY/pipe: {bake_secs / plain_secs:.2f}x (target <= 1.5x)")
 
 
 # demo6: bake forces FORCE_COLOR=1 + PTY, so children emit ANSI even when bake's

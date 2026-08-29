@@ -1,0 +1,4 @@
+
+===== backpressure: 2MB fast output, PTY tee vs plain pipe =====
+bake run stream+capture: 0.06s (2097664 bytes captured)
+plain subprocess pipe:   0.03s (2097664 bytes captured)

@@ -9,6 +9,8 @@ import time
 # No PTY locks needed - each thread reads from its own PTY fd independently
 # Locks were causing race conditions where threads waited while their process exited
 
+_READ_CHUNK = 4096  # tty line discipline delivers ~4KB per read regardless of ask
+
 
 class OutputSplitter:
     def __init__(
@@ -52,7 +54,7 @@ class OutputSplitter:
     def _read_pty_eio_safe(self, pty_fd: int) -> bytes | None:
         """Read from PTY, treating EIO as EOF (returns None)."""
         try:
-            return os.read(pty_fd, 4096)
+            return os.read(pty_fd, _READ_CHUNK)
         except OSError as e:
             if e.errno == errno.EIO:
                 return None
@@ -131,7 +133,7 @@ class OutputSplitter:
             True if data was handled (or EAGAIN - no data yet), False if EOF/error
         """
         try:
-            data = os.read(pty_fd, 4096)
+            data = os.read(pty_fd, _READ_CHUNK)
             return self._handle_data(data, target, output_list)
         except BlockingIOError:
             return True
