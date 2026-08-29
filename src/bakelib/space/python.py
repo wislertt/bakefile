@@ -105,7 +105,12 @@ class PythonSpace(BaseSpace):
 
     def _uv_version(self) -> tuple[str, str]:
         result = self.ctx.run(
-            "uv version", stream=False, dry_run=False, echo=False, capture_output=True
+            "uv version",
+            stream=False,
+            dry_run=False,
+            echo=False,
+            capture_output=True,
+            clean_capture_output=False,  # parsed as tokens; ANSI stripped manually below
         )
         package_name, version = strip_ansi(result.stdout.strip()).split()
         return package_name, version

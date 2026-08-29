@@ -19,6 +19,7 @@ from rich.text import Text
 from typing_extensions import NotRequired, TypedDict, Unpack
 
 from bake.ui import console, style
+from bake.ui.logger.capsys import strip_ansi
 from bake.ui.run.splitter import OutputSplitter
 from bake.utils.settings import ENV__BAKE_REINVOKED
 
@@ -102,6 +103,7 @@ def _run_with_temp_file(
     check: bool,
     cwd: Path | str | None,
     stream: bool,
+    clean_capture_output: bool = True,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
@@ -176,6 +178,7 @@ def _run_with_temp_file(
             check=check,
             cwd=cwd,
             stream=stream,
+            clean_capture_output=clean_capture_output,
             echo=False,
             echo_cmd=echo_cmd,
             env=env,
@@ -199,6 +202,7 @@ def run(
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
+    clean_capture_output: bool = True,
     shell: bool | None = None,
     echo: bool = True,
     echo_cmd: str | None = None,
@@ -219,6 +223,7 @@ def run(
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
+    clean_capture_output: bool = True,
     shell: bool | None = None,
     echo: bool = True,
     echo_cmd: str | None = None,
@@ -238,6 +243,7 @@ def run(
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
+    clean_capture_output: bool = True,
     shell: bool | None = None,
     echo: bool = True,
     echo_cmd: str | None = None,
@@ -269,6 +275,13 @@ def run(
     stream : bool
         Stream output to terminal in real-time, by default True.
         On Unix, uses PTY to preserve ANSI color codes.
+    clean_capture_output : bool
+        Clean PTY-captured output to the final screen state: strip ANSI
+        codes and collapse ``\\r`` redraw frames to the final frame, by
+        default True. Only applies when ``stream=True`` and
+        ``capture_output=True`` on a PTY (POSIX); pipe captures are always
+        raw regardless. Set False for byte-faithful capture (e.g. session
+        logging or exact round-trips).
     shell : bool | None, optional
         Whether to use shell for command execution, by default None.
         When None (default), auto-detected from command type:
@@ -369,6 +382,7 @@ def run(
             check=check,
             cwd=cwd,
             stream=stream,
+            clean_capture_output=clean_capture_output,
             keep_temp_file=keep_temp_file,
             env=env,
             timeout=timeout,
@@ -391,6 +405,7 @@ def run(
         shell=shell,
         cwd=cwd,
         capture_output=capture_output,
+        clean_capture_output=clean_capture_output,
         env=env,
         timeout=timeout,
         _encoding=_encoding,
@@ -496,10 +511,24 @@ def _check_exit_code(
         raise typer.Exit(result.returncode)
 
 
+def _clean_captured_pty_output(text: str) -> str:
+    # Children draw progress bars on a PTY by rewriting the line (\r frames
+    # wrapped in ANSI colors). The stream passthrough shows the animation, but
+    # the captured text should read like the final screen state: strip ANSI
+    # and keep only the last non-empty \r segment per line. An empty trailing
+    # segment means the child was cut mid-frame - keep the previous one.
+    text = strip_ansi(text)
+    return "\n".join(
+        next((segment for segment in reversed(line.split("\r")) if segment != ""), "")
+        for line in text.split("\n")
+    )
+
+
 def _process_stream_output(
     splitter: OutputSplitter,
     proc: subprocess.Popen,
     cmd: str | list[str] | tuple[str, ...],
+    clean_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     encoding = splitter._encoding or "utf-8"
     stdout = splitter.stdout.decode(encoding, errors="replace")
@@ -507,6 +536,9 @@ def _process_stream_output(
     # Normalize PTY line endings (\r\n -> \n)
     stdout = stdout.replace("\r\n", "\n")
     stderr = stderr.replace("\r\n", "\n")
+    if clean_output:
+        stdout = _clean_captured_pty_output(stdout)
+        stderr = _clean_captured_pty_output(stderr)
 
     return subprocess.CompletedProcess(
         args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
@@ -689,6 +721,7 @@ def _run_with_split(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    clean_capture_output: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
@@ -711,15 +744,32 @@ def _run_with_split(
     with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds):
         try:
             setup.proc.wait(timeout=timeout)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
             _kill_process_tree(setup.proc)
             setup.proc.wait()
             setup.splitter.finalize(setup.threads)
+            if isinstance(exc, subprocess.TimeoutExpired):
+                # Parity with subprocess.run: TimeoutExpired carries whatever
+                # was captured before the kill. bake's capture API is str, so
+                # the partial output is decoded like the capture path.
+                partial = _process_stream_output(
+                    splitter=setup.splitter,
+                    proc=setup.proc,
+                    cmd=cmd,
+                    clean_output=use_pty and clean_capture_output,
+                )
+                exc.output = partial.stdout
+                exc.stderr = partial.stderr  # ty: ignore[invalid-assignment]
             raise
 
     setup.splitter.finalize(setup.threads)
 
-    return _process_stream_output(splitter=setup.splitter, proc=setup.proc, cmd=cmd)
+    return _process_stream_output(
+        splitter=setup.splitter,
+        proc=setup.proc,
+        cmd=cmd,
+        clean_output=use_pty and clean_capture_output,
+    )
 
 
 def _kill_process_tree(proc: subprocess.Popen) -> None:
@@ -819,11 +869,14 @@ def _run_without_split(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    clean_capture_output: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
+    # Pipe captures are always raw; the flag only matters on the PTY split path
+    _ = clean_capture_output
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
     env = _prepare_subprocess_env(env)
 

@@ -250,6 +250,7 @@ class BaseSpace(CleanUtils, Bakebook):
             stream=False,
             echo=False,
             capture_output=True,
+            clean_capture_output=False,  # parsed as JSON below
             dry_run=False,
             check=False,
         )

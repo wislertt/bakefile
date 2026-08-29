@@ -179,6 +179,7 @@ class TestPtyCtty:
             "    winch += 1\n"
             "\n"
             "signal.signal(signal.SIGWINCH, on_winch)\n"
+            'print("child-ready", flush=True)\n'
             "for _ in range(30):  # ~3s window for the harness to resize\n"
             "    time.sleep(0.1)\n"
             'print(f"signals: {winch}", flush=True)\n'
@@ -209,24 +210,28 @@ class TestPtyCtty:
         )
         os.close(sfd)
 
-        time.sleep(1.0)  # let the bake child spawn and install its handler
-        set_size(120, 30)  # resize mid-run, like a terminal emulator would
-
-        deadline = time.time() + 10
+        # Resize only after the child reports its handler is installed - a
+        # fixed sleep races the bake import + Popen on slow machines and the
+        # resize lands before _sigwinch_forwarder exists.
+        deadline = time.time() + 15
         out = b""
+        resized = False
         while time.time() < deadline:
             readable, _, _ = select.select([mfd], [], [], 0.5)
-            if not readable:
-                if proc.poll() is not None:
+            if readable:
+                try:
+                    data = os.read(mfd, 4096)
+                except OSError:
                     break
+                if not data:
+                    break
+                out += data
+            if not resized and b"child-ready" in out:
+                set_size(120, 30)  # resize mid-run, like a terminal emulator would
+                resized = True
                 continue
-            try:
-                data = os.read(mfd, 4096)
-            except OSError:
+            if not readable and proc.poll() is not None:
                 break
-            if not data:
-                break
-            out += data
         proc.wait(timeout=5)
         text = out.decode(errors="replace")
 
@@ -406,20 +411,18 @@ def test_capture_to_logs_pretty_with_extra_parses_correctly(
 def test_run_stream_preserves_colors_with_pty(
     capfd: pytest.CaptureFixture[str],
 ) -> None:
-    """Cross-platform version of ANSI color preservation test using Python."""
+    """With stream=True the PTY keeps colors in the live view; capture is clean text."""
     # Use Python to generate colored output (works on all platforms)
     python_code = """print('\\033[32mGreen text\\033[0m')
 print('\\033[1;34mBlue bold text\\033[0m')
 print('\\033[33mYellow text\\033[0m')"""
     script = [sys.executable, "-c", python_code]
 
-    # With stream=True, PTY should preserve ANSI codes
+    # With stream=True, PTY should preserve ANSI codes in the stream view
     result = run(script, stream=True, capture_output=True)
 
-    # Should contain ANSI color codes
-    assert "[32m" in result.stdout
-    assert "[1;34m" in result.stdout
-    assert "[33m" in result.stdout
+    # Captured output is cleaned of ANSI codes (task 6)
+    assert "[32m" not in result.stdout
     assert "Green text" in result.stdout
     assert "Blue bold text" in result.stdout
     assert "Yellow text" in result.stdout
@@ -472,6 +475,180 @@ def test_run_stderr_is_captured_and_streamed(
         assert "error message" in capture.err
     else:
         assert capture.err == ""
+
+
+class TestPtyCaptureCleanup:
+    pytestmark = pytest.mark.skipif(
+        sys.platform == "win32", reason="PTY capture path is POSIX-only"
+    )
+
+    def _run_capture(self, child_code: str) -> str:
+        result = run(
+            [sys.executable, "-c", child_code],
+            stream=True,
+            capture_output=True,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        return result.stdout
+
+    def test_carriage_return_frames_collapse_to_final_frame(self) -> None:
+        """Progress-bar \r frames collapse to the final frame in captured stdout."""
+        child = r"""
+import sys
+sys.stdout.write("\r[##                  ] 10%")
+sys.stdout.write("\r[####                ] 20%")
+sys.stdout.write("\r[####################] 100%\n")
+sys.stdout.write("DONE\n")
+"""
+        assert self._run_capture(child) == "[####################] 100%\nDONE\n"
+
+    def test_ansi_and_carriage_return_both_cleaned(self) -> None:
+        """ANSI color codes are stripped and \r frames collapsed in captured stdout."""
+        child = r"""
+import sys
+sys.stdout.write("\x1b[32m\r[##  ] 10%\x1b[0m")
+sys.stdout.write("\r\x1b[32m[####] 100%\x1b[0m\n")
+"""
+        assert self._run_capture(child) == "[####] 100%\n"
+
+    def test_mid_line_overwrite_keeps_last_segment(self) -> None:
+        """A bare \r mid-line keeps only the segment after it, per line."""
+        child = r"""
+import sys
+sys.stdout.write("start\n")
+sys.stdout.write("mid\roverwrite\n")
+sys.stdout.write("end\n")
+"""
+        assert self._run_capture(child) == "start\noverwrite\nend\n"
+
+    def test_capture_without_trailing_newline(self) -> None:
+        """Collapsed capture with no trailing newline stays unterminated."""
+        child = r"""
+import sys
+sys.stdout.write("\rfoo\rbar")
+"""
+        assert self._run_capture(child) == "bar"
+
+    def test_trailing_carriage_return_keeps_content(self) -> None:
+        """A final bare \r (truncated frame) keeps the preceding content."""
+        child = r"""
+import sys
+sys.stdout.write("partial\r")
+"""
+        assert self._run_capture(child) == "partial"
+
+    def test_partial_overwrite_keeps_last_segment(self) -> None:
+        """Partial overwrite `abc\\rX` keeps `X` (last-wins; terminal would show `Xbc`)."""
+        child = r"""
+import sys
+sys.stdout.write("abc\rX\n")
+"""
+        assert self._run_capture(child) == "X\n"
+
+    def test_stderr_frames_collapse_too(self) -> None:
+        """stderr runs through its own PTY and gets the same cleanup (tqdm writes there)."""
+        child = r"""
+import sys
+sys.stderr.write("\r[##  ] 10%")
+sys.stderr.write("\r[####] 100%\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=True,
+            capture_output=True,
+            echo=False,
+        )
+        assert isinstance(result.stderr, str)
+        assert result.stderr == "[####] 100%\n"
+
+    def test_timeout_partial_output_collapses_frames(self) -> None:
+        """TimeoutExpired partial output gets the same collapse (truncated frame keeps content)."""
+        child = r"""
+import sys, time
+sys.stdout.write("frame-one\r")
+sys.stdout.flush()
+time.sleep(10)
+"""
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run(
+                [sys.executable, "-c", child],
+                timeout=0.5,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
+        stdout = exc_info.value.stdout
+        assert isinstance(stdout, str)
+        assert stdout == "frame-one"
+
+    def test_explicit_crlf_survives_onlcr_doubling(self) -> None:
+        """Explicit \r\n becomes \r\r\n on the PTY; normalize-then-collapse yields one line."""
+        child = r"""
+import sys
+sys.stdout.write("x\r\n")
+"""
+        assert self._run_capture(child) == "x\n"
+
+    def test_empty_capture_stays_empty(self) -> None:
+        """No output stays the empty string."""
+        child = "pass"
+        assert self._run_capture(child) == ""
+
+    def test_pipe_capture_keeps_literal_carriage_return(self) -> None:
+        """Pipe path (no PTY) must NOT collapse a deliberate literal \r."""
+        child = r"""
+import sys
+sys.stdout.write("a\rb\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=False,
+            capture_output=True,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        assert result.stdout == "a\rb\n"
+
+    def test_clean_capture_output_false_returns_raw_frames(self) -> None:
+        """clean_capture_output=False keeps \r frames and ANSI verbatim in the capture."""
+        child = r"""
+import sys
+sys.stdout.write("\x1b[32m\r[##  ]\x1b[0m")
+sys.stdout.write("\r\x1b[32m[####]\x1b[0m\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=True,
+            capture_output=True,
+            clean_capture_output=False,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        assert result.stdout == "\x1b[32m\r[##  ]\x1b[0m\r\x1b[32m[####]\x1b[0m\n"
+
+    def test_clean_capture_output_false_noop_on_pipe(self) -> None:
+        """clean_capture_output=False with stream=False is a silent no-op (already raw)."""
+        child = r"""
+import sys
+sys.stdout.write("a\rb\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=False,
+            capture_output=True,
+            clean_capture_output=False,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        assert result.stdout == "a\rb\n"
+
+    def test_clean_capture_output_false_noop_without_capture(self) -> None:
+        """clean_capture_output=False without capture_output is a silent no-op."""
+        result = run(["echo", "x"], clean_capture_output=False, echo=False)
+
+        assert result.returncode == 0
+        assert result.stdout is None
 
 
 class TestStringCommand:
@@ -539,11 +716,13 @@ class TestStringCommand:
         content = (tmp_path / "test.txt").read_text()
         assert content.strip() == "test content"
 
-    def test_preserves_colors_with_pty(self) -> None:
+    def test_preserves_colors_with_pty(self, capfd: pytest.CaptureFixture[str]) -> None:
         result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
 
         assert result.returncode == 0
-        assert "[32m" in result.stdout
+        # Stream view keeps the ANSI codes, capture is cleaned (task 6)
+        assert "[32m" in capfd.readouterr().out
+        assert "[32m" not in result.stdout
         assert "Green" in result.stdout
 
     @pytest.mark.parametrize(
@@ -1002,6 +1181,36 @@ class TestTimeout:
         capture = capfd.readouterr()
         # Output should have been streamed before timeout
         assert "before timeout" in capture.out
+
+    def test_timeout_expired_carries_partial_stdout(self) -> None:
+        """TimeoutExpired from the split path includes partial stdout captured before the kill."""
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run(
+                'echo "PARTIAL_START" && sleep 10',
+                timeout=0.5,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
+
+        stdout = exc_info.value.stdout
+        assert isinstance(stdout, str)
+        assert "PARTIAL_START" in stdout
+
+    def test_timeout_expired_carries_partial_stderr(self) -> None:
+        """TimeoutExpired from the split path includes partial stderr captured before the kill."""
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run(
+                'echo "PARTIAL_ERR" >&2 && sleep 10',
+                timeout=0.5,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
+
+        stderr = exc_info.value.stderr
+        assert isinstance(stderr, str)
+        assert "PARTIAL_ERR" in stderr
 
     def test_timeout_kills_process(self) -> None:
         """Timed out process is killed (not left running)."""

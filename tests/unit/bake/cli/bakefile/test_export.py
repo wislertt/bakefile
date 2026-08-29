@@ -177,7 +177,14 @@ class TestExportCli:
         for field in fields:
             upper_field = field.upper()
             cmd = f'eval "$(cat {tmp_sh_path})"; echo "{upper_field}=${{{upper_field}}}"'
-            completed = run(cmd, shell=True, capture_output=True)
+            # Byte-exact capture so values with control characters round-trip
+            completed = run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                stream=False,
+                clean_capture_output=False,
+            )
             assert completed.returncode == 0
             results.append(completed.stdout.strip())
 

@@ -4,11 +4,12 @@
 
 - `src/bake/ui/run/main.py` — all fixes land here
     - `main.py:190-227` overloads, `main.py:233` runtime default `capture_output=False`
-    - `main.py:495-509` `_process_stream_output` (decode + `\r\n` normalize)
+    - `main.py:500-511` `_clean_captured_pty_output` (task 6: strip_ansi + `\r` collapse, last non-empty segment wins)
+    - `main.py:513-536` `_process_stream_output` (decode + `\r\n` normalize + `clean_output=True` cleanup; pipe paths stay raw)
     - `main.py:512-533` `_prepare_subprocess_env` (NO_COLOR gate, FORCE_COLOR, COLUMNS injection)
     - `main.py:540-570` `_get_parent_terminal_size` + `_set_pty_winsize` (task 4)
     - `main.py:572-620` `_setup_pty_stream` (fd-leak guard, winsize set on both masters)
-    - `main.py:623-660` `_run_with_split` (`_sigwinch_forwarder` in with-block, timeout path)
+    - `main.py:687-729` `_run_with_split` (`_sigwinch_forwarder` in with-block, timeout path attaches partial output at `714-725`)
     - `main.py:745-770` `_sigwinch_forwarder` ctx manager
     - `StreamSetup` gained `master_fds: tuple[int, ...] = ()` (pipe path leaves default)
 - `src/bake/ui/run/splitter.py` — OutputSplitter tee threads
@@ -20,6 +21,16 @@
 `stream and capture_output` → `_run_with_split` → PTY pair (POSIX) + splitter
 threads tee raw bytes to terminal + capture lists. `use_pty = non-win32 and
 capture_output` (`main.py:623`). Stream-only / capture-only → pipes.
+
+**Capture semantics since task 6:** stream+capture capture = cleaned final
+screen state (ANSI stripped, `\r` frames collapsed) unless
+`clean_capture_output=False` (byte-faithful PTY capture; silent no-op on pipe
+paths — exposed on `run()`, `run_script`, `run_uv`, per the
+TestSignatureCompatibility contract). Code that parses raw output
+byte-exactly without needing the live stream can also use `stream=False`
+(pipe capture, raw — but child loses tty). Full-suite catch 2026-08-29: test
+helper `get_str_from_inline_env` round-tripped a literal `\r` through
+stream+capture → collapsed to last segment → switched to `stream=False`.
 
 ## Demo ↔ issue map
 
