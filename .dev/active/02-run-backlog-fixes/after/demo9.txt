@@ -1,0 +1,8 @@
+
+===== SIGTERM to bake: children orphaned =====
+outer returncode: -15
+sleep still running after SIGTERM: True
+
+===== SIGINT to bake: _sigint_guard kills the tree =====
+outer returncode: 130
+sleep still running after SIGINT: False

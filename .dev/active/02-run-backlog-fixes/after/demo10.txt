@@ -1,0 +1,11 @@
+
+===== bake: failed spawn must not leak PTY fds =====
+fds: 4 -> 4 (delta 0)
+✅ [SUCCESS] FIXED: failed spawns leak no fds (delta 0)
+
+===== successful runs close everything =====
+ok
+ok
+ok
+fds: 4 -> 4 (delta 0)
+✅ [SUCCESS] FIXED: successful runs leak no fds (delta 0)

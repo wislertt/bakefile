@@ -1,0 +1,5 @@
+
+===== throughput: 16MB fast output, PTY tee vs plain pipe (median of 3) =====
+bake PTY stream+capture: 0.35s (49 MB/s)
+plain pipe subprocess:   0.04s (387 MB/s)
+ratio PTY/pipe: 7.98x (target <= 1.5x)

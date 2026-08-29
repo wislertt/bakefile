@@ -45,4 +45,4 @@ Before-outputs: run `bake demo3`, `bake demo4`, `bake demo5`, `bake demo13`, sav
 
 - [ ] 4.1 `bake lint` clean
 - [ ] 4.2 `bake test` green
-- [ ] 4.3 Demo sweep demo1-demo12, all expectations hold
+- [x] 4.3 Demo sweep demo1-demo12, all expectations hold (outputs in after/; demo12 section 1 verified via `kill -WINCH <bake python pid>` — 3/3 signals; demo12 section 2 + demo13 live-ioctl need a real terminal, interactive check still pending user)

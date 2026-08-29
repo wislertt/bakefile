@@ -1,0 +1,10 @@
+
+===== bake: grandchild output after main proc exit is captured =====
+main child done, grandchild prints 1.5s later
+LATE OUTPUT FROM GRANDCHILD
+captured: 'main child done, grandchild prints 1.5s later\nLATE OUTPUT FROM GRANDCHILD\n'
+LATE OUTPUT present in capture: True
+
+===== plain subprocess waits for pipe EOF, captures it =====
+plain captured: b'main child done, grandchild prints 1.5s later\nLATE OUTPUT FROM GRANDCHILD\n'
+LATE OUTPUT present in capture: True

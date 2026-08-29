@@ -1,0 +1,8 @@
+
+===== user sets NO_COLOR=1: bake must not inject FORCE_COLOR =====
+PLAIN
+captured: 'PLAIN\n'
+✅ [SUCCESS] FIXED: NO_COLOR beats injected FORCE_COLOR (child prints PLAIN)
+
+===== plain subprocess honors NO_COLOR =====
+captured: b'PLAIN\n'

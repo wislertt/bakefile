@@ -1,0 +1,90 @@
+
+===== 1. bake: RESIZE TERMINAL NOW (~4s) =====
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+80c
+[child] SIGWINCH signals: 3
+child SIGWINCH signals under bake: 3
+(width lines above should have tracked your resize)
+✅ [SUCCESS] FIXED: child receives SIGWINCH under bake (resize forwarded via killpg)
+
+===== 2. plain subprocess: RESIZE TERMINAL NOW (~4s) =====
+width lines track resize AND signal count goes up on each resize
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+0c
+[child] SIGWINCH signals: 0

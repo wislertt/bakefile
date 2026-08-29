@@ -1,0 +1,7 @@
+
+===== bake: TimeoutExpired discards partial output =====
+START
+exc.stdout: 'START\n'
+
+===== plain subprocess: TimeoutExpired carries partial output =====
+exc.stdout: b'START\n'

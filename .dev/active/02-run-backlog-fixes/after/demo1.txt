@@ -1,0 +1,202 @@
+
+===== 1. stream + capture, honest child (PTY, ioctl-sized frames) =====
+[child] raw ws_col: 80
+[child] ioctl width: 80
+[####                                                                   ] 6%
+speed 5 MB/s
+resolved 1/15 packages
+[3A[########                                                               ] 13%
+speed 6 MB/s
+resolved 2/15 packages
+[3A[#############                                                          ] 20%
+speed 7 MB/s
+resolved 3/15 packages
+[3A[#################                                                      ] 26%
+speed 8 MB/s
+resolved 4/15 packages
+[3A[######################                                                 ] 33%
+speed 9 MB/s
+resolved 5/15 packages
+[3A[###########################                                            ] 40%
+speed 10 MB/s
+resolved 6/15 packages
+[3A[###############################                                        ] 46%
+speed 11 MB/s
+resolved 7/15 packages
+[3A[####################################                                   ] 53%
+speed 12 MB/s
+resolved 8/15 packages
+[3A[########################################                               ] 60%
+speed 13 MB/s
+resolved 9/15 packages
+[3A[############################################                           ] 66%
+speed 14 MB/s
+resolved 10/15 packages
+[3A[#################################################                      ] 73%
+speed 15 MB/s
+resolved 11/15 packages
+[3A[######################################################                 ] 80%
+speed 16 MB/s
+resolved 12/15 packages
+[3A[##########################################################             ] 86%
+speed 17 MB/s
+resolved 13/15 packages
+[3A[###############################################################        ] 93%
+speed 18 MB/s
+resolved 14/15 packages
+[3A[####################################################################   ] 100%
+speed 19 MB/s
+resolved 15/15 packages
+DONE
+captured splitlines: 48
+note: capture keeps every redraw frame - cleaned up in task 6
+
+===== 2. stream only, honest child (pipe, not a tty -> 80 fallback) =====
+[child] ioctl width: 80
+[####                                                                   ] 6%
+speed 5 MB/s
+resolved 1/15 packages
+[3A[########                                                               ] 13%
+speed 6 MB/s
+resolved 2/15 packages
+[3A[#############                                                          ] 20%
+speed 7 MB/s
+resolved 3/15 packages
+[3A[#################                                                      ] 26%
+speed 8 MB/s
+resolved 4/15 packages
+[3A[######################                                                 ] 33%
+speed 9 MB/s
+resolved 5/15 packages
+[3A[###########################                                            ] 40%
+speed 10 MB/s
+resolved 6/15 packages
+[3A[###############################                                        ] 46%
+speed 11 MB/s
+resolved 7/15 packages
+[3A[####################################                                   ] 53%
+speed 12 MB/s
+resolved 8/15 packages
+[3A[########################################                               ] 60%
+speed 13 MB/s
+resolved 9/15 packages
+[3A[############################################                           ] 66%
+speed 14 MB/s
+resolved 10/15 packages
+[3A[#################################################                      ] 73%
+speed 15 MB/s
+resolved 11/15 packages
+[3A[######################################################                 ] 80%
+speed 16 MB/s
+resolved 12/15 packages
+[3A[##########################################################             ] 86%
+speed 17 MB/s
+resolved 13/15 packages
+[3A[###############################################################        ] 93%
+speed 18 MB/s
+resolved 14/15 packages
+[3A[####################################################################   ] 100%
+speed 19 MB/s
+resolved 15/15 packages
+DONE
+
+===== 3. honest child via PTY: bake passes real winsize =====
+[child] raw ws_col: 80
+[child] ioctl width: 80
+[####                                                                   ] 6%
+speed 5 MB/s
+resolved 1/15 packages
+[3A[########                                                               ] 13%
+speed 6 MB/s
+resolved 2/15 packages
+[3A[#############                                                          ] 20%
+speed 7 MB/s
+resolved 3/15 packages
+[3A[#################                                                      ] 26%
+speed 8 MB/s
+resolved 4/15 packages
+[3A[######################                                                 ] 33%
+speed 9 MB/s
+resolved 5/15 packages
+[3A[###########################                                            ] 40%
+speed 10 MB/s
+resolved 6/15 packages
+[3A[###############################                                        ] 46%
+speed 11 MB/s
+resolved 7/15 packages
+[3A[####################################                                   ] 53%
+speed 12 MB/s
+resolved 8/15 packages
+[3A[########################################                               ] 60%
+speed 13 MB/s
+resolved 9/15 packages
+[3A[############################################                           ] 66%
+speed 14 MB/s
+resolved 10/15 packages
+[3A[#################################################                      ] 73%
+speed 15 MB/s
+resolved 11/15 packages
+[3A[######################################################                 ] 80%
+speed 16 MB/s
+resolved 12/15 packages
+[3A[##########################################################             ] 86%
+speed 17 MB/s
+resolved 13/15 packages
+[3A[###############################################################        ] 93%
+speed 18 MB/s
+resolved 14/15 packages
+[3A[####################################################################   ] 100%
+speed 19 MB/s
+resolved 15/15 packages
+DONE
+✅ [SUCCESS] FIXED: honest child sees nonzero PTY winsize (raw ws_col=80)
+
+===== 4. contrast: over-drawing child garbles with NO bake (child bug) =====
+[parent] COLUMNS env: None
+[child] drawing 110 cols wide, 3-row frames, cursor-up 3
+[#####                                                                                                ] 6%
+speed 5 MB/s
+resolved 1/15 packages
+[3A[############                                                                                         ] 13%
+speed 6 MB/s
+resolved 2/15 packages
+[3A[###################                                                                                  ] 20%
+speed 7 MB/s
+resolved 3/15 packages
+[3A[#########################                                                                            ] 26%
+speed 8 MB/s
+resolved 4/15 packages
+[3A[################################                                                                     ] 33%
+speed 9 MB/s
+resolved 5/15 packages
+[3A[#######################################                                                              ] 40%
+speed 10 MB/s
+resolved 6/15 packages
+[3A[#############################################                                                        ] 46%
+speed 11 MB/s
+resolved 7/15 packages
+[3A[###################################################                                                  ] 53%
+speed 12 MB/s
+resolved 8/15 packages
+[3A[##########################################################                                           ] 60%
+speed 13 MB/s
+resolved 9/15 packages
+[3A[################################################################                                     ] 66%
+speed 14 MB/s
+resolved 10/15 packages
+[3A[#######################################################################                              ] 73%
+speed 15 MB/s
+resolved 11/15 packages
+[3A[##############################################################################                       ] 80%
+speed 16 MB/s
+resolved 12/15 packages
+[3A[####################################################################################                 ] 86%
+speed 17 MB/s
+resolved 13/15 packages
+[3A[###########################################################################################          ] 93%
+speed 18 MB/s
+resolved 14/15 packages
+[3A[##################################################################################################   ] 100%
+speed 19 MB/s
+resolved 15/15 packages
+DONE

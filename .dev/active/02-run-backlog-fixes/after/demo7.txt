@@ -1,0 +1,9 @@
+
+===== omitted capture_output: runtime stdout must be None and ty must reject str use =====
+hi
+runtime stdout: None
+
+===== probe with ty: omitted arg passes bad annotation, explicit fails =====
+probe A_omitted: rejected (honest)
+probe B_explicit_false: rejected (honest)
+✅ [SUCCESS] FIXED: omitted capture_output gives stdout None and ty rejects str use

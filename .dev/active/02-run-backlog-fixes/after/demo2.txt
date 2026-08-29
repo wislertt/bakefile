@@ -1,0 +1,25 @@
+
+===== 1. stream + capture (PTY tee) =====
+[child] isatty=True ioctl_winsize=80x24 fallback=80x24
+[K[##                  ] [31m10%[0m[K[####                ] [31m20%[0m[K[######              ] [31m30%[0m[K[########            ] [31m40%[0m[K[##########          ] [31m50%[0m[K[############        ] [31m60%[0m[K[##############      ] [31m70%[0m[K[################    ] [31m80%[0m[K[##################  ] [31m90%[0m[K[####################] [31m100%[0m
+DONE
+captured: '[child] isatty=True ioctl_winsize=80x24 fallback=80x24\n[####################] 100%\nDONE\n'
+✅ [SUCCESS] FIXED: PTY carries real winsize to child (ioctl_winsize=80x24)
+
+===== 2. stream only (inherit real tty) =====
+[child] isatty=False ioctl_winsize=ioctl-failed fallback=80x24
+progress 10%
+progress 20%
+progress 30%
+progress 40%
+progress 50%
+progress 60%
+progress 70%
+progress 80%
+progress 90%
+progress 100%
+DONE
+captured: None
+
+===== 3. capture only (pipe) =====
+captured: '[child] isatty=False ioctl_winsize=ioctl-failed fallback=80x24\nprogress 10%\nprogress 20%\nprogress 30%\nprogress 40%\nprogress 50%\nprogress 60%\nprogress 70%\nprogress 80%\nprogress 90%\nprogress 100%\nDONE\n'

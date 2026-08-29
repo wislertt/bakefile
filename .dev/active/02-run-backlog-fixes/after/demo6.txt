@@ -1,0 +1,6 @@
+
+===== ANSI forced through even when bake output is piped (CI) =====
+[31mRED LINE[0m
+captured repr: 'RED LINE\n'
+bake stdout isatty: False
+plain subprocess repr: b'RED LINE (plain)\n'

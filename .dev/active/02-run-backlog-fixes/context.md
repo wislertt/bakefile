@@ -9,7 +9,7 @@
     - `main.py:~670` `_run_with_split` (drain giveup for demo3 lives in splitter finalize path)
     - `main.py:~867` `_run_without_split` (pipe decode site for demo4)
 - `src/bake/ui/run/splitter.py` — OutputSplitter tee threads + `finalize()` (demo3 drain giveup, demo5 read loop)
-- `bakefile.py` — demo suite `demo1`-`demo13` (`bake demoN` reproduces each; demo13 = pipe-path resize gap)
+- `bakefile.py` — demo suite `demo1`-`demo13` (`bake demoN` reproduced each; demo13 = pipe-path resize gap). Demos REMOVED after wrap-up sweep — all contracts pinned by test_run.py, demo outputs archived in `before/` + `after/`
 - `tests/unit/bake/ui/run/test_run.py` — run() test home (TestPtyCaptureCleanup, TestTimeout, TestPtyCtty patterns)
 
 ## How run() modes work (carried from 01)
