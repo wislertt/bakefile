@@ -191,7 +191,7 @@ def _run_with_temp_file(
 def run(
     cmd: CmdType,
     *,
-    capture_output: Literal[True] = True,
+    capture_output: Literal[True],
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
@@ -211,7 +211,7 @@ def run(
 def run(
     cmd: CmdType,
     *,
-    capture_output: Literal[False],
+    capture_output: Literal[False] = False,
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
@@ -552,16 +552,23 @@ def _setup_pty_stream(
         stderr_fd, slave_stderr = pty.openpty()
 
         env = _prepare_subprocess_env(env)
-        proc = subprocess.Popen(
-            cmd,
-            cwd=cwd,
-            stdout=slave_stdout,
-            stderr=slave_stderr,
-            shell=shell,
-            env=env,
-            start_new_session=True,
-            **kwargs,
-        )
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdout=slave_stdout,
+                stderr=slave_stderr,
+                shell=shell,
+                env=env,
+                start_new_session=True,
+                **kwargs,
+            )
+        except BaseException:
+            # Popen failed before owning the PTY fds; close all four or they leak
+            for fd in (stdout_fd, stderr_fd, slave_stdout, slave_stderr):
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            raise
         os.close(slave_stdout)
         os.close(slave_stderr)
 

@@ -61,6 +61,27 @@ def test_run_capture_false_returns_none_stdout_stderr() -> None:
     assert result.stderr is None
 
 
+def test_run_capture_omitted_returns_none_stdout_stderr() -> None:
+    result = run(["echo", "hello"])
+
+    assert result.returncode == 0
+    assert result.stdout is None
+    assert result.stderr is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PTY fds are POSIX-only")
+def test_run_failed_spawn_does_not_leak_pty_fds() -> None:
+    def fd_count() -> int:
+        return len(os.listdir("/dev/fd"))
+
+    before = fd_count()
+    for _ in range(3):
+        with contextlib.suppress(FileNotFoundError):
+            run(["bake-nonexistent-cmd-xyz"], capture_output=True, echo=False)
+
+    assert fd_count() == before
+
+
 @flaky_on_macos_ci()
 def test_run_with_cwd(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
