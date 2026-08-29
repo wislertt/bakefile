@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -172,7 +173,7 @@ import fcntl, shutil, struct, sys, termios, time
 def winsize():
     try:
         ws = fcntl.ioctl(1, termios.TIOCGWINSZ, b"\x00" * 8)
-        cols, rows, _, _ = struct.unpack("HHHH", ws)
+        rows, cols, _, _ = struct.unpack("HHHH", ws)
         return f"{cols}x{rows}"
     except OSError:
         return "ioctl-failed"
@@ -238,8 +239,11 @@ import fcntl, struct, sys, termios, time
 
 try:
     ws = fcntl.ioctl(1, termios.TIOCGWINSZ, b"\x00" * 8)
-    width = struct.unpack("HHHH", ws)[0] or 80
+    raw_ws_col = struct.unpack("HHHH", ws)[1]
+    print(f"[child] raw ws_col: {raw_ws_col}")
+    width = raw_ws_col or 80
 except OSError:
+    raw_ws_col = -1
     width = 80
 print(f"[child] ioctl width: {width}")
 sys.stdout.flush()
@@ -262,17 +266,21 @@ sys.stdout.write("DONE\n")
 
 @bakebook.command()
 def demo1():
-    _demo_section("1. stream + capture, multi-line redraw, width overdraw")
-    result = run([sys.executable, "-c", _STREAM_BREAK_CHILD], capture_output=True, echo=False)
+    _demo_section("1. stream + capture, honest child (PTY, ioctl-sized frames)")
+    result = run([sys.executable, "-c", _HONEST_WIDTH_CHILD], capture_output=True, echo=False)
     console.echo(f"captured splitlines: {len(result.stdout.splitlines())}", markup=False)
+    console.echo("note: capture keeps every redraw frame - cleaned up in task 6", markup=False)
 
-    _demo_section("2. stream only, SAME over-drawing child")
-    run([sys.executable, "-c", _STREAM_BREAK_CHILD], capture_output=False, echo=False)
-
-    _demo_section("3. stream only, honest child (ioctl-sized frames)")
+    _demo_section("2. stream only, honest child (pipe, not a tty -> 80 fallback)")
     run([sys.executable, "-c", _HONEST_WIDTH_CHILD], capture_output=False, echo=False)
 
-    _demo_section("4. plain subprocess (no bake), same over-drawing child")
+    _demo_section("3. honest child via PTY: bake passes real winsize")
+    probed = run([sys.executable, "-c", _HONEST_WIDTH_CHILD], capture_output=True, echo=False)
+    match = re.search(r"raw ws_col: (-?\d+)", probed.stdout)
+    raw_ws_col = int(match.group(1)) if match else 0
+    _demo_status(raw_ws_col > 0, f"honest child sees nonzero PTY winsize (raw ws_col={raw_ws_col})")
+
+    _demo_section("4. contrast: over-drawing child garbles with NO bake (child bug)")
     console.echo(f"[parent] COLUMNS env: {os.environ.get('COLUMNS')!r}", markup=False)
     subprocess.run([sys.executable, "-c", _STREAM_BREAK_CHILD], check=True)
 
@@ -282,6 +290,12 @@ def demo2():
     _demo_section("1. stream + capture (PTY tee)")
     result = run([sys.executable, "-c", _DEMO_CHILD], capture_output=True, echo=False)
     console.echo(f"captured: {strip_ansi(result.stdout)!r}", markup=False)
+    match = re.search(r"ioctl_winsize=(\S+)", result.stdout)
+    ws = match.group(1) if match else "?"
+    _demo_status(
+        ws not in ("0x0", "ioctl-failed", "?"),
+        f"PTY carries real winsize to child (ioctl_winsize={ws})",
+    )
 
     _demo_section("2. stream only (inherit real tty)")
     result = run([sys.executable, "-c", _DEMO_CHILD], capture_output=False, echo=False)
@@ -567,3 +581,50 @@ def demo11():
         check=False,
     )
     console.echo(f"captured: {plain.stdout!r}", markup=False)
+
+
+# demo12: resize the terminal mid-run. bake DOES propagate the new size to the
+# PTY (polling children see it), but bake children run start_new_session=True
+# without a controlling terminal, so the kernel never delivers SIGWINCH to the
+# child itself. Signal-reactive children stay stale under bake. A plain
+# subprocess child sits in the foreground process group and does get the signal.
+_RESIZE_CHILD = r"""
+import fcntl, signal, struct, sys, termios, time
+
+def width():
+    try:
+        return struct.unpack("HHHH", fcntl.ioctl(1, termios.TIOCGWINSZ, b"\x00" * 8))[1] or 80
+    except OSError:
+        return 0
+
+winch = 0
+
+def on_winch(signum, frame):
+    global winch
+    winch += 1
+
+signal.signal(signal.SIGWINCH, on_winch)
+
+for _ in range(40):  # ~4s, one width report per 0.1s - resize and watch
+    print(f"{width()}c", flush=True)
+    time.sleep(0.1)
+print(f"[child] SIGWINCH signals: {winch}", flush=True)
+"""
+
+
+@bakebook.command()
+def demo12():
+    _demo_section("1. bake: RESIZE TERMINAL NOW (~4s)")
+    result = run([sys.executable, "-c", _RESIZE_CHILD], capture_output=True, echo=False)
+    match = re.search(r"SIGWINCH signals: (\d+)", result.stdout)
+    winch_count = int(match.group(1)) if match else 0
+    console.echo(f"child SIGWINCH signals under bake: {winch_count}")
+    console.echo("(width lines above should have tracked your resize)")
+    _demo_status(
+        winch_count > 0,
+        "child receives SIGWINCH under bake (controlling terminal acquired)",
+    )
+
+    _demo_section("2. plain subprocess: RESIZE TERMINAL NOW (~4s)")
+    console.echo("width lines track resize AND signal count goes up on each resize")
+    subprocess.run([sys.executable, "-c", _RESIZE_CHILD], check=False)

@@ -35,12 +35,16 @@ logger = logging.getLogger(__name__)
 # See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
 _subprocess_create_lock = threading.Lock()
 
+# TIOCSCTTY is not exposed by the termios module; per-platform request codes
+_TIOCSCTTY = {"darwin": 0x20007461, "linux": 0x540E}
+
 
 @dataclass(frozen=True, slots=True)
 class StreamSetup:
     proc: subprocess.Popen
     splitter: OutputSplitter
     threads: list
+    master_fds: tuple[int, ...] = ()
 
 
 def _parse_shebang(script: str) -> str | None:
@@ -536,6 +540,39 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
     return merged_env
 
 
+def _get_parent_terminal_size() -> tuple[int, int] | None:
+    # Real window size via TIOCGWINSZ on our std streams. Unlike
+    # os.get_terminal_size() this never consults COLUMNS/LINES env, so
+    # children see the true window size instead of a stale env value.
+    import fcntl
+    import struct
+    import termios
+
+    for stream in (sys.stdout, sys.stderr, sys.stdin):
+        try:
+            fd = stream.fileno()
+            ws = fcntl.ioctl(fd, termios.TIOCGWINSZ, b"\x00" * 8)
+        except (OSError, ValueError, AttributeError):
+            continue
+        # struct winsize is (ws_row, ws_col, ws_xpixel, ws_ypixel)
+        rows, cols = struct.unpack("HHHH", ws)[:2]
+        if cols and rows:
+            return cols, rows
+    return None
+
+
+def _set_pty_winsize(fd: int, size: tuple[int, int]) -> None:
+    import fcntl
+    import struct
+    import termios
+
+    # struct winsize is (ws_row, ws_col, ws_xpixel, ws_ypixel)
+    cols, rows = size
+    winsize = struct.pack("HHHH", rows, cols, 0, 0)
+    with contextlib.suppress(OSError):
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+
+
 def _setup_pty_stream(
     cmd: str | list[str] | tuple[str, ...],
     shell: bool,
@@ -554,7 +591,32 @@ def _setup_pty_stream(
         # our thread which writes to sys.stderr (allows pytest to capture it)
         stderr_fd, slave_stderr = pty.openpty()
 
+        # Children size their output from the PTY winsize; without this a fresh
+        # PTY reports 0x0 and polite children fall back to hard-coded 80x24
+        winsize = _get_parent_terminal_size()
+        if winsize is None:
+            fallback = shutil.get_terminal_size()
+            winsize = (fallback.columns, fallback.lines)
+        _set_pty_winsize(stdout_fd, winsize)
+        _set_pty_winsize(stderr_fd, winsize)
+
         env = _prepare_subprocess_env(env)
+        user_preexec: Callable[[], Any] | None = kwargs.get("preexec_fn")
+
+        def _acquire_ctty_preexec() -> None:
+            # Runs in the child after setsid (start_new_session=True): adopt the
+            # PTY slave as controlling terminal so the kernel can deliver SIGWINCH
+            # (resize) and SIGHUP (master close) to the child instead of nobody.
+            # Same pattern as stdlib pty.fork().
+            import fcntl
+
+            request = _TIOCSCTTY.get(sys.platform)
+            if request is not None:
+                fcntl.ioctl(slave_stdout, request, 0)
+            if user_preexec is not None:
+                user_preexec()
+
+        kwargs["preexec_fn"] = _acquire_ctty_preexec
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -586,7 +648,9 @@ def _setup_pty_stream(
     )
     threads = splitter.attach(proc)
 
-    return StreamSetup(proc=proc, splitter=splitter, threads=threads)
+    return StreamSetup(
+        proc=proc, splitter=splitter, threads=threads, master_fds=(stdout_fd, stderr_fd)
+    )
 
 
 def _setup_pipe_stream(
@@ -644,7 +708,7 @@ def _run_with_split(
         **kwargs,
     )
 
-    with _sigint_guard(setup.proc):
+    with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds):
         try:
             setup.proc.wait(timeout=timeout)
         except (subprocess.TimeoutExpired, KeyboardInterrupt):
@@ -698,6 +762,32 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
             os.killpg(pgid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             proc.kill()
+
+
+@contextlib.contextmanager
+def _sigwinch_forwarder(master_fds: tuple[int, ...]):
+    # Forward parent window resizes onto the child PTYs while the proc runs,
+    # so children that react to SIGWINCH redraw at the new width
+    def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
+        _ = signum, frame
+        size = _get_parent_terminal_size()
+        if size is not None:
+            for fd in master_fds:
+                _set_pty_winsize(fd, size)
+
+    if (
+        not master_fds
+        or not hasattr(signal, "SIGWINCH")
+        or threading.current_thread() is not threading.main_thread()
+    ):
+        yield
+        return
+
+    old_handler = signal.signal(signal.SIGWINCH, _on_sigwinch)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGWINCH, old_handler)
 
 
 @contextlib.contextmanager

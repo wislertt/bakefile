@@ -1,12 +1,19 @@
 import contextlib
+import fcntl
 import inspect
 import logging
 import os
+import pty
+import re
+import select
 import signal
+import struct
 import subprocess
 import sys
+import termios
+import time
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest import mock
 
 import pytest
@@ -80,6 +87,152 @@ def test_run_failed_spawn_does_not_leak_pty_fds() -> None:
             run(["bake-nonexistent-cmd-xyz"], capture_output=True, echo=False)
 
     assert fd_count() == before
+
+
+_WINSIZE_CHILD = r"""
+import fcntl, struct, sys, termios
+
+ws = fcntl.ioctl(1, termios.TIOCGWINSZ, b"\x00" * 8)
+rows, cols = struct.unpack("HHHH", ws)[:2]
+print(f"{cols}x{rows}")
+"""
+
+
+class TestPtyWinsize:
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY winsize is POSIX-only")
+
+    def test_pty_gets_parent_terminal_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # struct winsize is (ws_row, ws_col, ...): 100 cols, 30 rows
+        parent_ws = struct.pack("HHHH", 30, 100, 0, 0)
+        real_ioctl = fcntl.ioctl
+
+        def fake_ioctl(fd: int, request: int, buf: Any = None) -> Any:
+            if request == termios.TIOCGWINSZ:
+                return parent_ws
+            if buf is None:
+                return real_ioctl(fd, request)
+            return real_ioctl(fd, request, buf)
+
+        monkeypatch.setattr(fcntl, "ioctl", fake_ioctl)
+
+        result = run([sys.executable, "-c", _WINSIZE_CHILD], capture_output=True, echo=False)
+
+        assert "100x30" in result.stdout
+
+    def test_pty_falls_back_to_env_when_parent_not_a_tty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real_ioctl = fcntl.ioctl
+
+        def fake_ioctl(fd: int, request: int, buf: Any = None) -> Any:
+            if request == termios.TIOCGWINSZ:
+                raise OSError("not a tty")
+            if buf is None:
+                return real_ioctl(fd, request)
+            return real_ioctl(fd, request, buf)
+
+        monkeypatch.setattr(fcntl, "ioctl", fake_ioctl)
+        monkeypatch.setenv("COLUMNS", "123")
+        monkeypatch.setenv("LINES", "45")
+
+        result = run([sys.executable, "-c", _WINSIZE_CHILD], capture_output=True, echo=False)
+
+        assert "123x45" in result.stdout
+
+
+_CTTY_CHILD = r"""
+import os
+
+try:
+    fg = os.tcgetpgrp(1)
+    print(f"fg == own pgrp: {fg == os.getpgrp()}")
+except OSError as e:
+    print(f"no controlling terminal: {e}")
+"""
+
+
+class TestPtyCtty:
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="ctty is POSIX-only")
+
+    def test_pty_child_gets_controlling_terminal(self) -> None:
+        result = run([sys.executable, "-c", _CTTY_CHILD], capture_output=True, echo=False)
+
+        assert "fg == own pgrp: True" in result.stdout
+
+    def test_resize_mid_run_delivers_sigwinch_to_child(self, tmp_path: Path) -> None:
+        request = main._TIOCSCTTY.get(sys.platform)
+        if request is None:
+            pytest.skip(f"no TIOCSCTTY constant for {sys.platform}")
+        outer = tmp_path / "outer.py"
+        outer.write_text(
+            "import sys\n"
+            "\n"
+            "from bake.ui import run\n"
+            "\n"
+            'CHILD = r"""\n'
+            "import signal, time\n"
+            "\n"
+            "winch = 0\n"
+            "\n"
+            "def on_winch(signum, frame):\n"
+            "    global winch\n"
+            "    winch += 1\n"
+            "\n"
+            "signal.signal(signal.SIGWINCH, on_winch)\n"
+            "for _ in range(30):  # ~3s window for the harness to resize\n"
+            "    time.sleep(0.1)\n"
+            'print(f"signals: {winch}", flush=True)\n'
+            '"""\n'
+            "\n"
+            "result = run([sys.executable, '-c', CHILD], capture_output=True, echo=False)\n"
+            "sys.stdout.write(result.stdout)\n"
+        )
+
+        mfd, sfd = pty.openpty()
+
+        def set_size(cols: int, rows: int) -> None:
+            winsize = struct.pack("HHHH", rows, cols, 0, 0)
+            fcntl.ioctl(mfd, termios.TIOCSWINSZ, winsize)
+
+        set_size(80, 24)
+
+        def make_session_leader_with_ctty() -> None:
+            os.setsid()
+            fcntl.ioctl(sfd, request, 0)
+
+        proc = subprocess.Popen(
+            [sys.executable, str(outer)],
+            stdin=sfd,
+            stdout=sfd,
+            stderr=sfd,
+            preexec_fn=make_session_leader_with_ctty,
+        )
+        os.close(sfd)
+
+        time.sleep(1.0)  # let the bake child spawn and install its handler
+        set_size(120, 30)  # resize mid-run, like a terminal emulator would
+
+        deadline = time.time() + 10
+        out = b""
+        while time.time() < deadline:
+            readable, _, _ = select.select([mfd], [], [], 0.5)
+            if not readable:
+                if proc.poll() is not None:
+                    break
+                continue
+            try:
+                data = os.read(mfd, 4096)
+            except OSError:
+                break
+            if not data:
+                break
+            out += data
+        proc.wait(timeout=5)
+        text = out.decode(errors="replace")
+
+        match = re.search(r"signals: (\d+)", text)
+        assert match is not None, f"no signal report in outer output: {text!r}"
+        assert int(match.group(1)) > 0
 
 
 @flaky_on_macos_ci()
@@ -972,8 +1125,11 @@ class TestPrepareSubprocessEnv:
         # System defaults should still be present
         assert "UV_NO_PROGRESS" in env
 
-    def test_no_color_suppresses_color_forcing(self) -> None:
+    def test_no_color_suppresses_color_forcing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """NO_COLOR in env prevents FORCE_COLOR/CLICOLOR_FORCE injection."""
+        # Hermetic: ambient shells (e.g. Claude Code) may export these already
+        monkeypatch.delenv("FORCE_COLOR", raising=False)
+        monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
         from bake.ui.run.main import _prepare_subprocess_env
 
         env = _prepare_subprocess_env(env={"NO_COLOR": "1"})
