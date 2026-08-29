@@ -3,8 +3,8 @@ from pathlib import Path
 
 import zerv
 
-from bake import params
 from bake.ui.logger import strip_ansi
+from bakelib import _params as params
 
 from .base import BaseSpace
 from .utils import VENV_BIN

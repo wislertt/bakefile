@@ -18,12 +18,11 @@ from bake import (
     ParallelCliTaskRunner,
     command,
     console,
-    params,
     spawn_env,
     strip_ansi,
 )
 from bake.ui import run
-from bakelib import GitHubActionsTools, PythonLibSpace
+from bakelib import GitHubActionsTools, PythonLibSpace, params
 from scripts.locked_pins import (
     PYPROJECT_PATH,
     UV_LOCK_PATH,

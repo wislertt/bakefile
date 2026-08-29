@@ -3,7 +3,7 @@ from typing import Annotated
 import typer
 
 from bake.bakebook.bakebook import BakeLogVerbosityField
-from bake.ui.params import DurationsOption, VerboseBoolOption
+from bake.ui.params import VerboseBoolOption
 
 
 def fast_option(help: str = "Skip steps (repeat to skip more)"):
@@ -21,7 +21,6 @@ FastBoolOption = Annotated[bool, fast_bool_option()]
 
 __all__ = [
     "BakeLogVerbosityField",
-    "DurationsOption",
     "FastBoolOption",
     "FastOption",
     "VerboseBoolOption",

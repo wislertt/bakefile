@@ -1,5 +1,5 @@
-from bake import command, console, params
-from bakelib import PythonSpace
+from bake import command, console
+from bakelib import PythonSpace, params
 
 
 class MyBakebook(PythonSpace):
