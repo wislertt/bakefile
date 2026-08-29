@@ -94,8 +94,7 @@ class PopenKwargs(TypedDict):
     pipesize: NotRequired[int]
 
 
-# Stdlib-registered decode error handlers (bytes.decode "errors" values);
-# custom codecs.register_error names are intentionally out of scope
+# Stdlib decode error handlers only; custom codecs.register_error names are out of scope
 DecodeErrors = Literal[
     "strict",
     "ignore",
@@ -548,8 +547,7 @@ def _check_exit_code(
 
 
 def _clean_captured_pty_output(text: str) -> str:
-    # Capture should read like the final screen state: strip ANSI, keep the
-    # last non-empty \r segment per line (empty = cut mid-frame, keep previous)
+    # Final screen state: keep the last non-empty \r segment per line (empty = cut mid-frame)
     text = strip_ansi(text)
     return "\n".join(
         next((segment for segment in reversed(line.split("\r")) if segment != ""), "")
@@ -597,9 +595,7 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
     merged_env.setdefault("PIP_PROGRESS_BAR", "off")  # pip
     merged_env.setdefault("CARGO_TERM_PROGRESS_WHEN", "never")  # cargo
 
-    # Children inheriting a real tty read the live size via ioctl; a frozen
-    # COLUMNS/LINES would shadow it (shutil prefers env over ioctl). Children
-    # on pipes have no tty to ask, so they get the parent's best size guess.
+    # COLUMNS/LINES would shadow tty children's live ioctl size; pipe children have no tty to ask
     if not sys.stdout.isatty():
         size = _get_parent_terminal_size() if sys.platform != "win32" else None
         if size is None:
@@ -725,8 +721,7 @@ def _setup_pipe_stream(
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
-    # Pipe reads already run to EOF unconditionally (subprocess parity),
-    # so drain_timeout only applies to the PTY path
+    # Pipe reads already run to EOF (subprocess parity); drain_timeout is PTY-only
     _ = drain_timeout
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
@@ -853,9 +848,7 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
 
 @contextlib.contextmanager
 def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
-    # Forward parent resizes to the child: refresh master winsize (children
-    # polling TIOCGWINSZ) and signal the child process group directly (the
-    # child never acquires a ctty, so the kernel does not deliver SIGWINCH)
+    # No ctty: the kernel never delivers SIGWINCH, so refresh master winsize and killpg manually
     def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
         _ = signum, frame
         size = _get_parent_terminal_size()
@@ -882,10 +875,7 @@ def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
 
 @contextlib.contextmanager
 def _pipe_sigwinch_forwarder(proc: subprocess.Popen):
-    # Stream-only children inherit the tty but start_new_session detaches them
-    # from the foreground process group, so the kernel no longer delivers
-    # SIGWINCH on resize; forward it to the child process group (children
-    # without a handler ignore SIGWINCH by default)
+    # start_new_session detaches child from the foreground pgrp: forward SIGWINCH manually
     def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
         _ = signum, frame
         with contextlib.suppress(ProcessLookupError):

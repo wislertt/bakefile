@@ -156,8 +156,7 @@ class TestPtyNoCtty:
     pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
 
     def test_pty_child_gets_no_controlling_terminal(self) -> None:
-        # No ctty by design: acquiring one makes the kernel hang up the whole
-        # PTY when the session leader exits, killing grandchild late output
+        # No ctty by design: kernel hangs up the whole PTY at session-leader exit
         result = run([sys.executable, "-c", _CTTY_CHILD], capture_output=True, echo=False)
 
         assert "no controlling terminal" in result.stdout

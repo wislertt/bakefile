@@ -167,8 +167,7 @@ def uvx_install_bake_test():
     )
 
 
-# demo: same "polite" child (isatty-gated progress bar, like pip/uv/npm) under
-# all three run() modes, showing which mode breaks display and/or capture
+# demo: "polite" child (isatty-gated progress bar, like pip/uv/npm) under all three run() modes
 _DEMO_CHILD = r"""
 import fcntl, shutil, struct, sys, termios, time
 
@@ -210,8 +209,7 @@ def _demo_status(fixed: bool, note: str) -> None:
         console.error(f"STILL BROKEN: {note}")
 
 
-# demo: multi-line redraw (npm/cargo style) that overdraws its assumed width by
-# 30 cols -> rows wrap, cursor-up miscounts, every frame lands on wrong rows
+# demo: multi-line redraw (npm/cargo style) overdraws its width by 30 cols -> cursor-up miscounts
 _STREAM_BREAK_CHILD = r"""
 import os, sys, time
 
@@ -313,9 +311,7 @@ def demo2():
     console.echo(f"captured: {strip_ansi(result.stdout)!r}", markup=False)
 
 
-# demo3: grandchild holds the PTY and writes AFTER the main child exits.
-# bake drains to EOF (all slave fds closed) like subprocess pipes, capped by
-# drain_timeout so an orphaned daemon cannot hang run() forever
+# demo3: grandchild writes AFTER child exit; bake drains to EOF, capped by drain_timeout
 _GRANDCHILD_TAIL_CHILD = r"""
 import subprocess, sys
 
@@ -341,9 +337,7 @@ def demo3():
     console.echo(f"LATE OUTPUT present in capture: {'LATE OUTPUT' in plain.stdout.decode()}")
 
 
-# demo4: bake decodes capture with errors="replace" (default) -> invalid UTF-8
-# becomes U+FFFD, silent data loss. Plain subprocess returns raw bytes, intact.
-# decode_errors="surrogateescape" opts into byte-faithful capture
+# demo4: default decode replaces invalid UTF-8 with U+FFFD; surrogateescape keeps raw bytes
 _DECODE_CHILD = r"""
 import sys
 
@@ -418,8 +412,7 @@ def demo5():
     console.echo(f"ratio PTY/pipe: {bake_secs / plain_secs:.2f}x (target <= 1.5x)")
 
 
-# demo6: bake forces FORCE_COLOR=1 + PTY, so children emit ANSI even when bake's
-# own stdout is a pipe (CI, logs). Polite child checks isatty + NO_COLOR family.
+# demo6: bake forces FORCE_COLOR + PTY, so children emit ANSI even when bake's stdout is a pipe
 _COLORED_CHILD = r"""
 import sys
 
@@ -503,7 +496,6 @@ def demo8():
         console.echo(f"exc.stdout: {exc.stdout!r}", markup=False)
 
 
-# outer runner: a python process that uses bake run() to launch a detached child
 _OUTER_RUNNER = r"""
 import sys
 
@@ -614,10 +606,7 @@ def demo11():
     console.echo(f"captured: {plain.stdout!r}", markup=False)
 
 
-# demo12: resize the terminal mid-run on the PTY path (stream+capture).
-# bake refreshes the PTY master winsize and killpg's SIGWINCH to the child
-# (no ctty: acquiring one makes the kernel hang up the PTY at leader exit,
-# which kills grandchild late output - see demo3)
+# demo12: PTY-path resize; bake refreshes master winsize + killpg SIGWINCH (no ctty - see demo3)
 _RESIZE_CHILD = r"""
 import fcntl, signal, struct, sys, termios, time
 
@@ -660,12 +649,7 @@ def demo12():
     subprocess.run([sys.executable, "-c", _RESIZE_CHILD], check=False)
 
 
-# demo13: resize the terminal mid-run on the stream-only pipe path (what
-# `bake test` uses). The child inherits the tty and CAN ioctl the true size,
-# but two things freeze it: bake bakes COLUMNS into the env at spawn (shutil
-# prefers env over ioctl), and start_new_session=True detaches the child from
-# the foreground process group so the kernel never delivers SIGWINCH. A plain
-# subprocess child stays in the foreground group and gets both.
+# demo13: stream-only pipe path; frozen COLUMNS + start_new_session block live resize
 _PIPE_RESIZE_CHILD = r"""
 import fcntl, os, signal, struct, sys, termios, time
 

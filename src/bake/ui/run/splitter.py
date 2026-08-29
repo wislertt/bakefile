@@ -70,8 +70,7 @@ class OutputSplitter:
             data = self._read_pty_eio_safe(pty_fd)
             return not (data is None or not self._handle_data(data, target, output_list))
         finally:
-            # Restore on EAGAIN too - a leaked O_NONBLOCK makes drain reads
-            # misread EAGAIN as EOF and give up early
+            # Restore on EAGAIN too: a leaked O_NONBLOCK makes drain misread EAGAIN as EOF
             fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
 
     def _blocking_pty_read(self, pty_fd: int, target, output_list) -> bool:
@@ -161,9 +160,7 @@ class OutputSplitter:
         Returns:
             (should_continue, new_timeout_count)
         """
-        # Probe directly only where select is unusable; with a working select,
-        # not-ready means no data and a direct read could block past the
-        # drain deadline on a slow but alive writer
+        # Probe only where select is unusable: a direct read can block past the drain deadline
         if not select_works:
             if not self._read_and_handle(pty_fd, target, output_list):
                 return False, 0
@@ -173,10 +170,9 @@ class OutputSplitter:
     def _drain_pty(self, pty_fd: int, target, output_list):
         """Drain remaining PTY data after the main process exits.
 
-        EOF on the master (EIO) only arrives once every slave fd is closed,
-        grandchildren included, so draining to EOF matches subprocess pipe
-        semantics. drain_timeout caps the wait so an orphaned daemon child
-        cannot hang run() forever; None waits indefinitely (subprocess parity).
+        Master EOF (EIO) only arrives once every slave fd closes, grandchildren
+        included, so draining to EOF matches pipe semantics. drain_timeout caps
+        the wait (None = forever, subprocess parity).
         """
         time.sleep(0.005)
 
