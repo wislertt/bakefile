@@ -94,6 +94,18 @@ class PopenKwargs(TypedDict):
     pipesize: NotRequired[int]
 
 
+# Stdlib-registered decode error handlers (bytes.decode "errors" values);
+# custom codecs.register_error names are intentionally out of scope
+DecodeErrors = Literal[
+    "strict",
+    "ignore",
+    "replace",
+    "backslashreplace",
+    "surrogateescape",
+    "surrogatepass",
+]
+
+
 def _run_with_temp_file(
     cmd: str,
     capture_output: bool,
@@ -106,6 +118,7 @@ def _run_with_temp_file(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     echo_cmd: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
@@ -183,6 +196,7 @@ def _run_with_temp_file(
             timeout=timeout,
             drain_timeout=drain_timeout,
             _encoding=_encoding,
+            decode_errors=decode_errors,
             **kwargs,
         )
     finally:
@@ -211,6 +225,7 @@ def run(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -233,6 +248,7 @@ def run(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -254,6 +270,7 @@ def run(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a command with optional streaming and output capture.
@@ -321,6 +338,12 @@ def run(
         Output written past the cap is dropped. None waits for EOF forever.
         Only applies when ``stream=True`` and ``capture_output=True`` on a
         PTY (POSIX). Default is 10.0.
+    decode_errors : optional
+        Decode error handler for captured output, by default "replace"
+        (invalid bytes become U+FFFD). Pass "surrogateescape" to preserve
+        invalid bytes: ``result.stdout.encode("utf-8", "surrogateescape")``
+        then round-trips the raw bytes. One of "strict", "ignore",
+        "replace", "backslashreplace", "surrogateescape", "surrogatepass".
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -397,6 +420,7 @@ def run(
             timeout=timeout,
             drain_timeout=drain_timeout,
             _encoding=_encoding,
+            decode_errors=decode_errors,
             echo_cmd=echo_cmd,
             **kwargs,
         )
@@ -420,6 +444,7 @@ def run(
         timeout=timeout,
         drain_timeout=drain_timeout,
         _encoding=_encoding,
+        decode_errors=decode_errors,
         **kwargs,
     )
 
@@ -537,10 +562,11 @@ def _process_stream_output(
     proc: subprocess.Popen,
     cmd: str | list[str] | tuple[str, ...],
     clean_output: bool = False,
+    decode_errors: DecodeErrors = "replace",
 ) -> subprocess.CompletedProcess[str]:
     encoding = splitter._encoding or "utf-8"
-    stdout = splitter.stdout.decode(encoding, errors="replace")
-    stderr = splitter.stderr.decode(encoding, errors="replace")
+    stdout = splitter.stdout.decode(encoding, errors=decode_errors)
+    stderr = splitter.stderr.decode(encoding, errors=decode_errors)
     # Normalize PTY line endings (\r\n -> \n)
     stdout = stdout.replace("\r\n", "\n")
     stderr = stderr.replace("\r\n", "\n")
@@ -729,6 +755,7 @@ def _run_with_split(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     use_pty = sys.platform != "win32" and capture_output
@@ -760,6 +787,7 @@ def _run_with_split(
                     proc=setup.proc,
                     cmd=cmd,
                     clean_output=use_pty and clean_capture_output,
+                    decode_errors=decode_errors,
                 )
                 exc.output = partial.stdout
                 exc.stderr = partial.stderr  # ty: ignore[invalid-assignment]
@@ -772,6 +800,7 @@ def _run_with_split(
         proc=setup.proc,
         cmd=cmd,
         clean_output=use_pty and clean_capture_output,
+        decode_errors=decode_errors,
     )
 
 
@@ -880,6 +909,7 @@ def _run_without_split(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     # Pipe captures are always raw; the flag only matters on the PTY split path
@@ -923,8 +953,8 @@ def _run_without_split(
         assert isinstance(stderr_bytes, (bytes, type(None)))
         stdout_bytes_final = stdout_bytes if stdout_bytes is not None else b""
         stderr_bytes_final = stderr_bytes if stderr_bytes is not None else b""
-        stdout = stdout_bytes_final.decode(encoding, errors="replace")
-        stderr = stderr_bytes_final.decode(encoding, errors="replace")
+        stdout = stdout_bytes_final.decode(encoding, errors=decode_errors)
+        stderr = stderr_bytes_final.decode(encoding, errors=decode_errors)
     else:
         stdout = None
         stderr = None

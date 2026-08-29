@@ -341,8 +341,9 @@ def demo3():
     console.echo(f"LATE OUTPUT present in capture: {'LATE OUTPUT' in plain.stdout.decode()}")
 
 
-# demo4: bake decodes capture with errors="replace" -> invalid UTF-8 becomes U+FFFD,
-# silent data loss. Plain subprocess returns raw bytes, intact
+# demo4: bake decodes capture with errors="replace" (default) -> invalid UTF-8
+# becomes U+FFFD, silent data loss. Plain subprocess returns raw bytes, intact.
+# decode_errors="surrogateescape" opts into byte-faithful capture
 _DECODE_CHILD = r"""
 import sys
 
@@ -357,6 +358,16 @@ def demo4():
     result = run([sys.executable, "-c", _DECODE_CHILD], capture_output=True, echo=False)
     console.echo(f"captured repr: {result.stdout!r}", markup=False)
     plain = subprocess.run([sys.executable, "-c", _DECODE_CHILD], capture_output=True, check=True)
+    opt_in = run(
+        [sys.executable, "-c", _DECODE_CHILD],
+        capture_output=True,
+        echo=False,
+        decode_errors="surrogateescape",
+    )
+    roundtrip = opt_in.stdout.encode("utf-8", "surrogateescape")
+    console.echo(
+        f"surrogateescape round-trip == raw bytes: {roundtrip == plain.stdout}", markup=False
+    )
     console.echo(f"plain subprocess repr: {plain.stdout!r}", markup=False)
 
 

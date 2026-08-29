@@ -40,11 +40,19 @@ winsize AND `os.killpg(-proc.pid, SIGWINCH)`. Cost: children have no true
 controlling terminal (job control inside child TUIs degrades). start_new_session
 kept (tree-kill + killpg target). TestPtyNoCtty pins the no-ctty contract.
 
-## Decode today (demo4)
+## Decode (demo4, FIXED)
 
-Both paths decode with `errors="replace"`. Split path also does `\r\n` → `\n`
-normalize + optional `_clean_captured_pty_output`. `clean_capture_output=False`
-gives raw PTY bytes-as-str but still replace-decoded.
+Both paths decode via public `decode_errors: DecodeErrors = "replace"`
+param (default pins old U+FFFD behavior, logging stays safe).
+`DecodeErrors` Literal in main.py: strict/ignore/replace/backslashreplace/
+surrogateescape/surrogatepass (custom codecs.register_error names out of
+scope). Name avoids collision with command-failure "errors", deviates from
+stdlib `errors=` deliberately (user call). `decode_errors="surrogateescape"`
+opts into byte-faithful capture: round-trip with
+`.encode("utf-8", "surrogateescape")`. Threaded through run()/run_script/
+run_uv/ctx.run/ctx.run_script. TestDecodeErrorsParameter covers every
+Literal value (handler semantics + raising handlers + drift guard via
+`get_args(DecodeErrors) == TESTED_HANDLERS`) on both paths.
 
 ## Throughput today (demo5)
 

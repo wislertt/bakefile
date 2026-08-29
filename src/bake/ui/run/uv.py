@@ -5,7 +5,7 @@ from typing import Literal, overload
 from typing_extensions import Unpack
 from uv import find_uv_bin
 
-from bake.ui.run.main import PopenKwargs, StrOrNoneCompletedProcess, run
+from bake.ui.run.main import DecodeErrors, PopenKwargs, StrOrNoneCompletedProcess, run
 
 
 @overload
@@ -25,6 +25,7 @@ def run_uv(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
 
@@ -45,6 +46,7 @@ def run_uv(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
 
@@ -64,6 +66,7 @@ def run_uv(
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     uv_bin = find_uv_bin()
@@ -84,5 +87,6 @@ def run_uv(
         timeout=timeout,
         drain_timeout=drain_timeout,
         _encoding=_encoding,
+        decode_errors=decode_errors,
         **kwargs,
     )

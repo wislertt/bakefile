@@ -1,0 +1,6 @@
+
+===== invalid UTF-8 silently replaced in capture =====
+ok line
+ÿþ invalid utf8 bytes
+captured repr: 'ok line\nï¿½ï¿½ invalid utf8 bytes\n'
+plain subprocess repr: b'ok line\n\xff\xfe invalid utf8 bytes\n'

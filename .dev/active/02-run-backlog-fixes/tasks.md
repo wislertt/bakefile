@@ -14,13 +14,13 @@ Before-outputs: run `bake demo3`, `bake demo4`, `bake demo5`, `bake demo13`, sav
 
 ## Task 2: Caller-controlled decode errors (demo4)
 
-- [ ] 2.0 DECISION: default stays `"replace"` + `errors` param, or default flips to `"surrogateescape"`? Plan recommends param
-- [ ] 2.1 TDD: test — invalid UTF-8 child output, `errors="surrogateescape"` → capture round-trips via `.encode("utf-8", "surrogateescape")` (RED: no param)
-- [ ] 2.2 TDD: test — default unchanged: U+FFFD still appears (pin compat)
-- [ ] 2.3 Fix both decode sites: `_process_stream_output` (split) + `_run_without_split` (pipe)
-- [ ] 2.4 Thread `errors` through run()/run_script/run_uv/ctx.run
-- [ ] 2.5 Verify `bake demo4` → surrogate round-trip demo line shows no U+FFFD when opted in
-- [ ] 2.6 No regression: demo2 (clean capture), demo8 (partial attach), test_export carriage-return tests green
+- [x] 2.0 DECISION: default stays `"replace"` + public param (user approved). REVISION: renamed to `decode_errors` with `DecodeErrors` Literal type (user call after discussion)
+- [x] 2.1 TDD: test — invalid UTF-8 child output, `decode_errors="surrogateescape"` → capture round-trips via `.encode("utf-8", "surrogateescape")` (RED: no param). Also split-path variant
+- [x] 2.2 TDD: test — default unchanged: U+FFFD still appears (pin compat), both paths. ADDED: every Literal value tested (handler semantics, raising handlers, surrogatepass positive case) + get_args drift guard
+- [x] 2.3 Fix both decode sites: `_process_stream_output` (split) + `_run_without_split` (pipe)
+- [x] 2.4 Thread `decode_errors` through run()/run_script/run_uv/ctx.run/ctx.run_script; TestPopenKwargs EXCLUDED comment for `errors` updated (breaks internal bytes decode)
+- [x] 2.5 Verify `bake demo4` → `surrogateescape round-trip == raw bytes: True`
+- [x] 2.6 No regression: demo2 (clean capture), demo8 (partial attach), run pkg + context + export tests 580 green, ty clean, ruff clean
 
 ## Task 3: PTY throughput tuning (demo5)
 

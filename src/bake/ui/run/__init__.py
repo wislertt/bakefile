@@ -6,7 +6,14 @@ from bake.ui.run.batch import (
     SequentialCliTaskRunner,
     spawn_env,
 )
-from bake.ui.run.main import CmdType, OutputSplitter, PopenKwargs, StrOrNoneCompletedProcess, run
+from bake.ui.run.main import (
+    CmdType,
+    DecodeErrors,
+    OutputSplitter,
+    PopenKwargs,
+    StrOrNoneCompletedProcess,
+    run,
+)
 from bake.ui.run.script import run_script
 from bake.ui.run.uv import run_uv
 
@@ -14,6 +21,7 @@ __all__ = [
     "CliTask",
     "CmdType",
     "CompletedCliTask",
+    "DecodeErrors",
     "OutputSplitter",
     "ParallelCliTaskRunner",
     "PopenKwargs",

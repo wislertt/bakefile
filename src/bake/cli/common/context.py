@@ -10,7 +10,7 @@ from typing_extensions import Unpack
 from bake._typer_compat import TyperCommand
 from bake.ui.run import CmdType, StrOrNoneCompletedProcess
 from bake.ui.run import run as _run
-from bake.ui.run.main import PopenKwargs
+from bake.ui.run.main import DecodeErrors, PopenKwargs
 from bake.ui.run.script import run_script as _run_script
 
 from .obj import BakefileObject
@@ -66,6 +66,7 @@ class Context(typer.Context):
         timeout: float | None = None,
         drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[str]: ...
 
@@ -88,6 +89,7 @@ class Context(typer.Context):
         timeout: float | None = None,
         drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[None]: ...
 
@@ -109,6 +111,7 @@ class Context(typer.Context):
         timeout: float | None = None,
         drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run(
@@ -127,6 +130,7 @@ class Context(typer.Context):
             timeout=timeout,
             drain_timeout=drain_timeout,
             _encoding=_encoding,
+            decode_errors=decode_errors,
             **kwargs,
         )
 
@@ -145,6 +149,7 @@ class Context(typer.Context):
         env: dict[str, str] | None = None,
         timeout: float | None = None,
         drain_timeout: float | None = 10.0,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run_script(
@@ -160,6 +165,7 @@ class Context(typer.Context):
             env=env,
             timeout=timeout,
             drain_timeout=drain_timeout,
+            decode_errors=decode_errors,
             **kwargs,
         )
 

@@ -13,7 +13,7 @@ import sys
 import termios
 import time
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, get_args
 from unittest import mock
 
 import pytest
@@ -1309,7 +1309,7 @@ class TestPopenKwargs:
             "start_new_session",  # load-bearing for process-tree kill
             "encoding",  # breaks internal bytes decode
             "text",  # breaks internal bytes decode
-            "errors",  # breaks internal bytes decode
+            "errors",  # breaks internal bytes decode (run() exposes decode_errors)
             "universal_newlines",  # breaks internal bytes decode
             "process_group",  # 3.11+, absent from ty's stubs for our target python
         }
@@ -1410,6 +1410,118 @@ class TestEncodingParameter:
         assert result.returncode == 0
         # Invalid bytes should be replaced with replacement character
         assert "\ufffd" in result.stdout
+
+
+_INVALID_UTF8_CHILD = "import sys; sys.stdout.buffer.write(b'\\xff\\xfe')"
+
+_SURROGATE_SEQUENCE_CHILD = "import sys; sys.stdout.buffer.write(b'\\xed\\xa0\\x80')"
+
+
+class TestDecodeErrorsParameter:
+    """Tests for the decode_errors parameter controlling capture decode."""
+
+    TESTED_HANDLERS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "strict",
+            "ignore",
+            "replace",
+            "backslashreplace",
+            "surrogateescape",
+            "surrogatepass",
+        }
+    )
+
+    def test_every_literal_value_is_tested(self) -> None:
+        """Drift guard: DecodeErrors Literal values and tested handlers stay in sync."""
+        assert set(get_args(main.DecodeErrors)) == self.TESTED_HANDLERS
+
+    @pytest.mark.parametrize(
+        ("decode_errors", "expected"),
+        [
+            ("ignore", ""),
+            ("replace", "��"),
+            ("backslashreplace", "\\xff\\xfe"),
+            ("surrogateescape", "\udcff\udcfe"),
+        ],
+    )
+    def test_handler_semantics(self, decode_errors: main.DecodeErrors, expected: str) -> None:
+        """Each non-raising handler decodes invalid bytes per its codecs contract."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            decode_errors=decode_errors,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout == expected
+
+    @pytest.mark.parametrize("decode_errors", ["strict", "surrogatepass"])
+    def test_raising_handlers_raise(self, decode_errors: main.DecodeErrors) -> None:
+        """strict and surrogatepass raise UnicodeDecodeError on plain invalid bytes."""
+        with pytest.raises(UnicodeDecodeError):
+            run(
+                [sys.executable, "-c", _INVALID_UTF8_CHILD],
+                stream=False,
+                capture_output=True,
+                echo=False,
+                decode_errors=decode_errors,
+            )
+
+    def test_surrogatepass_decodes_surrogate_sequence(self) -> None:
+        """surrogatepass decodes surrogate-encoded sequences other handlers reject."""
+        result = run(
+            [sys.executable, "-c", _SURROGATE_SEQUENCE_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            decode_errors="surrogatepass",
+        )
+
+        assert result.stdout == "\ud800"
+
+    def test_surrogateescape_round_trips_invalid_bytes(self) -> None:
+        """decode_errors='surrogateescape' preserves raw bytes through capture."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            decode_errors="surrogateescape",
+        )
+
+        assert result.stdout.encode("utf-8", "surrogateescape") == b"\xff\xfe"
+
+    def test_default_replaces_invalid_bytes(self) -> None:
+        """Default decode still replaces invalid bytes with U+FFFD (compat pin)."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+        )
+
+        assert "�" in result.stdout
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+    def test_surrogateescape_on_pty_split_path(self) -> None:
+        """decode_errors='surrogateescape' also applies on the PTY split path."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            capture_output=True,
+            echo=False,
+            decode_errors="surrogateescape",
+        )
+
+        assert result.stdout.encode("utf-8", "surrogateescape") == b"\xff\xfe"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+    def test_default_replaces_invalid_bytes_on_split_path(self) -> None:
+        """Default decode on the PTY split path still replaces invalid bytes."""
+        result = run([sys.executable, "-c", _INVALID_UTF8_CHILD], capture_output=True, echo=False)
+
+        assert "�" in result.stdout
 
 
 class TestOutputSplitterErrorPaths:
