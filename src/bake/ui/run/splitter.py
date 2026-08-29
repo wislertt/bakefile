@@ -18,12 +18,14 @@ class OutputSplitter:
         pty_fd: int | None = None,
         stderr_pty_fd: int | None = None,
         encoding: str | None = None,
+        drain_timeout: float | None = 10.0,
     ):
         self._stream = stream
         self._capture = capture
         self._pty_fd = pty_fd
         self._stderr_pty_fd = stderr_pty_fd
         self._encoding = encoding
+        self._drain_timeout = drain_timeout
         self._stdout_data = b""
         self._stderr_data = b""
 
@@ -62,14 +64,13 @@ class OutputSplitter:
 
         flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
         fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-        data = self._read_pty_eio_safe(pty_fd)
-        if data is None or not self._handle_data(data, target, output_list):
+        try:
+            data = self._read_pty_eio_safe(pty_fd)
+            return not (data is None or not self._handle_data(data, target, output_list))
+        finally:
+            # Restore on EAGAIN too - a leaked O_NONBLOCK makes drain reads
+            # misread EAGAIN as EOF and give up early
             fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
-            return False
-
-        fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
-        return True
 
     def _blocking_pty_read(self, pty_fd: int, target, output_list) -> bool:
         """Try select-based blocking read. Returns True if should continue."""
@@ -127,11 +128,13 @@ class OutputSplitter:
         """Read from PTY and handle data.
 
         Returns:
-            True if data was handled, False if EOF/error
+            True if data was handled (or EAGAIN - no data yet), False if EOF/error
         """
         try:
             data = os.read(pty_fd, 4096)
             return self._handle_data(data, target, output_list)
+        except BlockingIOError:
+            return True
         except OSError:
             return False
 
@@ -156,32 +159,36 @@ class OutputSplitter:
         Returns:
             (should_continue, new_timeout_count)
         """
-        # Try direct read after 2 consecutive timeouts or if select doesn't work
-        if not select_works or consecutive_timeouts >= 2:
+        # Probe directly only where select is unusable; with a working select,
+        # not-ready means no data and a direct read could block past the
+        # drain deadline on a slow but alive writer
+        if not select_works:
             if not self._read_and_handle(pty_fd, target, output_list):
                 return False, 0
             return True, 0  # Got data, reset timeout counter
         return True, consecutive_timeouts + 1
 
     def _drain_pty(self, pty_fd: int, target, output_list):
-        """Drain remaining data from PTY after process exits.
+        """Drain remaining PTY data after the main process exits.
 
-        We need to handle OS timing: proc.poll() may return exit code before the
-        PTY buffer is fully flushed. We use select to wait for data with increasing
-        timeouts, and also try direct reads as a fallback in case select doesn't
-        detect readiness (e.g., in tests with mocked os.read or on Windows with
-        non-socket file descriptors).
+        EOF on the master (EIO) only arrives once every slave fd is closed,
+        grandchildren included, so draining to EOF matches subprocess pipe
+        semantics. drain_timeout caps the wait so an orphaned daemon child
+        cannot hang run() forever; None waits indefinitely (subprocess parity).
         """
         time.sleep(0.005)
 
+        deadline = None if self._drain_timeout is None else time.monotonic() + self._drain_timeout
+
         timeout = 0.05
         consecutive_timeouts = 0
-        max_timeouts = 4
         select_works = True
 
         try:
-            while consecutive_timeouts < max_timeouts:
-                # Check if data is ready via select
+            while True:
+                if deadline is not None and time.monotonic() >= deadline:
+                    return
+
                 if select_works:
                     select_works, ready = self._try_select_read(pty_fd, timeout)
                 else:

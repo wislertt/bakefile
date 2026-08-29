@@ -23,6 +23,7 @@ def run_uv(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
@@ -42,6 +43,7 @@ def run_uv(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
@@ -60,6 +62,7 @@ def run_uv(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
@@ -79,6 +82,7 @@ def run_uv(
         keep_temp_file=keep_temp_file,
         env=env,
         timeout=timeout,
+        drain_timeout=drain_timeout,
         _encoding=_encoding,
         **kwargs,
     )

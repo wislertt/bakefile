@@ -36,9 +36,6 @@ logger = logging.getLogger(__name__)
 # See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
 _subprocess_create_lock = threading.Lock()
 
-# TIOCSCTTY is not exposed by the termios module; per-platform request codes
-_TIOCSCTTY = {"darwin": 0x20007461, "linux": 0x540E}
-
 
 @dataclass(frozen=True, slots=True)
 class StreamSetup:
@@ -107,6 +104,7 @@ def _run_with_temp_file(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     echo_cmd: str | None = None,
     **kwargs: Unpack[PopenKwargs],
@@ -183,6 +181,7 @@ def _run_with_temp_file(
             echo_cmd=echo_cmd,
             env=env,
             timeout=timeout,
+            drain_timeout=drain_timeout,
             _encoding=_encoding,
             **kwargs,
         )
@@ -210,6 +209,7 @@ def run(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
@@ -231,6 +231,7 @@ def run(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
@@ -251,6 +252,7 @@ def run(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
@@ -312,6 +314,13 @@ def run(
         Maximum time in seconds to wait for the command to complete.
         If the command exceeds this time, it will be killed and
         subprocess.TimeoutExpired will be raised. Default is None (no timeout).
+    drain_timeout : float | None, optional
+        Maximum time in seconds to keep draining the PTY after the main
+        process exits, waiting for grandchildren holding the terminal to
+        finish writing (subprocess pipes wait for EOF unconditionally).
+        Output written past the cap is dropped. None waits for EOF forever.
+        Only applies when ``stream=True`` and ``capture_output=True`` on a
+        PTY (POSIX). Default is 10.0.
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -386,6 +395,7 @@ def run(
             keep_temp_file=keep_temp_file,
             env=env,
             timeout=timeout,
+            drain_timeout=drain_timeout,
             _encoding=_encoding,
             echo_cmd=echo_cmd,
             **kwargs,
@@ -408,6 +418,7 @@ def run(
         clean_capture_output=clean_capture_output,
         env=env,
         timeout=timeout,
+        drain_timeout=drain_timeout,
         _encoding=_encoding,
         **kwargs,
     )
@@ -606,6 +617,7 @@ def _setup_pty_stream(
     cwd: Path | str | None,
     capture_output: bool,
     env: dict[str, str] | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
@@ -629,18 +641,12 @@ def _setup_pty_stream(
         env = _prepare_subprocess_env(env)
         user_preexec: Callable[[], Any] | None = kwargs.get("preexec_fn")
 
-        def _acquire_ctty_preexec() -> None:
-            # Adopt the PTY slave as ctty so the kernel delivers SIGWINCH/SIGHUP
-            # to the child (stdlib pty.fork pattern)
-            import fcntl
-
-            request = _TIOCSCTTY.get(sys.platform)
-            if request is not None:
-                fcntl.ioctl(slave_stdout, request, 0)
+        def _preexec() -> None:
             if user_preexec is not None:
                 user_preexec()
 
-        kwargs["preexec_fn"] = _acquire_ctty_preexec
+        if user_preexec is not None:
+            kwargs["preexec_fn"] = _preexec
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -669,6 +675,7 @@ def _setup_pty_stream(
         pty_fd=stdout_fd,
         stderr_pty_fd=stderr_fd,
         encoding=_encoding,
+        drain_timeout=drain_timeout,
     )
     threads = splitter.attach(proc)
 
@@ -683,9 +690,13 @@ def _setup_pipe_stream(
     cwd: Path | str | None,
     capture_output: bool,
     env: dict[str, str] | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
+    # Pipe reads already run to EOF unconditionally (subprocess parity),
+    # so drain_timeout only applies to the PTY path
+    _ = drain_timeout
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
@@ -716,6 +727,7 @@ def _run_with_split(
     clean_capture_output: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
@@ -729,11 +741,12 @@ def _run_with_split(
         cwd=cwd,
         capture_output=capture_output,
         env=env,
+        drain_timeout=drain_timeout,
         _encoding=_encoding,
         **kwargs,
     )
 
-    with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds):
+    with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds, setup.proc):
         try:
             setup.proc.wait(timeout=timeout)
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
@@ -805,14 +818,18 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
 
 
 @contextlib.contextmanager
-def _sigwinch_forwarder(master_fds: tuple[int, ...]):
-    # Forward parent resizes onto the child PTYs so SIGWINCH reaches the child
+def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
+    # Forward parent resizes to the child: refresh master winsize (children
+    # polling TIOCGWINSZ) and signal the child process group directly (the
+    # child never acquires a ctty, so the kernel does not deliver SIGWINCH)
     def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
         _ = signum, frame
         size = _get_parent_terminal_size()
         if size is not None:
             for fd in master_fds:
                 _set_pty_winsize(fd, size)
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(-proc.pid, signal.SIGWINCH)
 
     if (
         not master_fds
@@ -861,11 +878,14 @@ def _run_without_split(
     clean_capture_output: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     # Pipe captures are always raw; the flag only matters on the PTY split path
     _ = clean_capture_output
+    # communicate() already waits for pipe EOF unconditionally (subprocess parity)
+    _ = drain_timeout
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
     env = _prepare_subprocess_env(env)
 

@@ -314,7 +314,8 @@ def demo2():
 
 
 # demo3: grandchild holds the PTY and writes AFTER the main child exits.
-# bake stops draining ~0.8s after proc exit -> late bytes never shown or captured
+# bake drains to EOF (all slave fds closed) like subprocess pipes, capped by
+# drain_timeout so an orphaned daemon cannot hang run() forever
 _GRANDCHILD_TAIL_CHILD = r"""
 import subprocess, sys
 
@@ -327,7 +328,7 @@ print("main child done, grandchild prints 1.5s later")
 
 @bakebook.command()
 def demo3():
-    _demo_section("bake: grandchild output after main proc exit is lost")
+    _demo_section("bake: grandchild output after main proc exit is captured")
     result = run([sys.executable, "-c", _GRANDCHILD_TAIL_CHILD], capture_output=True, echo=False)
     console.echo(f"captured: {result.stdout!r}", markup=False)
     console.echo(f"LATE OUTPUT present in capture: {'LATE OUTPUT' in result.stdout}")
@@ -586,8 +587,9 @@ def demo11():
 
 
 # demo12: resize the terminal mid-run on the PTY path (stream+capture).
-# bake forwards the parent resize onto the PTY masters; the child (ctty
-# acquired in preexec) receives SIGWINCH like a plain foreground subprocess.
+# bake refreshes the PTY master winsize and killpg's SIGWINCH to the child
+# (no ctty: acquiring one makes the kernel hang up the PTY at leader exit,
+# which kills grandchild late output - see demo3)
 _RESIZE_CHILD = r"""
 import fcntl, signal, struct, sys, termios, time
 
@@ -622,7 +624,7 @@ def demo12():
     console.echo("(width lines above should have tracked your resize)")
     _demo_status(
         winch_count > 0,
-        "child receives SIGWINCH under bake (controlling terminal acquired)",
+        "child receives SIGWINCH under bake (resize forwarded via killpg)",
     )
 
     _demo_section("2. plain subprocess: RESIZE TERMINAL NOW (~4s)")

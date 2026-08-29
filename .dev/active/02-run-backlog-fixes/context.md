@@ -15,16 +15,30 @@
 ## How run() modes work (carried from 01)
 
 `stream and capture_output` → `_run_with_split` → PTY pair + splitter tee
-threads + ctty + `_sigwinch_forwarder`. Stream-only / capture-only →
-`_run_without_split` → pipes, `start_new_session=True`, stdout inherited when
-not capturing. Capture semantics: cleaned final screen state unless
-`clean_capture_output=False` (byte-faithful).
+threads + `_sigwinch_forwarder` (winsize ioctl + killpg SIGWINCH, no ctty).
+Stream-only / capture-only → `_run_without_split` → pipes,
+`start_new_session=True`, stdout inherited when not capturing. Capture
+semantics: cleaned final screen state unless `clean_capture_output=False`
+(byte-faithful).
 
-## Drain behavior today (demo3)
+## Drain behavior (demo3, FIXED)
 
-Splitter threads keep reading masters after proc exit but give up after a
-~0.8s window (see `splitter.py` finalize / drain loop). Grandchild writing
-later than that is dropped from both stream and capture.
+`_drain_pty` drains to EOF (macOS: b"" read; Linux: EIO) bounded by
+`drain_timeout` (default 10s, None = forever, threaded through run() +
+wrappers). Two drain bugs fixed along the way: `_try_immediate_read` leaked
+O_NONBLOCK on EAGAIN (drain misread EAGAIN as EOF), and `_handle_timeout`'s
+direct probe could block past the deadline (now only probes when select is
+unusable).
+
+## ctty REMOVED (task 1 pivot)
+
+macOS kernel hangs up the whole PTY the moment the ctty session leader
+exits — grandchild late output becomes impossible even with drain fixed
+(Linux does not do this). Resolution: `_setup_pty_stream` no longer calls
+TIOCSCTTY; `_sigwinch_forwarder(master_fds, proc)` instead refreshes master
+winsize AND `os.killpg(-proc.pid, SIGWINCH)`. Cost: children have no true
+controlling terminal (job control inside child TUIs degrades). start_new_session
+kept (tree-kill + killpg target). TestPtyNoCtty pins the no-ctty contract.
 
 ## Decode today (demo4)
 

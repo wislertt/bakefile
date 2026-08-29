@@ -151,16 +151,18 @@ except OSError as e:
 """
 
 
-class TestPtyCtty:
-    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="ctty is POSIX-only")
+class TestPtyNoCtty:
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
 
-    def test_pty_child_gets_controlling_terminal(self) -> None:
+    def test_pty_child_gets_no_controlling_terminal(self) -> None:
+        # No ctty by design: acquiring one makes the kernel hang up the whole
+        # PTY when the session leader exits, killing grandchild late output
         result = run([sys.executable, "-c", _CTTY_CHILD], capture_output=True, echo=False)
 
-        assert "fg == own pgrp: True" in result.stdout
+        assert "no controlling terminal" in result.stdout
 
     def test_resize_mid_run_delivers_sigwinch_to_child(self, tmp_path: Path) -> None:
-        request = main._TIOCSCTTY.get(sys.platform)
+        request = {"darwin": 0x20007461, "linux": 0x540E}.get(sys.platform)
         if request is None:
             pytest.skip(f"no TIOCSCTTY constant for {sys.platform}")
         outer = tmp_path / "outer.py"
@@ -1217,6 +1219,46 @@ class TestTimeout:
         assert elapsed < 2.0, f"Process may not have been killed, elapsed={elapsed}s"
 
 
+class TestDrainAfterExit:
+    def test_grandchild_output_after_exit_is_captured(self) -> None:
+        script = (
+            "import subprocess, sys\n"
+            "subprocess.Popen([sys.executable, '-c', "
+            "\"import time; time.sleep(1.5); print('LATE FROM GRANDCHILD', flush=True)\"])\n"
+            "print('main done', flush=True)\n"
+        )
+
+        result = run([sys.executable, "-c", script], capture_output=True, stream=True, echo=False)
+
+        assert "main done" in result.stdout
+        assert "LATE FROM GRANDCHILD" in result.stdout
+
+    def test_drain_timeout_cap_drops_late_output_and_returns(self) -> None:
+        script = (
+            "import subprocess, sys\n"
+            "subprocess.Popen([sys.executable, '-c', "
+            "\"import time; time.sleep(3); print('NEVER SEEN', flush=True)\"])\n"
+            "print('main done', flush=True)\n"
+        )
+
+        start = time.perf_counter()
+        result = run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            stream=True,
+            echo=False,
+            drain_timeout=0.5,
+        )
+        elapsed = time.perf_counter() - start
+
+        assert "main done" in result.stdout
+        assert "NEVER SEEN" not in result.stdout
+        assert elapsed < 2.5, f"drain cap not honored, elapsed={elapsed}s"
+
+    def test_drain_timeout_default_is_10s(self) -> None:
+        assert inspect.signature(run).parameters["drain_timeout"].default == 10.0
+
+
 class TestSignatureCompatibility:
     """Tests to ensure run wrappers have compatible signatures with run()."""
 
@@ -1512,7 +1554,7 @@ class TestOutputSplitterErrorPaths:
         call_count = [0]
 
         def mock_select(*_, **__):
-            return ([], [], [])  # No data ready
+            raise OSError("Not a socket")
 
         def mock_read(*_, **__):
             call_count[0] += 1
@@ -1526,19 +1568,16 @@ class TestOutputSplitterErrorPaths:
         ):
             splitter._drain_pty(1, sys.stdout, [])
 
-    def test_drain_pty_exits_after_max_timeouts(self) -> None:
-        """When max timeouts reached, _drain_pty exits without error."""
+    def test_drain_pty_exits_on_eof_when_select_reports_no_data(self) -> None:
+        """select reporting no data forever is bounded by the drain deadline."""
         from bake.ui.run.splitter import OutputSplitter
 
-        splitter = OutputSplitter(stream=True, capture=True)
+        splitter = OutputSplitter(stream=True, capture=True, drain_timeout=0.2)
 
-        # Mock select to return no data (timeout)
-        # Mock os.read to return EOF
         with (
             mock.patch("select.select", return_value=([], [], [])),
             mock.patch("os.read", return_value=b""),
         ):
-            # Should exit after max_timeouts iterations
             splitter._drain_pty(1, sys.stdout, [])
 
     def test_drain_pty_when_select_works_becomes_false(self) -> None:

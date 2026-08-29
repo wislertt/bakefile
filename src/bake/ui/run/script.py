@@ -29,6 +29,7 @@ def run_script(
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a multi-line script with shebang support.
@@ -81,5 +82,6 @@ def run_script(
         keep_temp_file=keep_temp_file,
         env=env,
         timeout=timeout,
+        drain_timeout=drain_timeout,
         **kwargs,
     )

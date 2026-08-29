@@ -4,13 +4,13 @@ Before-outputs: run `bake demo3`, `bake demo4`, `bake demo5`, `bake demo13`, sav
 
 ## Task 1: Drain PTY to EOF after proc exit (demo3)
 
-- [ ] 1.0 DECISION: drain cap default (~10s) + `drain_timeout: float | None` param, or unbounded (subprocess parity)? Confirm with user
-- [ ] 1.1 TDD: test — grandchild writes ~1.5s after child exit → capture includes it (RED today, ~0.8s giveup drops it)
-- [ ] 1.2 TDD: test — cap behavior: grandchild writing past cap is dropped, run() still returns (pin the documented divergence)
-- [ ] 1.3 Fix in splitter finalize path: read masters until EOF/EIO (`OSError` from master read = all slaves closed) or cap hit
-- [ ] 1.4 Thread `drain_timeout` through run()/run_script/run_uv/ctx.run (TestSignatureCompatibility)
-- [ ] 1.5 Verify `bake demo3` → `LATE OUTPUT present in capture: True`
-- [ ] 1.6 No regression: `bake demo8` (timeout partial still attached), `bake demo9` (SIGHUP cleanup still fires — master close timing changed), test_run.py module green
+- [x] 1.0 DECISION: cap 10s default + `drain_timeout: float | None` param (None = subprocess parity). MID-TASK PIVOT: dropped ctty (user approved) — macOS kernel hangs up whole PTY at session-leader exit, killing grandchild late output; resize now forwarded via killpg SIGWINCH instead
+- [x] 1.1 TDD: test — grandchild writes ~1.5s after child exit → capture includes it
+- [x] 1.2 TDD: test — cap behavior: grandchild writing past cap is dropped, run() still returns
+- [x] 1.3 Fix in splitter finalize path: read masters until EOF/EIO or deadline; also fixed O_NONBLOCK leak in `_try_immediate_read` (EAGAIN misread as EOF) and blocking probe in `_handle_timeout` (could outlive deadline)
+- [x] 1.4 Thread `drain_timeout` through run()/run_script/run_uv/ctx.run (TestSignatureCompatibility)
+- [x] 1.5 Verify `bake demo3` → `LATE OUTPUT present in capture: True`
+- [x] 1.6 No regression: `bake demo8` (timeout partial still attached), `bake demo9` (SIGINT tree kill still fires), test_run.py 125 green, bake lint clean, demo12 real resize verified by user
 
 ## Task 2: Caller-controlled decode errors (demo4)
 

@@ -64,6 +64,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[str]: ...
@@ -85,6 +86,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[None]: ...
@@ -105,6 +107,7 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
@@ -122,6 +125,7 @@ class Context(typer.Context):
             keep_temp_file=keep_temp_file,
             env=env,
             timeout=timeout,
+            drain_timeout=drain_timeout,
             _encoding=_encoding,
             **kwargs,
         )
@@ -139,6 +143,8 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run_script(
@@ -152,6 +158,8 @@ class Context(typer.Context):
             dry_run=self.obj.dry_run if dry_run is None else dry_run,
             keep_temp_file=keep_temp_file,
             env=env,
+            timeout=timeout,
+            drain_timeout=drain_timeout,
             **kwargs,
         )
 
