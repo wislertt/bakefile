@@ -672,8 +672,9 @@ def _setup_pty_stream(
         user_preexec: Callable[[], Any] | None = kwargs.get("preexec_fn")
 
         def _preexec() -> None:
-            if user_preexec is not None:
-                user_preexec()
+            # runs in the forked child, invisible to coverage
+            if user_preexec is not None:  # pragma: no cover
+                user_preexec()  # pragma: no cover
 
         if user_preexec is not None:
             kwargs["preexec_fn"] = _preexec

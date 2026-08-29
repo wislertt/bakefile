@@ -244,6 +244,26 @@ class TestPtyNoCtty:
 _COLUMNS_CHILD = "import os; print(os.environ.get('COLUMNS', '<unset>'))"
 
 
+def _winch_counter_child(count_file: Path) -> str:
+    return (
+        "import signal, time\n"
+        "winch = 0\n"
+        "def on_winch(signum, frame):\n"
+        "    global winch\n"
+        "    winch += 1\n"
+        "signal.signal(signal.SIGWINCH, on_winch)\n"
+        "time.sleep(1.5)\n"
+        f"open({str(count_file)!r}, 'w').write(str(winch))\n"
+    )
+
+
+def _send_sigwinch_blast(delay: float = 0.5, count: int = 3) -> None:
+    time.sleep(delay)
+    for _ in range(count):
+        os.kill(os.getpid(), signal.SIGWINCH)
+        time.sleep(0.1)
+
+
 class TestPipeResizeForwarding:
     """Stream-only pipe path: children inherit the tty, so resizes must reach them."""
 
@@ -251,28 +271,12 @@ class TestPipeResizeForwarding:
 
     def test_stream_only_child_receives_sigwinch(self, tmp_path: Path) -> None:
         count_file = tmp_path / "winch_count"
-        child = (
-            "import signal, time\n"
-            "winch = 0\n"
-            "def on_winch(signum, frame):\n"
-            "    global winch\n"
-            "    winch += 1\n"
-            "signal.signal(signal.SIGWINCH, on_winch)\n"
-            "time.sleep(1.5)\n"
-            f"open({str(count_file)!r}, 'w').write(str(winch))\n"
-        )
 
-        def send_resizes() -> None:
-            time.sleep(0.5)
-            for _ in range(3):
-                os.kill(os.getpid(), signal.SIGWINCH)
-                time.sleep(0.1)
-
-        sender = threading.Thread(target=send_resizes)
+        sender = threading.Thread(target=_send_sigwinch_blast)
         sender.start()
         try:
             run(
-                [sys.executable, "-c", child],
+                [sys.executable, "-c", _winch_counter_child(count_file)],
                 stream=True,
                 capture_output=False,
                 check=False,
@@ -282,6 +286,53 @@ class TestPipeResizeForwarding:
             sender.join()
 
         assert count_file.read_text().strip() != "0"
+
+    def test_capture_child_receives_sigwinch_via_pty_forwarder(self, tmp_path: Path) -> None:
+        count_file = tmp_path / "winch_count"
+
+        sender = threading.Thread(target=_send_sigwinch_blast)
+        sender.start()
+        try:
+            with mock.patch("bake.ui.run.main._get_parent_terminal_size", return_value=(120, 30)):
+                run(
+                    [sys.executable, "-c", _winch_counter_child(count_file)],
+                    capture_output=True,
+                    echo=False,
+                )
+        finally:
+            sender.join()
+
+        assert count_file.read_text().strip() != "0"
+
+    def test_forwarder_skipped_off_main_thread(self) -> None:
+        done = threading.Event()
+
+        def worker() -> None:
+            run(["echo", "hi"], stream=True, capture_output=False, echo=False)
+            done.set()
+
+        worker_thread = threading.Thread(target=worker)
+        worker_thread.start()
+
+        assert done.wait(10), "run() from worker thread did not complete"
+
+
+class TestPreexecForwarding:
+    """User preexec_fn must still run on the PTY path despite bake's own wrapper."""
+
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+
+    def test_user_preexec_fn_runs_in_child(self, tmp_path: Path) -> None:
+        marker = tmp_path / "preexec_ran"
+
+        def preexec() -> None:
+            with open(marker, "w") as f:
+                f.write("ran")
+
+        result = run(["echo", "hi"], capture_output=True, echo=False, preexec_fn=preexec)
+
+        assert result.returncode == 0
+        assert marker.read_text() == "ran"
 
     def test_columns_not_injected_when_stdout_is_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("COLUMNS", raising=False)
@@ -1063,6 +1114,38 @@ class TestCrossPlatformSubprocess:
             pytest.raises(RuntimeError, match=r"sh\.exe not found"),
         ):
             run("echo line1\necho line2", shell=True, echo=False)
+
+    def test_windows_multiline_script_runs_via_sh(self) -> None:
+        """Multi-line script on Windows goes to temp file and runs via sh.exe."""
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value="/bin/sh"),
+        ):
+            result = run("echo plain-ran\necho done", shell=True, capture_output=True, echo=False)
+
+        assert result.returncode == 0
+        assert "plain-ran" in result.stdout
+
+    def test_windows_shebang_script_runs_via_interpreter(self) -> None:
+        """Shebang script on Windows runs via the shebang interpreter, not sh.exe."""
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value="/bin/sh"),
+        ):
+            result = run("#!/bin/sh\necho shebang-ran", shell=True, capture_output=True, echo=False)
+
+        assert result.returncode == 0
+        assert "shebang-ran" in result.stdout
+
+    def test_use_sh_on_windows_wraps_string_command(self) -> None:
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value="/fake/sh.exe"),
+        ):
+            cmd, shell = main._use_sh_on_windows(cmd="echo hi", shell=True)
+
+        assert cmd == ["/fake/sh.exe", "-c", "echo hi"]
+        assert shell is False
 
 
 class TestCheckExitCodeStreamFalse:
@@ -1960,6 +2043,24 @@ class TestKillProcessTree:
 
         main._kill_process_tree(mock_proc)
 
+        mock_proc.kill.assert_not_called()
+
+    def test_windows_uses_taskkill(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("subprocess.run") as mock_run,
+        ):
+            main._kill_process_tree(mock_proc)
+
+            mock_run.assert_called_once_with(
+                ["taskkill", "/F", "/T", "/PID", "12345"],
+                capture_output=True,
+                timeout=5,
+            )
         mock_proc.kill.assert_not_called()
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")
