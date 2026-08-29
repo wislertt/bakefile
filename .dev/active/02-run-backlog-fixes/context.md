@@ -76,6 +76,27 @@ Experiments (both reverted — no measurable win, transport dominates):
   9.58x (noise). Writes already coalesce via BufferedWriter 8KB buffer
   sizing against the 4KB arrival rate; per-chunk flush not the cost.
 
+## Pipe-path resize (demo13, FIXED)
+
+Stream-only children inherit the tty but `start_new_session` detaches them
+from the foreground process group, so kernel SIGWINCH never reached them.
+Two fixes in main.py:
+
+- `_prepare_subprocess_env` inverts the COLUMNS/LINES gate: inject only
+  when parent stdout is NOT a tty. Tty children ioctl the live size (env
+  would freeze + shadow it via shutil's env preference); pipe children get
+  `_get_parent_terminal_size()` (stdout/stderr/stdin ioctl chain) or the
+  shutil 80x24 fallback. Old behavior injected exactly on tty stdout (via
+  `os.get_terminal_size()` try/except) — opposite of what streaming needed.
+- `_pipe_sigwinch_forwarder(proc)`: parent SIGWINCH handler does
+  `os.killpg(-proc.pid, SIGWINCH)` (child is session leader, pgid == pid,
+  whole tree gets it). Same guards as the PTY forwarder: hasattr(SIGWINCH),
+  main thread. Wired into `_run_without_split` stream-only branch only
+  (capture children have no tty, resize irrelevant).
+
+TestPipeResizeForwarding covers: SIGWINCH thread-blast reaches child,
+no COLUMNS on tty stdout, COLUMNS present on pipe stdout + capture-only.
+
 ## Gotchas (carried from 01)
 
 - Child code strings in bakefile.py are raw strings (`r"""`) — `\r`/`\x1b`

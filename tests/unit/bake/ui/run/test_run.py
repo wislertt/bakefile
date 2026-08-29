@@ -11,6 +11,7 @@ import struct
 import subprocess
 import sys
 import termios
+import threading
 import time
 from pathlib import Path
 from typing import Any, ClassVar, get_args
@@ -238,6 +239,82 @@ class TestPtyNoCtty:
         match = re.search(r"signals: (\d+)", text)
         assert match is not None, f"no signal report in outer output: {text!r}"
         assert int(match.group(1)) > 0
+
+
+_COLUMNS_CHILD = "import os; print(os.environ.get('COLUMNS', '<unset>'))"
+
+
+class TestPipeResizeForwarding:
+    """Stream-only pipe path: children inherit the tty, so resizes must reach them."""
+
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="SIGWINCH is POSIX-only")
+
+    def test_stream_only_child_receives_sigwinch(self, tmp_path: Path) -> None:
+        count_file = tmp_path / "winch_count"
+        child = (
+            "import signal, time\n"
+            "winch = 0\n"
+            "def on_winch(signum, frame):\n"
+            "    global winch\n"
+            "    winch += 1\n"
+            "signal.signal(signal.SIGWINCH, on_winch)\n"
+            "time.sleep(1.5)\n"
+            f"open({str(count_file)!r}, 'w').write(str(winch))\n"
+        )
+
+        def send_resizes() -> None:
+            time.sleep(0.5)
+            for _ in range(3):
+                os.kill(os.getpid(), signal.SIGWINCH)
+                time.sleep(0.1)
+
+        sender = threading.Thread(target=send_resizes)
+        sender.start()
+        try:
+            run(
+                [sys.executable, "-c", child],
+                stream=True,
+                capture_output=False,
+                check=False,
+                echo=False,
+            )
+        finally:
+            sender.join()
+
+        assert count_file.read_text().strip() != "0"
+
+    def test_columns_not_injected_when_stdout_is_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+        monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+        monkeypatch.setattr(
+            os, "get_terminal_size", lambda *_args, **_kwargs: os.terminal_size((100, 30))
+        )
+
+        result = run([sys.executable, "-c", _COLUMNS_CHILD], capture_output=True, echo=False)
+
+        assert "<unset>" in result.stdout
+
+    def test_columns_injected_when_stdout_is_pipe(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+
+        result = run([sys.executable, "-c", _COLUMNS_CHILD], capture_output=True, echo=False)
+
+        assert "<unset>" not in result.stdout
+
+    def test_capture_only_still_gets_columns(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+
+        result = run(
+            [sys.executable, "-c", _COLUMNS_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+        )
+
+        assert "<unset>" not in result.stdout
 
 
 @flaky_on_macos_ci()
@@ -1336,19 +1413,25 @@ class TestPrepareSubprocessEnv:
     """Tests for _prepare_subprocess_env internal function."""
 
     def test_terminal_size_oserror_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When os.get_terminal_size raises OSError, env is still prepared."""
+        """When os.get_terminal_size raises OSError, size falls back and env is still prepared."""
         from bake.ui.run.main import _prepare_subprocess_env
 
         monkeypatch.delenv("NO_COLOR", raising=False)
-        with mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")):
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+        with (
+            mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")),
+            mock.patch("bake.ui.run.main._get_parent_terminal_size", return_value=None),
+        ):
             env = _prepare_subprocess_env()
 
             # Should still have color and progress bar settings
             assert "FORCE_COLOR" in env
             assert "CLICOLOR_FORCE" in env
             assert "UV_NO_PROGRESS" in env
-            # COLUMNS and LINES should NOT be set (OSError case)
-            assert "COLUMNS" not in env or env.get("COLUMNS") != "80"
+            # No tty anywhere: children get the fallback size hint
+            assert env["COLUMNS"] == "80"
+            assert env["LINES"] == "24"
 
     def test_custom_env_vars_are_merged(self) -> None:
         """Custom environment variables are merged with system env."""

@@ -1,0 +1,88 @@
+
+===== 1. bake stream-only (the bake test path): RESIZE TERMINAL NOW (~4s) =====
+watch: ioctl= follows the resize, env= stays frozen, winch stays 0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+❌ [ERROR] STILL BROKEN: stream-only child receives SIGWINCH (pipe path forwards resizes)
+
+===== 2. plain subprocess: RESIZE TERMINAL NOW (~4s) =====
+ioctl= follows, env=<unset>, winch climbs on every resize
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+ioctl=0c env=<unset> winch=0
+❌ [ERROR] STILL BROKEN: plain subprocess child receives SIGWINCH (foreground process group)

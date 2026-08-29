@@ -597,12 +597,16 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
     merged_env.setdefault("PIP_PROGRESS_BAR", "off")  # pip
     merged_env.setdefault("CARGO_TERM_PROGRESS_WHEN", "never")  # cargo
 
-    try:
-        terminal_size = os.get_terminal_size()
-        merged_env.setdefault("COLUMNS", str(terminal_size.columns))  # pragma: no cover
-        merged_env.setdefault("LINES", str(terminal_size.lines))  # pragma: no cover
-    except OSError:
-        pass
+    # Children inheriting a real tty read the live size via ioctl; a frozen
+    # COLUMNS/LINES would shadow it (shutil prefers env over ioctl). Children
+    # on pipes have no tty to ask, so they get the parent's best size guess.
+    if not sys.stdout.isatty():
+        size = _get_parent_terminal_size() if sys.platform != "win32" else None
+        if size is None:
+            fallback = shutil.get_terminal_size()
+            size = (fallback.columns, fallback.lines)
+        merged_env.setdefault("COLUMNS", str(size[0]))
+        merged_env.setdefault("LINES", str(size[1]))
     return merged_env
 
 
@@ -876,6 +880,28 @@ def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
 
 
 @contextlib.contextmanager
+def _pipe_sigwinch_forwarder(proc: subprocess.Popen):
+    # Stream-only children inherit the tty but start_new_session detaches them
+    # from the foreground process group, so the kernel no longer delivers
+    # SIGWINCH on resize; forward it to the child process group (children
+    # without a handler ignore SIGWINCH by default)
+    def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
+        _ = signum, frame
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(-proc.pid, signal.SIGWINCH)
+
+    if not hasattr(signal, "SIGWINCH") or threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    old_handler = signal.signal(signal.SIGWINCH, _on_sigwinch)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGWINCH, old_handler)
+
+
+@contextlib.contextmanager
 def _sigint_guard(proc: subprocess.Popen):
     """Install SIGINT handler to kill the process tree on Ctrl+C.
 
@@ -932,7 +958,10 @@ def _run_without_split(
             **kwargs,
         )
 
-    with _sigint_guard(proc):
+    with (
+        _sigint_guard(proc),
+        contextlib.nullcontext() if capture_output else _pipe_sigwinch_forwarder(proc),
+    ):
         try:
             stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:

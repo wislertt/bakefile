@@ -33,13 +33,13 @@ Before-outputs: run `bake demo3`, `bake demo4`, `bake demo5`, `bake demo13`, sav
 
 ## Task 4: Pipe-path resize forwarding (demo13)
 
-- [ ] 4.1 TDD: test — child counting SIGWINCH, test process sends SIGWINCH to itself from a thread during `run(..., stream=True, capture_output=False)` → child count > 0 (RED: no forwarding on pipe path)
-- [ ] 4.2 TDD: test — `COLUMNS` not injected into child env when parent stdout is a tty (RED: always injected today)
-- [ ] 4.3 TDD: guard tests — COLUMNS still injected when parent stdout is a pipe; capture path (`stream=False`) unchanged
-- [ ] 4.4 Fix: `_prepare_subprocess_env` gates COLUMNS/LINES on parent stdout not a tty
-- [ ] 4.5 Fix: pipe `_sigwinch_forwarder` variant — `os.killpg(-proc.pid, SIGWINCH)` on parent resize, POSIX + main-thread guards, wire into `_run_without_split` stream-only branch
-- [ ] 4.6 Verify `bake demo13` section 1 → `FIXED: stream-only child receives SIGWINCH`, `env=<unset>`, `ioctl=` live
-- [ ] 4.7 No regression: `bake demo12` (PTY path forwarding intact), keyring/conftest-adjacent tests unaffected, test_run.py green
+- [x] 4.1 TDD: test — child counting SIGWINCH, test process sends SIGWINCH to itself from a thread during `run(..., stream=True, capture_output=False)` → child count > 0 (RED confirmed). TestPipeResizeForwarding in test_run.py
+- [x] 4.2 TDD: test — `COLUMNS` not injected into child env when parent stdout is a tty (RED confirmed: mocked get_terminal_size → injects today)
+- [x] 4.3 TDD: guard tests — COLUMNS still injected when parent stdout is a pipe; capture path (`stream=False`) unchanged (both RED pre-fix: old code injected only on tty stdout). Updated TestPrepareSubprocessEnv.test_terminal_size_oserror_fallback to pin new fallback contract (80x24 hint when no tty anywhere)
+- [x] 4.4 Fix: `_prepare_subprocess_env` gates COLUMNS/LINES on parent stdout not a tty — tty children ioctl live size, pipe children get `_get_parent_terminal_size()` (stdout/stderr/stdin ioctl chain) or shutil fallback
+- [x] 4.5 Fix: `_pipe_sigwinch_forwarder` — `os.killpg(-proc.pid, SIGWINCH)` on parent resize, POSIX + main-thread guards, wired into `_run_without_split` stream-only branch (capture_output=False)
+- [x] 4.6 Verified `bake demo13` section 1 → `FIXED: stream-only child receives SIGWINCH` (simulated resize: SIGWINCH to bake pid, child winch 0→3). `env=<unset>` + `ioctl=` live need real terminal — interactive check pending user
+- [x] 4.7 No regression: `bake demo12` FIXED (3/3 signals via PTY forwarder), test_run.py 141 green, run pkg + cli/common 352 green, ty full-repo clean, ruff clean
 
 ## Wrap-up
 
