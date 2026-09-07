@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 P = ParamSpec("P")
 F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T")
-CachedT = TypeVar("CachedT", covariant=True)
+CachedT = TypeVar("CachedT")
 
 
 class CacheEntry(BaseModel, Generic[CachedT]):

@@ -86,7 +86,7 @@ class MySpace(BaseSpace):
     def test(self) -> None: ...
 ```
 
-**bakelib Spaces** are optional preconfigured Bakebooks for project types (`PythonSpace`, `RustSpace`, `PythonLibSpace`, `RustLibSpace`), installed with `pip install bakefile[lib]`. They ship shared tasks (lint, clean, setup-dev, tools, update, version) that you inherit and override; language Spaces add their own lint, test, and tool setup.
+**bakelib Spaces** are optional preconfigured Bakebooks for project types (`PythonSpace`, `RustSpace`, `PythonLibSpace`, `RustLibSpace`), installed with `pip install "bakefile[lib]"`. They ship shared tasks (lint, clean, setup-dev, tools, update, version) that you inherit and override; language Spaces add their own lint, test, and tool setup.
 
 ## Common gotchas
 

@@ -54,12 +54,12 @@ locked = [
   "python-dotenv==1.2.3",
   "pyyaml==6.0.3",
   "rich==15.0.0",
-  "ruff==0.16.5",
+  "ruff==0.16.6",
   "tomli==2.4.1; python_version < '3.11'",
-  "ty==0.0.75",
+  "ty==0.0.78",
   "typer==0.27.2",
   "typing-extensions==4.16.0",
-  "uv==0.12.7"
+  "uv==0.12.10"
 ]
 lib = [
   "keyring>=25.7.0",
