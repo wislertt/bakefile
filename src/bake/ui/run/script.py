@@ -1,12 +1,11 @@
 import logging
 import subprocess
-from pathlib import Path
 
 from typing_extensions import Unpack
 
 from bake.ui import console
 from bake.ui.run import StrOrNoneCompletedProcess, run
-from bake.ui.run.main import PopenKwargs
+from bake.ui.run.main import RunScriptKwargs
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +19,7 @@ def run_script(
     script: str,
     *,
     capture_output: bool = True,
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    echo: bool = True,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    **kwargs: Unpack[PopenKwargs],
+    **kwargs: Unpack[RunScriptKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a multi-line script with shebang support.
 
@@ -56,11 +47,11 @@ def run_script(
     """
     script = script.strip()
 
-    if echo:
+    if kwargs.get("echo", True):
         console.script_block(title, script)
 
-    if dry_run:
-        logger.debug(f"[dry-run] {title}", extra={"cwd": cwd})
+    if kwargs.pop("dry_run", False):
+        logger.debug(f"[dry-run] {title}", extra={"cwd": kwargs.get("cwd")})
         return subprocess.CompletedProcess(
             args=script,
             returncode=0,
@@ -68,16 +59,11 @@ def run_script(
             stderr="" if capture_output else None,
         )
 
+    # run() must not re-echo: the script block above is the display
+    kwargs["echo"] = False
     return run(
         script,
         capture_output=capture_output,
-        check=check,
-        cwd=cwd,
-        stream=stream,
-        echo=False,
         shell=True,
-        keep_temp_file=keep_temp_file,
-        env=env,
-        timeout=timeout,
         **kwargs,
     )

@@ -1,12 +1,20 @@
 import contextlib
+import fcntl
 import inspect
 import logging
 import os
+import pty
+import re
+import select
 import signal
+import struct
 import subprocess
 import sys
+import termios
+import threading
+import time
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, get_args
 from unittest import mock
 
 import pytest
@@ -21,7 +29,8 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
-from bake.ui.run import main, run_script, run_uv
+from bake.ui.run import main
+from bake.ui.run.main import RunKwargs, RunScriptKwargs, RunUvKwargs
 from tests.utils.misc import flaky_on_macos_ci
 
 
@@ -59,6 +68,304 @@ def test_run_capture_false_returns_none_stdout_stderr() -> None:
     assert result.returncode == 0
     assert result.stdout is None
     assert result.stderr is None
+
+
+def test_run_capture_omitted_returns_none_stdout_stderr() -> None:
+    result = run(["echo", "hello"])
+
+    assert result.returncode == 0
+    assert result.stdout is None
+    assert result.stderr is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PTY fds are POSIX-only")
+def test_run_failed_spawn_does_not_leak_pty_fds() -> None:
+    def fd_count() -> int:
+        return len(os.listdir("/dev/fd"))
+
+    before = fd_count()
+    for _ in range(3):
+        with contextlib.suppress(FileNotFoundError):
+            run(["bake-nonexistent-cmd-xyz"], capture_output=True, echo=False)
+
+    assert fd_count() == before
+
+
+_WINSIZE_CHILD = r"""
+import fcntl, struct, sys, termios
+
+ws = fcntl.ioctl(1, termios.TIOCGWINSZ, b"\x00" * 8)
+rows, cols = struct.unpack("HHHH", ws)[:2]
+print(f"{cols}x{rows}")
+"""
+
+
+class TestPtyWinsize:
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY winsize is POSIX-only")
+
+    def test_pty_gets_parent_terminal_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # struct winsize is (ws_row, ws_col, ...): 100 cols, 30 rows
+        parent_ws = struct.pack("HHHH", 30, 100, 0, 0)
+        real_ioctl = fcntl.ioctl
+
+        def fake_ioctl(fd: int, request: int, buf: Any = None) -> Any:
+            if request == termios.TIOCGWINSZ:
+                return parent_ws
+            if buf is None:
+                return real_ioctl(fd, request)
+            return real_ioctl(fd, request, buf)
+
+        monkeypatch.setattr(fcntl, "ioctl", fake_ioctl)
+
+        result = run([sys.executable, "-c", _WINSIZE_CHILD], capture_output=True, echo=False)
+
+        assert "100x30" in result.stdout
+
+    def test_pty_falls_back_to_env_when_parent_not_a_tty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real_ioctl = fcntl.ioctl
+
+        def fake_ioctl(fd: int, request: int, buf: Any = None) -> Any:
+            if request == termios.TIOCGWINSZ:
+                raise OSError("not a tty")
+            if buf is None:
+                return real_ioctl(fd, request)
+            return real_ioctl(fd, request, buf)
+
+        monkeypatch.setattr(fcntl, "ioctl", fake_ioctl)
+        monkeypatch.setenv("COLUMNS", "123")
+        monkeypatch.setenv("LINES", "45")
+
+        result = run([sys.executable, "-c", _WINSIZE_CHILD], capture_output=True, echo=False)
+
+        assert "123x45" in result.stdout
+
+
+_CTTY_CHILD = r"""
+import os
+
+try:
+    fg = os.tcgetpgrp(1)
+    print(f"fg == own pgrp: {fg == os.getpgrp()}")
+except OSError as e:
+    print(f"no controlling terminal: {e}")
+"""
+
+
+class TestPtyNoCtty:
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+
+    def test_pty_child_gets_no_controlling_terminal(self) -> None:
+        # No ctty by design: kernel hangs up the whole PTY at session-leader exit
+        result = run([sys.executable, "-c", _CTTY_CHILD], capture_output=True, echo=False)
+
+        assert "no controlling terminal" in result.stdout
+
+    def test_resize_mid_run_delivers_sigwinch_to_child(self, tmp_path: Path) -> None:
+        request = {"darwin": 0x20007461, "linux": 0x540E}.get(sys.platform)
+        if request is None:
+            pytest.skip(f"no TIOCSCTTY constant for {sys.platform}")
+        outer = tmp_path / "outer.py"
+        outer.write_text(
+            "import sys\n"
+            "\n"
+            "from bake.ui import run\n"
+            "\n"
+            'CHILD = r"""\n'
+            "import signal, time\n"
+            "\n"
+            "winch = 0\n"
+            "\n"
+            "def on_winch(signum, frame):\n"
+            "    global winch\n"
+            "    winch += 1\n"
+            "\n"
+            "signal.signal(signal.SIGWINCH, on_winch)\n"
+            'print("child-ready", flush=True)\n'
+            "for _ in range(30):  # ~3s window for the harness to resize\n"
+            "    time.sleep(0.1)\n"
+            'print(f"signals: {winch}", flush=True)\n'
+            '"""\n'
+            "\n"
+            "result = run([sys.executable, '-c', CHILD], capture_output=True, echo=False)\n"
+            "sys.stdout.write(result.stdout)\n"
+        )
+
+        mfd, sfd = pty.openpty()
+
+        def set_size(cols: int, rows: int) -> None:
+            winsize = struct.pack("HHHH", rows, cols, 0, 0)
+            fcntl.ioctl(mfd, termios.TIOCSWINSZ, winsize)
+
+        set_size(80, 24)
+
+        def make_session_leader_with_ctty() -> None:
+            os.setsid()
+            fcntl.ioctl(sfd, request, 0)
+
+        proc = subprocess.Popen(
+            [sys.executable, str(outer)],
+            stdin=sfd,
+            stdout=sfd,
+            stderr=sfd,
+            preexec_fn=make_session_leader_with_ctty,
+        )
+        os.close(sfd)
+
+        # Resize only after the child reports readiness - a fixed sleep races Popen
+        deadline = time.time() + 15
+        out = b""
+        resized = False
+        while time.time() < deadline:
+            readable, _, _ = select.select([mfd], [], [], 0.5)
+            if readable:
+                try:
+                    data = os.read(mfd, 4096)
+                except OSError:
+                    break
+                if not data:
+                    break
+                out += data
+            if not resized and b"child-ready" in out:
+                set_size(120, 30)  # resize mid-run, like a terminal emulator would
+                resized = True
+                continue
+            if not readable and proc.poll() is not None:
+                break
+        proc.wait(timeout=5)
+        text = out.decode(errors="replace")
+
+        match = re.search(r"signals: (\d+)", text)
+        assert match is not None, f"no signal report in outer output: {text!r}"
+        assert int(match.group(1)) > 0
+
+
+_COLUMNS_CHILD = "import os; print(os.environ.get('COLUMNS', '<unset>'))"
+
+
+def _winch_counter_child(count_file: Path) -> str:
+    return (
+        "import signal, time\n"
+        "winch = 0\n"
+        "def on_winch(signum, frame):\n"
+        "    global winch\n"
+        "    winch += 1\n"
+        "signal.signal(signal.SIGWINCH, on_winch)\n"
+        "time.sleep(1.5)\n"
+        f"open({str(count_file)!r}, 'w').write(str(winch))\n"
+    )
+
+
+def _send_sigwinch_blast(delay: float = 0.5, count: int = 3) -> None:
+    time.sleep(delay)
+    for _ in range(count):
+        os.kill(os.getpid(), signal.SIGWINCH)
+        time.sleep(0.1)
+
+
+class TestPipeResizeForwarding:
+    """Stream-only pipe path: children inherit the tty, so resizes must reach them."""
+
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="SIGWINCH is POSIX-only")
+
+    def test_stream_only_child_receives_sigwinch(self, tmp_path: Path) -> None:
+        count_file = tmp_path / "winch_count"
+
+        sender = threading.Thread(target=_send_sigwinch_blast)
+        sender.start()
+        try:
+            run(
+                [sys.executable, "-c", _winch_counter_child(count_file)],
+                stream=True,
+                capture_output=False,
+                check=False,
+                echo=False,
+            )
+        finally:
+            sender.join()
+
+        assert count_file.read_text().strip() != "0"
+
+    def test_capture_child_receives_sigwinch_via_pty_forwarder(self, tmp_path: Path) -> None:
+        count_file = tmp_path / "winch_count"
+
+        sender = threading.Thread(target=_send_sigwinch_blast)
+        sender.start()
+        try:
+            with mock.patch.object(main, "_get_parent_terminal_size", return_value=(120, 30)):
+                run(
+                    [sys.executable, "-c", _winch_counter_child(count_file)],
+                    capture_output=True,
+                    echo=False,
+                )
+        finally:
+            sender.join()
+
+        assert count_file.read_text().strip() != "0"
+
+    def test_forwarder_skipped_off_main_thread(self) -> None:
+        done = threading.Event()
+
+        def worker() -> None:
+            run(["echo", "hi"], stream=True, capture_output=False, echo=False)
+            done.set()
+
+        worker_thread = threading.Thread(target=worker)
+        worker_thread.start()
+
+        assert done.wait(10), "run() from worker thread did not complete"
+
+
+class TestPreexecForwarding:
+    """User preexec_fn must still run on the PTY path despite bake's own wrapper."""
+
+    pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+
+    def test_user_preexec_fn_runs_in_child(self, tmp_path: Path) -> None:
+        marker = tmp_path / "preexec_ran"
+
+        def preexec() -> None:
+            with open(marker, "w") as f:
+                f.write("ran")
+
+        result = run(["echo", "hi"], capture_output=True, echo=False, preexec_fn=preexec)
+
+        assert result.returncode == 0
+        assert marker.read_text() == "ran"
+
+    def test_columns_not_injected_when_stdout_is_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+        monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+        monkeypatch.setattr(
+            os, "get_terminal_size", lambda *_args, **_kwargs: os.terminal_size((100, 30))
+        )
+
+        result = run([sys.executable, "-c", _COLUMNS_CHILD], capture_output=True, echo=False)
+
+        assert "<unset>" in result.stdout
+
+    def test_columns_injected_when_stdout_is_pipe(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+
+        result = run([sys.executable, "-c", _COLUMNS_CHILD], capture_output=True, echo=False)
+
+        assert "<unset>" not in result.stdout
+
+    def test_capture_only_still_gets_columns(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+
+        result = run(
+            [sys.executable, "-c", _COLUMNS_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+        )
+
+        assert "<unset>" not in result.stdout
 
 
 @flaky_on_macos_ci()
@@ -232,20 +539,16 @@ def test_capture_to_logs_pretty_with_extra_parses_correctly(
 def test_run_stream_preserves_colors_with_pty(
     capfd: pytest.CaptureFixture[str],
 ) -> None:
-    """Cross-platform version of ANSI color preservation test using Python."""
+    """With stream=True the PTY keeps colors in the live view; capture is clean text."""
     # Use Python to generate colored output (works on all platforms)
     python_code = """print('\\033[32mGreen text\\033[0m')
 print('\\033[1;34mBlue bold text\\033[0m')
 print('\\033[33mYellow text\\033[0m')"""
     script = [sys.executable, "-c", python_code]
 
-    # With stream=True, PTY should preserve ANSI codes
     result = run(script, stream=True, capture_output=True)
 
-    # Should contain ANSI color codes
-    assert "[32m" in result.stdout
-    assert "[1;34m" in result.stdout
-    assert "[33m" in result.stdout
+    assert "[32m" not in result.stdout
     assert "Green text" in result.stdout
     assert "Blue bold text" in result.stdout
     assert "Yellow text" in result.stdout
@@ -300,132 +603,282 @@ def test_run_stderr_is_captured_and_streamed(
         assert capture.err == ""
 
 
-# ============================================================================
-# String Command Tests (Shell Support)
-# ============================================================================
+class TestPtyCaptureCleanup:
+    pytestmark = pytest.mark.skipif(
+        sys.platform == "win32", reason="PTY capture path is POSIX-only"
+    )
 
+    def _run_capture(self, child_code: str) -> str:
+        result = run(
+            [sys.executable, "-c", child_code],
+            stream=True,
+            capture_output=True,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        return result.stdout
 
-@flaky_on_macos_ci()
-@pytest.mark.parametrize(
-    "cmd,expected_in_output",
-    [
-        ("echo hello from shell", "hello from shell"),
-        ("echo hello && echo world", ["hello", "world"]),
-        ("echo hello | tr h H", "Hello"),
-    ],
-)
-def test_run_string_command_shell_features(
-    cmd: str,
-    expected_in_output: str | list[str],
-) -> None:
-    result = run(cmd, capture_output=True)
+    def test_carriage_return_frames_collapse_to_final_frame(self) -> None:
+        """Progress-bar \r frames collapse to the final frame in captured stdout."""
+        child = r"""
+import sys
+sys.stdout.write("\r[##                  ] 10%")
+sys.stdout.write("\r[####                ] 20%")
+sys.stdout.write("\r[####################] 100%\n")
+sys.stdout.write("DONE\n")
+"""
+        assert self._run_capture(child) == "[####################] 100%\nDONE\n"
 
-    assert result.returncode == 0
-    if isinstance(expected_in_output, str):
-        assert expected_in_output in result.stdout
-    else:
-        for expected in expected_in_output:
-            assert expected in result.stdout
+    def test_ansi_and_carriage_return_both_cleaned(self) -> None:
+        """ANSI color codes are stripped and \r frames collapsed in captured stdout."""
+        child = r"""
+import sys
+sys.stdout.write("\x1b[32m\r[##  ] 10%\x1b[0m")
+sys.stdout.write("\r\x1b[32m[####] 100%\x1b[0m\n")
+"""
+        assert self._run_capture(child) == "[####] 100%\n"
 
+    def test_mid_line_overwrite_keeps_last_segment(self) -> None:
+        """A bare \r mid-line keeps only the segment after it, per line."""
+        child = r"""
+import sys
+sys.stdout.write("start\n")
+sys.stdout.write("mid\roverwrite\n")
+sys.stdout.write("end\n")
+"""
+        assert self._run_capture(child) == "start\noverwrite\nend\n"
 
-@flaky_on_macos_ci()
-@pytest.mark.parametrize(
-    "cmd_type,cmd,shell_override",
-    [
-        # String commands with different shell overrides
-        ("str", "echo test", None),  # Auto-detect: shell=True
-        ("str", "echo test && echo success", None),  # Auto-detect with chaining
-        ("str", "echo test", True),  # Explicit shell=True
-        # List commands (backward compatibility)
-        ("list", ["echo", "test"], None),  # Auto-detect: shell=False
-        ("list", ["echo", "test"], False),  # Explicit shell=False
-    ],
-)
-def test_run_command_auto_detection(
-    cmd_type: str,
-    cmd: str | list[str],
-    shell_override: bool | None,
-) -> None:
-    result = run(cmd, shell=shell_override, capture_output=True)
+    def test_capture_without_trailing_newline(self) -> None:
+        """Collapsed capture with no trailing newline stays unterminated."""
+        child = r"""
+import sys
+sys.stdout.write("\rfoo\rbar")
+"""
+        assert self._run_capture(child) == "bar"
 
-    assert result.returncode == 0
-    if cmd_type == "str" and "&&" in str(cmd):
-        assert "test" in result.stdout
-        assert "success" in result.stdout
-    else:
-        assert "test" in result.stdout
+    def test_trailing_carriage_return_keeps_content(self) -> None:
+        """A final bare \r (truncated frame) keeps the preceding content."""
+        child = r"""
+import sys
+sys.stdout.write("partial\r")
+"""
+        assert self._run_capture(child) == "partial"
 
+    def test_partial_overwrite_keeps_last_segment(self) -> None:
+        """Partial overwrite `abc\\rX` keeps `X` (last-wins; terminal would show `Xbc`)."""
+        child = r"""
+import sys
+sys.stdout.write("abc\rX\n")
+"""
+        assert self._run_capture(child) == "X\n"
 
-def test_run_string_command_wildcards(tmp_path: Path) -> None:
-    """Test wildcards expand in string commands."""
-    (tmp_path / "test1.py").write_text("# test1")
-    (tmp_path / "test2.py").write_text("# test2")
-    (tmp_path / "README.md").write_text("# readme")
+    def test_stderr_frames_collapse_too(self) -> None:
+        """stderr runs through its own PTY and gets the same cleanup (tqdm writes there)."""
+        child = r"""
+import sys
+sys.stderr.write("\r[##  ] 10%")
+sys.stderr.write("\r[####] 100%\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=True,
+            capture_output=True,
+            echo=False,
+        )
+        assert isinstance(result.stderr, str)
+        assert result.stderr == "[####] 100%\n"
 
-    result = run("ls *.py", cwd=tmp_path, capture_output=True)
+    def test_timeout_partial_output_collapses_frames(self) -> None:
+        """TimeoutExpired partial output gets the same collapse (truncated frame keeps content)."""
+        child = r"""
+import sys, time
+sys.stdout.write("frame-one\r")
+sys.stdout.flush()
+time.sleep(10)
+"""
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run(
+                [sys.executable, "-c", child],
+                timeout=0.5,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
+        stdout = exc_info.value.stdout
+        assert isinstance(stdout, str)
+        assert stdout == "frame-one"
 
-    assert result.returncode == 0
-    assert "test1.py" in result.stdout
-    assert "test2.py" in result.stdout
-    assert "README.md" not in result.stdout
+    def test_explicit_crlf_survives_onlcr_doubling(self) -> None:
+        """Explicit \r\n becomes \r\r\n on the PTY; normalize-then-collapse yields one line."""
+        child = r"""
+import sys
+sys.stdout.write("x\r\n")
+"""
+        assert self._run_capture(child) == "x\n"
 
+    def test_empty_capture_stays_empty(self) -> None:
+        """No output stays the empty string."""
+        child = "pass"
+        assert self._run_capture(child) == ""
 
-def test_run_string_command_redirects(tmp_path: Path) -> None:
-    result = run("echo test content > test.txt", cwd=tmp_path, capture_output=True)
+    def test_pipe_capture_keeps_literal_carriage_return(self) -> None:
+        """Pipe path (no PTY) must NOT collapse a deliberate literal \r."""
+        child = r"""
+import sys
+sys.stdout.write("a\rb\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=False,
+            capture_output=True,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        assert result.stdout == "a\rb\n"
 
-    assert result.returncode == 0
-    content = (tmp_path / "test.txt").read_text()
-    assert content.strip() == "test content"
+    def test_clean_capture_output_false_returns_raw_frames(self) -> None:
+        """clean_capture_output=False keeps \r frames and ANSI verbatim in the capture."""
+        child = r"""
+import sys
+sys.stdout.write("\x1b[32m\r[##  ]\x1b[0m")
+sys.stdout.write("\r\x1b[32m[####]\x1b[0m\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=True,
+            capture_output=True,
+            clean_capture_output=False,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        assert result.stdout == "\x1b[32m\r[##  ]\x1b[0m\r\x1b[32m[####]\x1b[0m\n"
 
+    def test_clean_capture_output_false_noop_on_pipe(self) -> None:
+        """clean_capture_output=False with stream=False is a silent no-op (already raw)."""
+        child = r"""
+import sys
+sys.stdout.write("a\rb\n")
+"""
+        result = run(
+            [sys.executable, "-c", child],
+            stream=False,
+            capture_output=True,
+            clean_capture_output=False,
+            echo=False,
+        )
+        assert isinstance(result.stdout, str)
+        assert result.stdout == "a\rb\n"
 
-def test_run_string_command_preserves_colors_with_pty() -> None:
-    result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
+    def test_clean_capture_output_false_noop_without_capture(self) -> None:
+        """clean_capture_output=False without capture_output is a silent no-op."""
+        result = run(["echo", "x"], clean_capture_output=False, echo=False)
 
-    assert result.returncode == 0
-    assert "[32m" in result.stdout
-    assert "Green" in result.stdout
-
-
-@pytest.mark.parametrize(
-    "cmd,capture_output",
-    [
-        ("echo test", False),
-        (["echo", "test"], False),
-    ],
-)
-def test_run_command_capture_output_false(
-    capfd: pytest.CaptureFixture[str],
-    cmd: str | list[str],
-    capture_output: bool,
-) -> None:
-    setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
-    _ = capfd.readouterr()
-
-    result = run(cmd, capture_output=capture_output)
-
-    assert result.returncode == 0
-    assert result.stdout is None
-    assert result.stderr is None
-
-
-def test_run_string_command_with_explicit_shell_false() -> None:
-    # When shell=False, a string command is treated as a single executable name
-    # On Unix: "echo hello" is not a valid executable -> raises FileNotFoundError
-    # On Windows: Windows CreateProcess may handle this differently
-    if sys.platform == "win32":
-        # On Windows, CreateProcess tokenizes the command, so "echo hello" finds echo.exe/bat
-        # and "hello" is passed as an argument. Output is captured in stdout.
-        result = run("echo hello", shell=False, capture_output=True)
         assert result.returncode == 0
-        assert "hello" in result.stdout
-    else:
-        # On Unix, this should raise FileNotFoundError
-        result = run("echo hello", shell=True, capture_output=True)
-        with pytest.raises(FileNotFoundError):
-            run("echo hello", shell=False)
+        assert result.stdout is None
 
 
-# Tests for internal helper functions
+class TestStringCommand:
+    @flaky_on_macos_ci()
+    @pytest.mark.parametrize(
+        "cmd,expected_in_output",
+        [
+            ("echo hello from shell", "hello from shell"),
+            ("echo hello && echo world", ["hello", "world"]),
+            ("echo hello | tr h H", "Hello"),
+        ],
+    )
+    def test_shell_features(self, cmd: str, expected_in_output: str | list[str]) -> None:
+        result = run(cmd, capture_output=True)
+
+        assert result.returncode == 0
+        if isinstance(expected_in_output, str):
+            assert expected_in_output in result.stdout
+        else:
+            for expected in expected_in_output:
+                assert expected in result.stdout
+
+    @flaky_on_macos_ci()
+    @pytest.mark.parametrize(
+        "cmd_type,cmd,shell_override",
+        [
+            ("str", "echo test", None),  # Auto-detect: shell=True
+            ("str", "echo test && echo success", None),  # Auto-detect with chaining
+            ("str", "echo test", True),  # Explicit shell=True
+            ("list", ["echo", "test"], None),  # Auto-detect: shell=False
+            ("list", ["echo", "test"], False),  # Explicit shell=False
+        ],
+    )
+    def test_command_auto_detection(
+        self, cmd_type: str, cmd: str | list[str], shell_override: bool | None
+    ) -> None:
+        result = run(cmd, shell=shell_override, capture_output=True)
+
+        assert result.returncode == 0
+        if cmd_type == "str" and "&&" in str(cmd):
+            assert "test" in result.stdout
+            assert "success" in result.stdout
+        else:
+            assert "test" in result.stdout
+
+    def test_wildcards(self, tmp_path: Path) -> None:
+        """Test wildcards expand in string commands."""
+        (tmp_path / "test1.py").write_text("# test1")
+        (tmp_path / "test2.py").write_text("# test2")
+        (tmp_path / "README.md").write_text("# readme")
+
+        result = run("ls *.py", cwd=tmp_path, capture_output=True)
+
+        assert result.returncode == 0
+        assert "test1.py" in result.stdout
+        assert "test2.py" in result.stdout
+        assert "README.md" not in result.stdout
+
+    def test_redirects(self, tmp_path: Path) -> None:
+        result = run("echo test content > test.txt", cwd=tmp_path, capture_output=True)
+
+        assert result.returncode == 0
+        content = (tmp_path / "test.txt").read_text()
+        assert content.strip() == "test content"
+
+    def test_preserves_colors_with_pty(self, capfd: pytest.CaptureFixture[str]) -> None:
+        result = run('printf "\\033[32mGreen\\033[0m\\n"', shell=True, capture_output=True)
+
+        assert result.returncode == 0
+        assert "[32m" in capfd.readouterr().out
+        assert "[32m" not in result.stdout
+        assert "Green" in result.stdout
+
+    @pytest.mark.parametrize(
+        "cmd,capture_output",
+        [
+            ("echo test", False),
+            (["echo", "test"], False),
+        ],
+    )
+    def test_capture_output_false(
+        self, capfd: pytest.CaptureFixture[str], cmd: str | list[str], capture_output: bool
+    ) -> None:
+        setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
+        _ = capfd.readouterr()
+
+        result = run(cmd, capture_output=capture_output)
+
+        assert result.returncode == 0
+        assert result.stdout is None
+        assert result.stderr is None
+
+    def test_explicit_shell_false(self) -> None:
+        if sys.platform == "win32":
+            # Windows CreateProcess tokenizes string commands into exe + args
+            result = run("echo hello", shell=False, capture_output=True)
+            assert result.returncode == 0
+            assert "hello" in result.stdout
+        else:
+            result = run("echo hello", shell=True, capture_output=True)
+            with pytest.raises(FileNotFoundError):
+                run("echo hello", shell=False)
+
+
 class TestParseShebang:
     """Tests for _parse_shebang internal function."""
 
@@ -500,11 +953,6 @@ class TestResolveInterpreter:
 
         result = _resolve_interpreter(interpreter)
         assert check_func(result)
-
-
-# ============================================================================
-# echo_cmd Tests (Command Display Override)
-# ============================================================================
 
 
 @flaky_on_macos_ci()
@@ -588,11 +1036,6 @@ def test_echo_cmd_edge_cases(
         assert "echo hello" in capture.err
 
 
-# ============================================================================
-# Windows CI Tests
-# ============================================================================
-
-
 class TestCrossPlatformSubprocess:
     """Tests for cross-platform subprocess execution.
 
@@ -672,10 +1115,37 @@ class TestCrossPlatformSubprocess:
         ):
             run("echo line1\necho line2", shell=True, echo=False)
 
+    def test_windows_multiline_script_runs_via_sh(self) -> None:
+        """Multi-line script on Windows goes to temp file and runs via sh.exe."""
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value="/bin/sh"),
+        ):
+            result = run("echo plain-ran\necho done", shell=True, capture_output=True, echo=False)
 
-# ============================================================================
-# _check_exit_code Tests (stream=False error output)
-# ============================================================================
+        assert result.returncode == 0
+        assert "plain-ran" in result.stdout
+
+    def test_windows_shebang_script_runs_via_interpreter(self) -> None:
+        """Shebang script on Windows runs via the shebang interpreter, not sh.exe."""
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value="/bin/sh"),
+        ):
+            result = run("#!/bin/sh\necho shebang-ran", shell=True, capture_output=True, echo=False)
+
+        assert result.returncode == 0
+        assert "shebang-ran" in result.stdout
+
+    def test_use_sh_on_windows_wraps_string_command(self) -> None:
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("shutil.which", return_value="/fake/sh.exe"),
+        ):
+            cmd, shell = main._use_sh_on_windows(cmd="echo hi", shell=True)
+
+        assert cmd == ["/fake/sh.exe", "-c", "echo hi"]
+        assert shell is False
 
 
 class TestCheckExitCodeStreamFalse:
@@ -811,11 +1281,6 @@ class TestCheckExitCodeStreamFalse:
         assert "failed with exit code" not in capture.err
 
 
-# ============================================================================
-# Timeout Tests
-# ============================================================================
-
-
 class TestTimeout:
     """Tests for the timeout parameter."""
 
@@ -867,6 +1332,36 @@ class TestTimeout:
         # Output should have been streamed before timeout
         assert "before timeout" in capture.out
 
+    def test_timeout_expired_carries_partial_stdout(self) -> None:
+        """TimeoutExpired from the split path includes partial stdout captured before the kill."""
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run(
+                'echo "PARTIAL_START" && sleep 10',
+                timeout=0.5,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
+
+        stdout = exc_info.value.stdout
+        assert isinstance(stdout, str)
+        assert "PARTIAL_START" in stdout
+
+    def test_timeout_expired_carries_partial_stderr(self) -> None:
+        """TimeoutExpired from the split path includes partial stderr captured before the kill."""
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run(
+                'echo "PARTIAL_ERR" >&2 && sleep 10',
+                timeout=0.5,
+                stream=True,
+                capture_output=True,
+                echo=False,
+            )
+
+        stderr = exc_info.value.stderr
+        assert isinstance(stderr, str)
+        assert "PARTIAL_ERR" in stderr
+
     def test_timeout_kills_process(self) -> None:
         """Timed out process is killed (not left running)."""
         import time
@@ -884,43 +1379,83 @@ class TestTimeout:
         assert elapsed < 2.0, f"Process may not have been killed, elapsed={elapsed}s"
 
 
-# ============================================================================
-# Signature Compatibility Tests
-# ============================================================================
+class TestDrainAfterExit:
+    def test_grandchild_output_after_exit_is_captured(self) -> None:
+        script = (
+            "import subprocess, sys\n"
+            "subprocess.Popen([sys.executable, '-c', "
+            "\"import time; time.sleep(1.5); print('LATE FROM GRANDCHILD', flush=True)\"])\n"
+            "print('main done', flush=True)\n"
+        )
+
+        result = run([sys.executable, "-c", script], capture_output=True, stream=True, echo=False)
+
+        assert "main done" in result.stdout
+        assert "LATE FROM GRANDCHILD" in result.stdout
+
+    def test_drain_timeout_cap_drops_late_output_and_returns(self) -> None:
+        script = (
+            "import subprocess, sys\n"
+            "subprocess.Popen([sys.executable, '-c', "
+            "\"import time; time.sleep(3); print('NEVER SEEN', flush=True)\"])\n"
+            "print('main done', flush=True)\n"
+        )
+
+        start = time.perf_counter()
+        result = run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            stream=True,
+            echo=False,
+            drain_timeout=0.5,
+        )
+        elapsed = time.perf_counter() - start
+
+        assert "main done" in result.stdout
+        assert "NEVER SEEN" not in result.stdout
+        assert elapsed < 2.5, f"drain cap not honored, elapsed={elapsed}s"
+
+    def test_drain_timeout_default_is_10s(self) -> None:
+        assert inspect.signature(run).parameters["drain_timeout"].default == 10.0
 
 
 class TestSignatureCompatibility:
-    """Tests to ensure run wrappers have compatible signatures with run()."""
+    """Tests to ensure run wrappers cover run()'s common keyword surface.
 
-    def test_run_script_has_common_params(self) -> None:
-        """run_script should have all common params from run()."""
+    Wrappers take **kwargs: Unpack[RunScriptKwargs]/Unpack[RunUvKwargs], so the
+    contract is TypedDict key coverage, not inspect.signature parameters.
+    """
+
+    @staticmethod
+    def _typed_dict_keys(
+        td: type[RunKwargs] | type[RunScriptKwargs] | type[RunUvKwargs],
+    ) -> frozenset[str]:
+        return frozenset(td.__required_keys__ | td.__optional_keys__)
+
+    def test_run_script_kwargs_covers_common_params(self) -> None:
+        """RunScriptKwargs should have all common params from RunKwargs."""
         excluded = {
-            "cmd",  # uses 'script' instead
             "shell",  # always uses shell=True
             "echo_cmd",  # handles its own display
             "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run).parameters.keys())
-        script_params = set(inspect.signature(run_script).parameters.keys())
-        expected = run_params - excluded
+        run_keys = self._typed_dict_keys(RunKwargs) - excluded
+        script_keys = self._typed_dict_keys(RunScriptKwargs)
 
-        missing = expected - script_params
-        assert not missing, f"run_script missing params: {missing}"
+        missing = run_keys - script_keys
+        assert not missing, f"RunScriptKwargs missing params: {missing}"
 
-    def test_run_uv_has_common_params(self) -> None:
-        """run_uv should have all common params from run()."""
+    def test_run_uv_kwargs_covers_common_params(self) -> None:
+        """RunUvKwargs should have all common params from RunKwargs."""
         excluded = {
-            "cmd",  # constructs its own from uv_bin + args
             "shell",  # always uses shell=False
             "echo_cmd",  # handles its own display
-            "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run).parameters.keys())
-        uv_params = set(inspect.signature(run_uv).parameters.keys())
-        expected = run_params - excluded
+        run_keys = self._typed_dict_keys(RunKwargs) - excluded
+        uv_keys = self._typed_dict_keys(RunUvKwargs)
 
-        missing = expected - uv_params
-        assert not missing, f"run_uv missing params: {missing}"
+        missing = run_keys - uv_keys
+        assert not missing, f"RunUvKwargs missing params: {missing}"
 
 
 class TestPopenKwargs:
@@ -939,7 +1474,7 @@ class TestPopenKwargs:
             "start_new_session",  # load-bearing for process-tree kill
             "encoding",  # breaks internal bytes decode
             "text",  # breaks internal bytes decode
-            "errors",  # breaks internal bytes decode
+            "errors",  # breaks internal bytes decode (run() exposes decode_errors)
             "universal_newlines",  # breaks internal bytes decode
             "process_group",  # 3.11+, absent from ty's stubs for our target python
         }
@@ -962,27 +1497,29 @@ class TestPopenKwargs:
         )
 
 
-# ============================================================================
-# _prepare_subprocess_env Tests (Terminal Size OSError)
-# ============================================================================
-
-
 class TestPrepareSubprocessEnv:
     """Tests for _prepare_subprocess_env internal function."""
 
-    def test_terminal_size_oserror_fallback(self) -> None:
-        """When os.get_terminal_size raises OSError, env is still prepared."""
+    def test_terminal_size_oserror_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When os.get_terminal_size raises OSError, size falls back and env is still prepared."""
         from bake.ui.run.main import _prepare_subprocess_env
 
-        with mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")):
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.delenv("LINES", raising=False)
+        with (
+            mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")),
+            mock.patch.object(main, "_get_parent_terminal_size", return_value=None),
+        ):
             env = _prepare_subprocess_env()
 
             # Should still have color and progress bar settings
             assert "FORCE_COLOR" in env
             assert "CLICOLOR_FORCE" in env
             assert "UV_NO_PROGRESS" in env
-            # COLUMNS and LINES should NOT be set (OSError case)
-            assert "COLUMNS" not in env or env.get("COLUMNS") != "80"
+            # No tty anywhere: children get the fallback size hint
+            assert env["COLUMNS"] == "80"
+            assert env["LINES"] == "24"
 
     def test_custom_env_vars_are_merged(self) -> None:
         """Custom environment variables are merged with system env."""
@@ -998,10 +1535,17 @@ class TestPrepareSubprocessEnv:
         # System defaults should still be present
         assert "UV_NO_PROGRESS" in env
 
+    def test_no_color_suppresses_color_forcing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """NO_COLOR in env prevents FORCE_COLOR/CLICOLOR_FORCE injection."""
+        # Hermetic: ambient shells (e.g. Claude Code) may export these already
+        monkeypatch.delenv("FORCE_COLOR", raising=False)
+        monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
+        from bake.ui.run.main import _prepare_subprocess_env
 
-# ============================================================================
-# _encoding Parameter Tests (stream=False path)
-# ============================================================================
+        env = _prepare_subprocess_env(env={"NO_COLOR": "1"})
+
+        assert "FORCE_COLOR" not in env
+        assert "CLICOLOR_FORCE" not in env
 
 
 class TestEncodingParameter:
@@ -1039,9 +1583,116 @@ class TestEncodingParameter:
         assert "\ufffd" in result.stdout
 
 
-# ============================================================================
-# OutputSplitter OSError Tests
-# ============================================================================
+_INVALID_UTF8_CHILD = "import sys; sys.stdout.buffer.write(b'\\xff\\xfe')"
+
+_SURROGATE_SEQUENCE_CHILD = "import sys; sys.stdout.buffer.write(b'\\xed\\xa0\\x80')"
+
+
+class TestDecodeErrorsParameter:
+    """Tests for the decode_errors parameter controlling capture decode."""
+
+    TESTED_HANDLERS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "strict",
+            "ignore",
+            "replace",
+            "backslashreplace",
+            "surrogateescape",
+            "surrogatepass",
+        }
+    )
+
+    def test_every_literal_value_is_tested(self) -> None:
+        """Drift guard: DecodeErrors Literal values and tested handlers stay in sync."""
+        assert set(get_args(main.DecodeErrors)) == self.TESTED_HANDLERS
+
+    @pytest.mark.parametrize(
+        ("decode_errors", "expected"),
+        [
+            ("ignore", ""),
+            ("replace", "��"),
+            ("backslashreplace", "\\xff\\xfe"),
+            ("surrogateescape", "\udcff\udcfe"),
+        ],
+    )
+    def test_handler_semantics(self, decode_errors: main.DecodeErrors, expected: str) -> None:
+        """Each non-raising handler decodes invalid bytes per its codecs contract."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            decode_errors=decode_errors,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout == expected
+
+    @pytest.mark.parametrize("decode_errors", ["strict", "surrogatepass"])
+    def test_raising_handlers_raise(self, decode_errors: main.DecodeErrors) -> None:
+        """strict and surrogatepass raise UnicodeDecodeError on plain invalid bytes."""
+        with pytest.raises(UnicodeDecodeError):
+            run(
+                [sys.executable, "-c", _INVALID_UTF8_CHILD],
+                stream=False,
+                capture_output=True,
+                echo=False,
+                decode_errors=decode_errors,
+            )
+
+    def test_surrogatepass_decodes_surrogate_sequence(self) -> None:
+        """surrogatepass decodes surrogate-encoded sequences other handlers reject."""
+        result = run(
+            [sys.executable, "-c", _SURROGATE_SEQUENCE_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            decode_errors="surrogatepass",
+        )
+
+        assert result.stdout == "\ud800"
+
+    def test_surrogateescape_round_trips_invalid_bytes(self) -> None:
+        """decode_errors='surrogateescape' preserves raw bytes through capture."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+            decode_errors="surrogateescape",
+        )
+
+        assert result.stdout.encode("utf-8", "surrogateescape") == b"\xff\xfe"
+
+    def test_default_replaces_invalid_bytes(self) -> None:
+        """Default decode still replaces invalid bytes with U+FFFD (compat pin)."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            stream=False,
+            capture_output=True,
+            echo=False,
+        )
+
+        assert "�" in result.stdout
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+    def test_surrogateescape_on_pty_split_path(self) -> None:
+        """decode_errors='surrogateescape' also applies on the PTY split path."""
+        result = run(
+            [sys.executable, "-c", _INVALID_UTF8_CHILD],
+            capture_output=True,
+            echo=False,
+            decode_errors="surrogateescape",
+        )
+
+        assert result.stdout.encode("utf-8", "surrogateescape") == b"\xff\xfe"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="PTY path is POSIX-only")
+    def test_default_replaces_invalid_bytes_on_split_path(self) -> None:
+        """Default decode on the PTY split path still replaces invalid bytes."""
+        result = run([sys.executable, "-c", _INVALID_UTF8_CHILD], capture_output=True, echo=False)
+
+        assert "�" in result.stdout
 
 
 class TestOutputSplitterErrorPaths:
@@ -1186,7 +1837,7 @@ class TestOutputSplitterErrorPaths:
         call_count = [0]
 
         def mock_select(*_, **__):
-            return ([], [], [])  # No data ready
+            raise OSError("Not a socket")
 
         def mock_read(*_, **__):
             call_count[0] += 1
@@ -1200,19 +1851,16 @@ class TestOutputSplitterErrorPaths:
         ):
             splitter._drain_pty(1, sys.stdout, [])
 
-    def test_drain_pty_exits_after_max_timeouts(self) -> None:
-        """When max timeouts reached, _drain_pty exits without error."""
+    def test_drain_pty_exits_on_eof_when_select_reports_no_data(self) -> None:
+        """select reporting no data forever is bounded by the drain deadline."""
         from bake.ui.run.splitter import OutputSplitter
 
-        splitter = OutputSplitter(stream=True, capture=True)
+        splitter = OutputSplitter(stream=True, capture=True, drain_timeout=0.2)
 
-        # Mock select to return no data (timeout)
-        # Mock os.read to return EOF
         with (
             mock.patch("select.select", return_value=([], [], [])),
             mock.patch("os.read", return_value=b""),
         ):
-            # Should exit after max_timeouts iterations
             splitter._drain_pty(1, sys.stdout, [])
 
     def test_drain_pty_when_select_works_becomes_false(self) -> None:
@@ -1263,11 +1911,6 @@ class TestOutputSplitterErrorPaths:
             splitter._drain_pty(1, sys.stdout, [])
 
 
-# ============================================================================
-# KeyboardInterrupt Tests
-# ============================================================================
-
-
 class TestKeyboardInterrupt:
     """Tests for KeyboardInterrupt handling during command execution."""
 
@@ -1316,11 +1959,6 @@ class TestKeyboardInterrupt:
             # With passthrough guard, only proc.wait is called.
             mock_kill.assert_not_called()
             mock_proc.wait.assert_called_once()
-
-
-# ============================================================================
-# _sigint_guard Tests
-# ============================================================================
 
 
 class TestSigintGuard:
@@ -1403,11 +2041,6 @@ class TestSigintGuard:
             assert last_call[0][1] is old_handler
 
 
-# ============================================================================
-# _kill_process_tree Tests
-# ============================================================================
-
-
 class TestKillProcessTree:
     def test_returns_early_if_process_already_dead(self) -> None:
         mock_proc = mock.Mock(spec=subprocess.Popen)
@@ -1415,6 +2048,24 @@ class TestKillProcessTree:
 
         main._kill_process_tree(mock_proc)
 
+        mock_proc.kill.assert_not_called()
+
+    def test_windows_uses_taskkill(self) -> None:
+        mock_proc = mock.Mock(spec=subprocess.Popen)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 12345
+
+        with (
+            mock.patch("sys.platform", "win32"),
+            mock.patch("subprocess.run") as mock_run,
+        ):
+            main._kill_process_tree(mock_proc)
+
+            mock_run.assert_called_once_with(
+                ["taskkill", "/F", "/T", "/PID", "12345"],
+                capture_output=True,
+                timeout=5,
+            )
         mock_proc.kill.assert_not_called()
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix-only")

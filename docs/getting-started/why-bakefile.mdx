@@ -41,11 +41,13 @@ Legend: ✅ yes · ⚠️ partial · ❌ no · N/A not applicable.
 
 Most runners are DSLs over shell recipes. Invoke is Python too, but its tasks are flat module functions with no inheritance or composition model. bakefile is the only one where tasks are class methods you inherit, override, and compose, so reusable task libraries ([bakelib Spaces](/bakelib/spaces)) just work.
 
+The long-form case for treating workflows this way: [Developer Workflows Need an Abstraction](https://wisl.dev/blog/developer-workflows-need-an-abstraction/).
+
 ## Make vs bakefile
 
 Make is everywhere. It ships with every Unix-like system, has decades of documentation, and its dependency tracking (rebuild only what changed) is still the model build tools copy. If you are compiling artifacts from source files and need incremental builds, keep Make.
 
-Where Make hurts: reusing tasks across projects (`include` pulls in a file, but you cannot override a recipe), string-interpolated `$@` arguments, and shell-in-a-DSL debugging. bakefile gives tasks a real inheritance model and typed arguments, at the cost of needing a Python runtime.
+Where Make hurts: reusing tasks across projects (`include` pulls in a file, but you cannot override a recipe), string-interpolated `$@` arguments, and shell-in-a-DSL debugging. bakefile gives tasks a real inheritance model and typed arguments, at the cost of needing a Python runtime. The full audit of all five runners: [Make vs Just vs Task vs mise: which reuses workflows?](https://wisl.dev/blog/makefile-alternative/).
 
 ## Just vs bakefile
 

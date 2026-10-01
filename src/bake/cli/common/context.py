@@ -10,7 +10,7 @@ from typing_extensions import Unpack
 from bake._typer_compat import TyperCommand
 from bake.ui.run import CmdType, StrOrNoneCompletedProcess
 from bake.ui.run import run as _run
-from bake.ui.run.main import PopenKwargs
+from bake.ui.run.main import DecodeErrors, PopenKwargs, RunKwargs
 from bake.ui.run.script import run_script as _run_script
 
 from .obj import BakefileObject
@@ -53,18 +53,7 @@ class Context(typer.Context):
         cmd: CmdType,
         *,
         capture_output: Literal[True] = True,
-        check: bool = True,
-        cwd: Path | str | None = None,
-        stream: bool = True,
-        shell: bool | None = None,
-        echo: bool = True,
-        echo_cmd: str | None = None,
-        dry_run: bool | None = None,
-        keep_temp_file: bool = False,
-        env: dict[str, str] | None = None,
-        timeout: float | None = None,
-        _encoding: str | None = None,
-        **kwargs: Unpack[PopenKwargs],
+        **kwargs: Unpack[RunKwargs],
     ) -> subprocess.CompletedProcess[str]: ...
 
     @overload
@@ -73,18 +62,7 @@ class Context(typer.Context):
         cmd: CmdType,
         *,
         capture_output: Literal[False],
-        check: bool = True,
-        cwd: Path | str | None = None,
-        stream: bool = True,
-        shell: bool | None = None,
-        echo: bool = True,
-        echo_cmd: str | None = None,
-        dry_run: bool | None = None,
-        keep_temp_file: bool = False,
-        env: dict[str, str] | None = None,
-        timeout: float | None = None,
-        _encoding: str | None = None,
-        **kwargs: Unpack[PopenKwargs],
+        **kwargs: Unpack[RunKwargs],
     ) -> subprocess.CompletedProcess[None]: ...
 
     def run(
@@ -92,35 +70,12 @@ class Context(typer.Context):
         cmd: CmdType,
         *,
         capture_output: bool = False,
-        check: bool = True,
-        cwd: Path | str | None = None,
-        stream: bool = True,
-        shell: bool | None = None,
-        echo: bool = True,
-        echo_cmd: str | None = None,
-        dry_run: bool | None = None,
-        keep_temp_file: bool = False,
-        env: dict[str, str] | None = None,
-        timeout: float | None = None,
-        _encoding: str | None = None,
-        **kwargs: Unpack[PopenKwargs],
+        **kwargs: Unpack[RunKwargs],
     ) -> StrOrNoneCompletedProcess:
-        return _run(
-            cmd,
-            capture_output=capture_output,
-            check=check,
-            cwd=cwd,
-            stream=stream,
-            shell=shell,
-            echo=echo,
-            echo_cmd=echo_cmd,
-            dry_run=self.obj.dry_run if dry_run is None else dry_run,
-            keep_temp_file=keep_temp_file,
-            env=env,
-            timeout=timeout,
-            _encoding=_encoding,
-            **kwargs,
-        )
+        # dry_run=None means "inherit from the bakefile context"
+        if kwargs.get("dry_run") is None:
+            kwargs["dry_run"] = self.obj.dry_run
+        return _run(cmd, capture_output=capture_output, **kwargs)
 
     def run_script(
         self,
@@ -135,6 +90,9 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run_script(
@@ -148,6 +106,9 @@ class Context(typer.Context):
             dry_run=self.obj.dry_run if dry_run is None else dry_run,
             keep_temp_file=keep_temp_file,
             env=env,
+            timeout=timeout,
+            drain_timeout=drain_timeout,
+            decode_errors=decode_errors,
             **kwargs,
         )
 

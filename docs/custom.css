@@ -28,6 +28,13 @@ html:not(.dark) .sd-hero-dark {
     display: none;
 }
 
+/* terminal preview GIF: its navy background is close to the dark-mode page
+   background, so give it an edge in both themes */
+.sd-preview {
+    border: 1px solid #3b6fa5;
+    border-radius: 10px;
+}
+
 /* badge row (installation page). `not-prose` on the container opts the whole
    subtree out of Mintlify prose styles (prose gives imgs 2em margins = the
    84px-tall anchors, plus link underline). remaining rules are belt-and-suspenders. */

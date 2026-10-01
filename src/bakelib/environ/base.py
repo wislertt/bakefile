@@ -228,7 +228,11 @@ class BaseSubEnv(BaseEnv):
         return self._sub
 
     def replace(  # ty: ignore[invalid-method-override]
-        self, *, main: str = _UNSET, sub: int | None = _UNSET
+        # intentionally shadows str.replace
+        self,
+        *,
+        main: str = _UNSET,
+        sub: int | None = _UNSET,
     ) -> Self:
         new_main = self._main if main is _UNSET else main
         new_sub = self._sub if sub is _UNSET else sub

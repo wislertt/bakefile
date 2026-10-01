@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import typer
 import zerv
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt
 
@@ -19,19 +20,41 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
+_RUSTUP_ERROR_66 = "os error 66"
 
-def _cleanup_rustup_temp(retry_state: RetryCallState) -> None:
-    _ = retry_state
+
+def _cleanup_rustup_temp_dirs() -> None:
     rustup_dir = Path.home() / ".rustup"
-    dirs_to_remove: list[Path] = [
-        rustup_dir / "tmp",
-        rustup_dir / "downloads",
-    ]
-
-    for dir_path in dirs_to_remove:
+    for dir_path in (rustup_dir / "tmp", rustup_dir / "downloads"):
         if dir_path.exists():
             shutil.rmtree(dir_path)
             console.echo(f"Removed {dir_path}", highlight=False)
+
+
+def _cleanup_rustup_temp(retry_state: RetryCallState) -> None:
+    _ = retry_state
+    _cleanup_rustup_temp_dirs()
+
+
+def _extract_last_syncing_toolchain(stderr: str) -> str | None:
+    matches = re.findall(r"syncing channel updates for (\S+)", stderr)
+    return matches[-1] if matches else None
+
+
+def _repair_stale_toolchain(
+    run_fn: Callable[..., StrOrNoneCompletedProcess], toolchain: str
+) -> None:
+    console.warning(
+        f"{style.code('rustup update')} failed with 'Directory not empty "
+        f"(os error 66)' while updating {style.code(toolchain)}; "
+        "reinstalling the toolchain",
+        highlight=False,
+    )
+    run_fn(f"rustup toolchain uninstall {toolchain}")
+    run_fn(
+        f"rustup toolchain install {toolchain} "
+        "--profile minimal --component rustfmt --component clippy"
+    )
 
 
 def run_rustup_update(
@@ -39,6 +62,24 @@ def run_rustup_update(
     timeout: float = 30,
     max_attempts: int = 5,
 ) -> None:
+    # bulk-clean stale extraction dirs first: rustup's own startup cleanup
+    # walks them file-by-file and can stall for minutes
+    _cleanup_rustup_temp_dirs()
+
+    def _attempt() -> StrOrNoneCompletedProcess:
+        return run_fn(
+            "rustup update",
+            timeout=timeout,
+            stream=False,
+            capture_output=True,
+            check=False,
+        )
+
+    def _timed_out_warning() -> None:
+        console.warning(
+            f"{style.code('rustup update')} timed out after {max_attempts} attempts, skipping",
+            highlight=False,
+        )
 
     @retry(
         stop=stop_after_attempt(max_attempts),
@@ -46,16 +87,38 @@ def run_rustup_update(
         reraise=True,
         before_sleep=_cleanup_rustup_temp,
     )
-    def _run():
-        run_fn("rustup update", timeout=timeout)
+    def _run() -> StrOrNoneCompletedProcess:
+        return _attempt()
 
     try:
-        _run()
+        result = _run()
     except subprocess.TimeoutExpired:
-        console.warning(
-            f"{style.code('rustup update')} timed out after {max_attempts} attempts, skipping",
-            highlight=False,
-        )
+        _timed_out_warning()
+        return
+
+    if result is None or result.returncode == 0:
+        return
+
+    stderr = result.stderr or ""
+    toolchain = _extract_last_syncing_toolchain(stderr) if _RUSTUP_ERROR_66 in stderr else None
+    if toolchain:
+        _repair_stale_toolchain(run_fn, toolchain)
+        try:
+            result = _attempt()
+        except subprocess.TimeoutExpired:
+            _timed_out_warning()
+            return
+
+    if result is None or result.returncode == 0:
+        return
+
+    console.error(
+        f"{style.code('rustup update')} failed with exit code {result.returncode}",
+        highlight=False,
+    )
+    if stderr:
+        console.echo(stderr, highlight=False)
+    raise typer.Exit(result.returncode)
 
 
 class RustSpace(BaseSpace):

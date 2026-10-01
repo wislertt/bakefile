@@ -515,7 +515,7 @@ class TestRefreshableCacheAbstract:
             return "value"
 
         with pytest.raises(TypeError):
-            RefreshableCache("test-key", fetch_value)
+            RefreshableCache("test-key", fetch_value)  # ty: ignore[call-non-callable]
 
     def test_refresh_needed_error_is_namespaced(self):
         def fetch_value() -> str:

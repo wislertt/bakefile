@@ -1,3 +1,4 @@
+import contextlib
 import errno
 import os
 import select
@@ -9,6 +10,8 @@ import time
 # No PTY locks needed - each thread reads from its own PTY fd independently
 # Locks were causing race conditions where threads waited while their process exited
 
+_READ_CHUNK = 4096  # tty line discipline delivers ~4KB per read regardless of ask
+
 
 class OutputSplitter:
     def __init__(
@@ -18,12 +21,14 @@ class OutputSplitter:
         pty_fd: int | None = None,
         stderr_pty_fd: int | None = None,
         encoding: str | None = None,
+        drain_timeout: float | None = 10.0,
     ):
         self._stream = stream
         self._capture = capture
         self._pty_fd = pty_fd
         self._stderr_pty_fd = stderr_pty_fd
         self._encoding = encoding
+        self._drain_timeout = drain_timeout
         self._stdout_data = b""
         self._stderr_data = b""
 
@@ -50,7 +55,7 @@ class OutputSplitter:
     def _read_pty_eio_safe(self, pty_fd: int) -> bytes | None:
         """Read from PTY, treating EIO as EOF (returns None)."""
         try:
-            return os.read(pty_fd, 4096)
+            return os.read(pty_fd, _READ_CHUNK)
         except OSError as e:
             if e.errno == errno.EIO:
                 return None
@@ -62,14 +67,12 @@ class OutputSplitter:
 
         flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
         fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-        data = self._read_pty_eio_safe(pty_fd)
-        if data is None or not self._handle_data(data, target, output_list):
+        try:
+            data = self._read_pty_eio_safe(pty_fd)
+            return not (data is None or not self._handle_data(data, target, output_list))
+        finally:
+            # Restore on EAGAIN too: a leaked O_NONBLOCK makes drain misread EAGAIN as EOF
             fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
-            return False
-
-        fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
-        return True
 
     def _blocking_pty_read(self, pty_fd: int, target, output_list) -> bool:
         """Try select-based blocking read. Returns True if should continue."""
@@ -127,11 +130,13 @@ class OutputSplitter:
         """Read from PTY and handle data.
 
         Returns:
-            True if data was handled, False if EOF/error
+            True if data was handled (or EAGAIN - no data yet), False if EOF/error
         """
         try:
-            data = os.read(pty_fd, 4096)
+            data = os.read(pty_fd, _READ_CHUNK)
             return self._handle_data(data, target, output_list)
+        except BlockingIOError:
+            return True
         except OSError:
             return False
 
@@ -156,55 +161,57 @@ class OutputSplitter:
         Returns:
             (should_continue, new_timeout_count)
         """
-        # Try direct read after 2 consecutive timeouts or if select doesn't work
-        if not select_works or consecutive_timeouts >= 2:
+        # Probe only where select is unusable: a direct read can block past the drain deadline
+        if not select_works:
             if not self._read_and_handle(pty_fd, target, output_list):
                 return False, 0
             return True, 0  # Got data, reset timeout counter
         return True, consecutive_timeouts + 1
 
     def _drain_pty(self, pty_fd: int, target, output_list):
-        """Drain remaining data from PTY after process exits.
+        """Drain remaining PTY data after the main process exits.
 
-        We need to handle OS timing: proc.poll() may return exit code before the
-        PTY buffer is fully flushed. We use select to wait for data with increasing
-        timeouts, and also try direct reads as a fallback in case select doesn't
-        detect readiness (e.g., in tests with mocked os.read or on Windows with
-        non-socket file descriptors).
+        Master EOF (EIO) only arrives once every slave fd closes, grandchildren
+        included, so draining to EOF matches pipe semantics. drain_timeout caps
+        the wait (None = forever, subprocess parity).
         """
         time.sleep(0.005)
 
+        deadline = None if self._drain_timeout is None else time.monotonic() + self._drain_timeout
+
+        with contextlib.suppress(OSError):  # pragma: no cover
+            self._drain_loop(pty_fd, target, output_list, deadline)
+
+    def _past_deadline(self, deadline: float | None) -> bool:
+        return deadline is not None and time.monotonic() >= deadline
+
+    def _drain_loop(self, pty_fd: int, target, output_list, deadline: float | None) -> None:
         timeout = 0.05
         consecutive_timeouts = 0
-        max_timeouts = 4
         select_works = True
 
-        try:
-            while consecutive_timeouts < max_timeouts:
-                # Check if data is ready via select
-                if select_works:
-                    select_works, ready = self._try_select_read(pty_fd, timeout)
-                else:
-                    ready = False
+        while not self._past_deadline(deadline):
+            if select_works:
+                select_works, ready = self._try_select_read(pty_fd, timeout)
+            else:
+                ready = False
 
-                if ready:
-                    # Data ready - read and handle
-                    if not self._handle_data_ready(pty_fd, target, output_list):
-                        return
-                    consecutive_timeouts = 0
-                    timeout = 0.02
-                    continue
-
-                # No data ready - increment timeout and try direct read
-                timeout = min(timeout * 1.5, 0.2)
-
-                should_continue, consecutive_timeouts = self._handle_timeout(
-                    pty_fd, target, output_list, select_works, consecutive_timeouts
-                )
-                if not should_continue:
+            if ready:
+                # Data ready - read and handle
+                if not self._handle_data_ready(pty_fd, target, output_list):
                     return
-        except OSError:  # pragma: no cover
-            pass  # pragma: no cover
+                consecutive_timeouts = 0
+                timeout = 0.02
+                continue
+
+            # No data ready - increment timeout and try direct read
+            timeout = min(timeout * 1.5, 0.2)
+
+            should_continue, consecutive_timeouts = self._handle_timeout(
+                pty_fd, target, output_list, select_works, consecutive_timeouts
+            )
+            if not should_continue:
+                return
 
     def attach(self, proc: subprocess.Popen):
         threads = []

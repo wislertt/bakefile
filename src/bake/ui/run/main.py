@@ -19,6 +19,7 @@ from rich.text import Text
 from typing_extensions import NotRequired, TypedDict, Unpack
 
 from bake.ui import console, style
+from bake.ui.logger.capsys import strip_ansi
 from bake.ui.run.splitter import OutputSplitter
 from bake.utils.settings import ENV__BAKE_REINVOKED
 
@@ -41,6 +42,7 @@ class StreamSetup:
     proc: subprocess.Popen
     splitter: OutputSplitter
     threads: list
+    master_fds: tuple[int, ...] = ()
 
 
 def _parse_shebang(script: str) -> str | None:
@@ -92,18 +94,58 @@ class PopenKwargs(TypedDict):
     pipesize: NotRequired[int]
 
 
+# Stdlib decode error handlers only; custom codecs.register_error names are out of scope
+DecodeErrors = Literal[
+    "strict",
+    "ignore",
+    "replace",
+    "backslashreplace",
+    "surrogateescape",
+    "surrogatepass",
+]
+
+
+class _CoreRunKwargs(TypedDict, total=False):
+    # Options common to run(), run_script(), and run_uv(); defaults live on
+    # each implementation, not here.
+    check: bool
+    cwd: Path | str | None
+    stream: bool
+    clean_capture_output: bool
+    echo: bool
+    keep_temp_file: bool
+    env: dict[str, str] | None
+    timeout: float | None
+    drain_timeout: float | None
+    decode_errors: DecodeErrors
+
+
+class RunKwargs(PopenKwargs, _CoreRunKwargs, total=False):
+    # Keyword surface of run() overloads in bake.ui.run.main and
+    # bake.cli.common.context.Context; keeps the typed contract in one place.
+    shell: bool | None
+    echo_cmd: str | None
+    dry_run: bool | None
+    _encoding: str | None
+
+
+class RunScriptKwargs(PopenKwargs, _CoreRunKwargs, total=False):
+    # Keyword surface of run_script(); dry_run is a plain bool here (no
+    # inherit-from-context None sentinel like run()).
+    dry_run: bool
+
+
+class RunUvKwargs(PopenKwargs, _CoreRunKwargs, total=False):
+    # Keyword surface of run_uv(); shell and echo_cmd are owned by the
+    # implementation (uv is always run directly).
+    dry_run: bool
+    _encoding: str | None
+
+
 def _run_with_temp_file(
     cmd: str,
     capture_output: bool,
-    check: bool,
-    cwd: Path | str | None,
-    stream: bool,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    _encoding: str | None = None,
-    echo_cmd: str | None = None,
-    **kwargs: Unpack[PopenKwargs],
+    **kwargs: Unpack[RunKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run multi-line script using temp file with shebang support.
 
@@ -131,6 +173,8 @@ def _run_with_temp_file(
     - Node.js: env={"NODE_OPTIONS": "--input-type=module"} or similar
     - Other interpreters: consult their documentation for UTF-8 environment variables
     """
+    keep_temp_file = kwargs.pop("keep_temp_file", False)
+
     # Determine temp file extension and shell for Windows
     if sys.platform == "win32":
         sh_path = shutil.which("sh.exe")
@@ -166,17 +210,11 @@ def _run_with_temp_file(
             os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
             cmd_to_run: list[str] = [path]
 
+        # run() must not re-echo: the caller already echoed cmd_str_for_display
+        kwargs["echo"] = False
         return run(
             cmd=cmd_to_run,
             capture_output=capture_output,
-            check=check,
-            cwd=cwd,
-            stream=stream,
-            echo=False,
-            echo_cmd=echo_cmd,
-            env=env,
-            timeout=timeout,
-            _encoding=_encoding,
             **kwargs,
         )
     finally:
@@ -191,19 +229,8 @@ def _run_with_temp_file(
 def run(
     cmd: CmdType,
     *,
-    capture_output: Literal[True] = True,
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    echo_cmd: str | None = None,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    _encoding: str | None = None,
-    **kwargs: Unpack[PopenKwargs],
+    capture_output: Literal[True],
+    **kwargs: Unpack[RunKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
 
 
@@ -211,19 +238,8 @@ def run(
 def run(
     cmd: CmdType,
     *,
-    capture_output: Literal[False],
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    echo_cmd: str | None = None,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    _encoding: str | None = None,
-    **kwargs: Unpack[PopenKwargs],
+    capture_output: Literal[False] = False,
+    **kwargs: Unpack[RunKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
 
 
@@ -234,14 +250,17 @@ def run(
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
+    clean_capture_output: bool = True,
     shell: bool | None = None,
     echo: bool = True,
     echo_cmd: str | None = None,
-    dry_run: bool = False,
+    dry_run: bool | None = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a command with optional streaming and output capture.
@@ -265,6 +284,13 @@ def run(
     stream : bool
         Stream output to terminal in real-time, by default True.
         On Unix, uses PTY to preserve ANSI color codes.
+    clean_capture_output : bool
+        Clean PTY-captured output to the final screen state: strip ANSI
+        codes and collapse ``\\r`` redraw frames to the final frame, by
+        default True. Only applies when ``stream=True`` and
+        ``capture_output=True`` on a PTY (POSIX); pipe captures are always
+        raw regardless. Set False for byte-faithful capture (e.g. session
+        logging or exact round-trips).
     shell : bool | None, optional
         Whether to use shell for command execution, by default None.
         When None (default), auto-detected from command type:
@@ -295,6 +321,19 @@ def run(
         Maximum time in seconds to wait for the command to complete.
         If the command exceeds this time, it will be killed and
         subprocess.TimeoutExpired will be raised. Default is None (no timeout).
+    drain_timeout : float | None, optional
+        Maximum time in seconds to keep draining the PTY after the main
+        process exits, waiting for grandchildren holding the terminal to
+        finish writing (subprocess pipes wait for EOF unconditionally).
+        Output written past the cap is dropped. None waits for EOF forever.
+        Only applies when ``stream=True`` and ``capture_output=True`` on a
+        PTY (POSIX). Default is 10.0.
+    decode_errors : optional
+        Decode error handler for captured output, by default "replace"
+        (invalid bytes become U+FFFD). Pass "surrogateescape" to preserve
+        invalid bytes: ``result.stdout.encode("utf-8", "surrogateescape")``
+        then round-trips the raw bytes. One of "strict", "ignore",
+        "replace", "backslashreplace", "surrogateescape", "surrogatepass".
     **kwargs
         Additional arguments passed to subprocess.
 
@@ -365,10 +404,13 @@ def run(
             check=check,
             cwd=cwd,
             stream=stream,
+            clean_capture_output=clean_capture_output,
             keep_temp_file=keep_temp_file,
             env=env,
             timeout=timeout,
+            drain_timeout=drain_timeout,
             _encoding=_encoding,
+            decode_errors=decode_errors,
             echo_cmd=echo_cmd,
             **kwargs,
         )
@@ -387,9 +429,12 @@ def run(
         shell=shell,
         cwd=cwd,
         capture_output=capture_output,
+        clean_capture_output=clean_capture_output,
         env=env,
         timeout=timeout,
+        drain_timeout=drain_timeout,
         _encoding=_encoding,
+        decode_errors=decode_errors,
         **kwargs,
     )
 
@@ -492,17 +537,31 @@ def _check_exit_code(
         raise typer.Exit(result.returncode)
 
 
+def _clean_captured_pty_output(text: str) -> str:
+    # Final screen state: keep the last non-empty \r segment per line (empty = cut mid-frame)
+    text = strip_ansi(text)
+    return "\n".join(
+        next((segment for segment in reversed(line.split("\r")) if segment != ""), "")
+        for line in text.split("\n")
+    )
+
+
 def _process_stream_output(
     splitter: OutputSplitter,
     proc: subprocess.Popen,
     cmd: str | list[str] | tuple[str, ...],
+    clean_output: bool = False,
+    decode_errors: DecodeErrors = "replace",
 ) -> subprocess.CompletedProcess[str]:
     encoding = splitter._encoding or "utf-8"
-    stdout = splitter.stdout.decode(encoding, errors="replace")
-    stderr = splitter.stderr.decode(encoding, errors="replace")
+    stdout = splitter.stdout.decode(encoding, errors=decode_errors)
+    stderr = splitter.stderr.decode(encoding, errors=decode_errors)
     # Normalize PTY line endings (\r\n -> \n)
     stdout = stdout.replace("\r\n", "\n")
     stderr = stderr.replace("\r\n", "\n")
+    if clean_output:
+        stdout = _clean_captured_pty_output(stdout)
+        stderr = _clean_captured_pty_output(stderr)
 
     return subprocess.CompletedProcess(
         args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
@@ -515,8 +574,11 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
 
     if env:
         merged_env.update(env)
-    merged_env.setdefault("FORCE_COLOR", "1")
-    merged_env.setdefault("CLICOLOR_FORCE", "1")
+
+    # no-color.org: any non-empty NO_COLOR means skip color forcing entirely
+    if merged_env.get("NO_COLOR", "") == "":
+        merged_env.setdefault("FORCE_COLOR", "1")
+        merged_env.setdefault("CLICOLOR_FORCE", "1")
 
     # Disable progress indicators for tools that support it
     merged_env.setdefault("UV_NO_PROGRESS", "1")  # uv
@@ -524,13 +586,46 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
     merged_env.setdefault("PIP_PROGRESS_BAR", "off")  # pip
     merged_env.setdefault("CARGO_TERM_PROGRESS_WHEN", "never")  # cargo
 
-    try:
-        terminal_size = os.get_terminal_size()
-        merged_env.setdefault("COLUMNS", str(terminal_size.columns))  # pragma: no cover
-        merged_env.setdefault("LINES", str(terminal_size.lines))  # pragma: no cover
-    except OSError:
-        pass
+    # COLUMNS/LINES would shadow tty children's live ioctl size; pipe children have no tty to ask
+    if not sys.stdout.isatty():
+        size = _get_parent_terminal_size() if sys.platform != "win32" else None
+        if size is None:
+            fallback = shutil.get_terminal_size()
+            size = (fallback.columns, fallback.lines)
+        merged_env.setdefault("COLUMNS", str(size[0]))
+        merged_env.setdefault("LINES", str(size[1]))
     return merged_env
+
+
+def _get_parent_terminal_size() -> tuple[int, int] | None:
+    # ioctl, not os.get_terminal_size(): never consults COLUMNS/LINES env
+    import fcntl
+    import struct
+    import termios
+
+    for stream in (sys.stdout, sys.stderr, sys.stdin):
+        try:
+            fd = stream.fileno()
+            ws = fcntl.ioctl(fd, termios.TIOCGWINSZ, b"\x00" * 8)
+        except (OSError, ValueError, AttributeError):
+            continue
+        # struct winsize is (ws_row, ws_col, ws_xpixel, ws_ypixel)
+        rows, cols = struct.unpack("HHHH", ws)[:2]
+        if cols and rows:
+            return cols, rows
+    return None
+
+
+def _set_pty_winsize(fd: int, size: tuple[int, int]) -> None:
+    import fcntl
+    import struct
+    import termios
+
+    # struct winsize is (ws_row, ws_col, ws_xpixel, ws_ypixel)
+    cols, rows = size
+    winsize = struct.pack("HHHH", rows, cols, 0, 0)
+    with contextlib.suppress(OSError):
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 
 def _setup_pty_stream(
@@ -539,6 +634,7 @@ def _setup_pty_stream(
     cwd: Path | str | None,
     capture_output: bool,
     env: dict[str, str] | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
@@ -551,17 +647,41 @@ def _setup_pty_stream(
         # our thread which writes to sys.stderr (allows pytest to capture it)
         stderr_fd, slave_stderr = pty.openpty()
 
+        # Fresh PTYs report 0x0 winsize; children then fall back to 80x24
+        winsize = _get_parent_terminal_size()
+        if winsize is None:
+            fallback = shutil.get_terminal_size()
+            winsize = (fallback.columns, fallback.lines)
+        _set_pty_winsize(stdout_fd, winsize)
+        _set_pty_winsize(stderr_fd, winsize)
+
         env = _prepare_subprocess_env(env)
-        proc = subprocess.Popen(
-            cmd,
-            cwd=cwd,
-            stdout=slave_stdout,
-            stderr=slave_stderr,
-            shell=shell,
-            env=env,
-            start_new_session=True,
-            **kwargs,
-        )
+        user_preexec: Callable[[], Any] | None = kwargs.get("preexec_fn")
+
+        def _preexec() -> None:
+            # runs in the forked child, invisible to coverage
+            if user_preexec is not None:  # pragma: no cover
+                user_preexec()  # pragma: no cover
+
+        if user_preexec is not None:
+            kwargs["preexec_fn"] = _preexec
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdout=slave_stdout,
+                stderr=slave_stderr,
+                shell=shell,
+                env=env,
+                start_new_session=True,
+                **kwargs,
+            )
+        except BaseException:
+            # Popen failed before owning the PTY fds; close all four or they leak
+            for fd in (stdout_fd, stderr_fd, slave_stdout, slave_stderr):
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            raise
         os.close(slave_stdout)
         os.close(slave_stderr)
 
@@ -573,10 +693,13 @@ def _setup_pty_stream(
         pty_fd=stdout_fd,
         stderr_pty_fd=stderr_fd,
         encoding=_encoding,
+        drain_timeout=drain_timeout,
     )
     threads = splitter.attach(proc)
 
-    return StreamSetup(proc=proc, splitter=splitter, threads=threads)
+    return StreamSetup(
+        proc=proc, splitter=splitter, threads=threads, master_fds=(stdout_fd, stderr_fd)
+    )
 
 
 def _setup_pipe_stream(
@@ -585,9 +708,12 @@ def _setup_pipe_stream(
     cwd: Path | str | None,
     capture_output: bool,
     env: dict[str, str] | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
 ) -> StreamSetup:
+    # Pipe reads already run to EOF (subprocess parity); drain_timeout is PTY-only
+    _ = drain_timeout
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
@@ -615,9 +741,12 @@ def _run_with_split(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    clean_capture_output: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     use_pty = sys.platform != "win32" and capture_output
@@ -630,22 +759,40 @@ def _run_with_split(
         cwd=cwd,
         capture_output=capture_output,
         env=env,
+        drain_timeout=drain_timeout,
         _encoding=_encoding,
         **kwargs,
     )
 
-    with _sigint_guard(setup.proc):
+    with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds, setup.proc):
         try:
             setup.proc.wait(timeout=timeout)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
             _kill_process_tree(setup.proc)
             setup.proc.wait()
             setup.splitter.finalize(setup.threads)
+            if isinstance(exc, subprocess.TimeoutExpired):
+                # Parity with subprocess.run: attach the partial capture
+                partial = _process_stream_output(
+                    splitter=setup.splitter,
+                    proc=setup.proc,
+                    cmd=cmd,
+                    clean_output=use_pty and clean_capture_output,
+                    decode_errors=decode_errors,
+                )
+                exc.output = partial.stdout
+                exc.stderr = partial.stderr  # ty: ignore[invalid-assignment]
             raise
 
     setup.splitter.finalize(setup.threads)
 
-    return _process_stream_output(splitter=setup.splitter, proc=setup.proc, cmd=cmd)
+    return _process_stream_output(
+        splitter=setup.splitter,
+        proc=setup.proc,
+        cmd=cmd,
+        clean_output=use_pty and clean_capture_output,
+        decode_errors=decode_errors,
+    )
 
 
 def _kill_process_tree(proc: subprocess.Popen) -> None:
@@ -691,6 +838,56 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
 
 
 @contextlib.contextmanager
+def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
+    # No ctty: the kernel never delivers SIGWINCH, so refresh master winsize and killpg manually
+    def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
+        _ = signum, frame
+        size = _get_parent_terminal_size()
+        if size is not None:
+            for fd in master_fds:
+                _set_pty_winsize(fd, size)
+        # pgid == proc.pid: the child leads its own group (start_new_session);
+        # killpg rejects non-positive pgids on Linux with EINVAL
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGWINCH)
+
+    if (
+        not master_fds
+        or not hasattr(signal, "SIGWINCH")
+        or threading.current_thread() is not threading.main_thread()
+    ):
+        yield
+        return
+
+    old_handler = signal.signal(signal.SIGWINCH, _on_sigwinch)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGWINCH, old_handler)
+
+
+@contextlib.contextmanager
+def _pipe_sigwinch_forwarder(proc: subprocess.Popen):
+    # start_new_session detaches child from the foreground pgrp: forward SIGWINCH manually
+    def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
+        _ = signum, frame
+        # pgid == proc.pid: the child leads its own group (start_new_session);
+        # killpg rejects non-positive pgids on Linux with EINVAL
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGWINCH)
+
+    if not hasattr(signal, "SIGWINCH") or threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    old_handler = signal.signal(signal.SIGWINCH, _on_sigwinch)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGWINCH, old_handler)
+
+
+@contextlib.contextmanager
 def _sigint_guard(proc: subprocess.Popen):
     """Install SIGINT handler to kill the process tree on Ctrl+C.
 
@@ -719,11 +916,18 @@ def _run_without_split(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
+    clean_capture_output: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
+    # Pipe captures are always raw; the flag only matters on the PTY split path
+    _ = clean_capture_output
+    # communicate() already waits for pipe EOF unconditionally (subprocess parity)
+    _ = drain_timeout
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
     env = _prepare_subprocess_env(env)
 
@@ -740,7 +944,10 @@ def _run_without_split(
             **kwargs,
         )
 
-    with _sigint_guard(proc):
+    with (
+        _sigint_guard(proc),
+        contextlib.nullcontext() if capture_output else _pipe_sigwinch_forwarder(proc),
+    ):
         try:
             stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -761,8 +968,8 @@ def _run_without_split(
         assert isinstance(stderr_bytes, (bytes, type(None)))
         stdout_bytes_final = stdout_bytes if stdout_bytes is not None else b""
         stderr_bytes_final = stderr_bytes if stderr_bytes is not None else b""
-        stdout = stdout_bytes_final.decode(encoding, errors="replace")
-        stderr = stderr_bytes_final.decode(encoding, errors="replace")
+        stdout = stdout_bytes_final.decode(encoding, errors=decode_errors)
+        stderr = stderr_bytes_final.decode(encoding, errors=decode_errors)
     else:
         stdout = None
         stderr = None

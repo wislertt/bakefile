@@ -172,6 +172,44 @@ class TestPythonSpace:
         capture_err = strip_ansi(captured.err)
         assert '-m "not slow"' in capture_err
 
+    def test_test_adds_n_auto_when_parallel_and_xdist_installed(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        python_space = PythonSpace()
+        with mock_ctx, patch("importlib.util.find_spec", return_value=object()):
+            python_space._test(tests_paths="tests/", parallel=True)
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "-n auto" in capture_err
+
+    def test_test_skips_parallel_when_xdist_not_installed(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        python_space = PythonSpace()
+        with mock_ctx, patch("importlib.util.find_spec", return_value=None):
+            python_space._test(tests_paths="tests/", parallel=True)
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "-n auto" not in capture_err
+
+    def test_test_skips_parallel_when_not_requested(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        python_space = PythonSpace()
+        with mock_ctx, patch("importlib.util.find_spec", return_value=object()):
+            python_space._test(tests_paths="tests/", parallel=False)
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "-n auto" not in capture_err
+
+    def test_test_with_durations(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            python_space._test(tests_paths="tests/", durations=10)
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "--durations=10" in capture_err
+
     def test_test_with_extra_args(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
         python_space = PythonSpace()
         with mock_ctx:
@@ -198,3 +236,25 @@ class TestPythonSpace:
         assert "--cov=abcs_dk" in capture_err
         assert '-m "not slow"' in capture_err
         assert "--cov-report=term --cov-report=xml" in capture_err
+
+    def test_test_command_forwards_durations(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            python_space.test(durations=5)
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "tests/unit/" in capture_err
+        assert "--durations=5" in capture_err
+
+    def test_test_command_omits_durations_by_default(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        python_space = PythonSpace()
+        with mock_ctx:
+            python_space.test()
+        captured = capsys.readouterr()
+        capture_err = strip_ansi(captured.err)
+        assert "--durations" not in capture_err
+        assert "-n auto" not in capture_err
