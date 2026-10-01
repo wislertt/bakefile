@@ -105,6 +105,26 @@ DecodeErrors = Literal[
 ]
 
 
+class RunKwargs(PopenKwargs, total=False):
+    # Keyword surface shared by run() overloads in bake.ui.run.main and
+    # bake.cli.common.context.Context; keeps the typed contract in one place.
+    # Defaults live on the run() implementation, not here.
+    check: bool
+    cwd: Path | str | None
+    stream: bool
+    clean_capture_output: bool
+    shell: bool | None
+    echo: bool
+    echo_cmd: str | None
+    dry_run: bool | None
+    keep_temp_file: bool
+    env: dict[str, str] | None
+    timeout: float | None
+    drain_timeout: float | None
+    _encoding: str | None
+    decode_errors: DecodeErrors
+
+
 def _run_with_temp_file(
     cmd: str,
     capture_output: bool,
@@ -211,21 +231,7 @@ def run(
     cmd: CmdType,
     *,
     capture_output: Literal[True],
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    clean_capture_output: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    echo_cmd: str | None = None,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    drain_timeout: float | None = 10.0,
-    _encoding: str | None = None,
-    decode_errors: DecodeErrors = "replace",
-    **kwargs: Unpack[PopenKwargs],
+    **kwargs: Unpack[RunKwargs],
 ) -> subprocess.CompletedProcess[str]: ...
 
 
@@ -234,21 +240,7 @@ def run(
     cmd: CmdType,
     *,
     capture_output: Literal[False] = False,
-    check: bool = True,
-    cwd: Path | str | None = None,
-    stream: bool = True,
-    clean_capture_output: bool = True,
-    shell: bool | None = None,
-    echo: bool = True,
-    echo_cmd: str | None = None,
-    dry_run: bool = False,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    drain_timeout: float | None = 10.0,
-    _encoding: str | None = None,
-    decode_errors: DecodeErrors = "replace",
-    **kwargs: Unpack[PopenKwargs],
+    **kwargs: Unpack[RunKwargs],
 ) -> subprocess.CompletedProcess[None]: ...
 
 
@@ -263,7 +255,7 @@ def run(
     shell: bool | None = None,
     echo: bool = True,
     echo_cmd: str | None = None,
-    dry_run: bool = False,
+    dry_run: bool | None = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
