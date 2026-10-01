@@ -3,10 +3,11 @@ from pathlib import Path
 
 import zerv
 
+from bake._params import VerboseBoolOption
 from bake.ui.logger import strip_ansi
-from bakelib import _params as params
 
 from .base import BaseSpace
+from .params import DurationsOption
 from .utils import VENV_BIN
 
 
@@ -78,7 +79,7 @@ class PythonSpace(BaseSpace):
 
     def test_integration(
         self,
-        verbose: params.VerboseBoolOption = False,
+        verbose: VerboseBoolOption = False,
     ) -> None:
         integration_tests_path = "tests/integration/"
         if Path(integration_tests_path).exists():
@@ -87,7 +88,7 @@ class PythonSpace(BaseSpace):
         else:
             self._command_not_available("test_integration")
 
-    def test(self, durations: params.DurationsOption = None) -> None:
+    def test(self, durations: DurationsOption = None) -> None:
         unit_tests_path = "tests/unit/"
         tests_path = unit_tests_path if Path(unit_tests_path).exists() else "tests/"
         self._test(tests_paths=tests_path, durations=durations)
