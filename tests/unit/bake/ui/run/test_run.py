@@ -292,7 +292,7 @@ class TestPipeResizeForwarding:
         sender = threading.Thread(target=_send_sigwinch_blast)
         sender.start()
         try:
-            with mock.patch("bake.ui.run.main._get_parent_terminal_size", return_value=(120, 30)):
+            with mock.patch.object(main, "_get_parent_terminal_size", return_value=(120, 30)):
                 run(
                     [sys.executable, "-c", _winch_counter_child(count_file)],
                     capture_output=True,
@@ -1503,7 +1503,7 @@ class TestPrepareSubprocessEnv:
         monkeypatch.delenv("LINES", raising=False)
         with (
             mock.patch("os.get_terminal_size", side_effect=OSError("No terminal")),
-            mock.patch("bake.ui.run.main._get_parent_terminal_size", return_value=None),
+            mock.patch.object(main, "_get_parent_terminal_size", return_value=None),
         ):
             env = _prepare_subprocess_env()
 

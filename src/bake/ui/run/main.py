@@ -855,8 +855,10 @@ def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
         if size is not None:
             for fd in master_fds:
                 _set_pty_winsize(fd, size)
+        # pgid == proc.pid: the child leads its own group (start_new_session);
+        # killpg rejects non-positive pgids on Linux with EINVAL
         with contextlib.suppress(ProcessLookupError):
-            os.killpg(-proc.pid, signal.SIGWINCH)
+            os.killpg(proc.pid, signal.SIGWINCH)
 
     if (
         not master_fds
@@ -878,8 +880,10 @@ def _pipe_sigwinch_forwarder(proc: subprocess.Popen):
     # start_new_session detaches child from the foreground pgrp: forward SIGWINCH manually
     def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
         _ = signum, frame
+        # pgid == proc.pid: the child leads its own group (start_new_session);
+        # killpg rejects non-positive pgids on Linux with EINVAL
         with contextlib.suppress(ProcessLookupError):
-            os.killpg(-proc.pid, signal.SIGWINCH)
+            os.killpg(proc.pid, signal.SIGWINCH)
 
     if not hasattr(signal, "SIGWINCH") or threading.current_thread() is not threading.main_thread():
         yield
