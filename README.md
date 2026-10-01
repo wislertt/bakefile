@@ -25,6 +25,10 @@ An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reu
 
 Documentation: **[bakefile.wisl.dev](https://bakefile.wisl.dev)**
 
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/img/preview/demo-app/bakefile-preview.gif" width="720" alt="Define tasks as Python methods, list them, and run them with bake">
+</p>
+
 ## Why bakefile?
 
 - **Reusable** - Makefile and Justfile work well, but reusing tasks across projects is hard. bakefile makes tasks Python class methods, so you inherit and share them like any other code.

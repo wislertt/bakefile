@@ -191,12 +191,14 @@ class AppTasks(ProjectTasks):
 
 Inherited Bakebooks inherit configuration too, and subclasses can override individual fields. See [Bakebook](/concepts/bakebook) for the mechanism and [Commands](/concepts/commands) for decorator options.
 
+Workflows-as-libraries is one of four patterns that show up in every repo bakefile runs in: [bakefile in practice: four patterns that scale](https://wisl.dev/blog/bakefile-patterns/).
+
 ## Prebuilt Bakebooks: bakelib Spaces
 
 [bakelib Spaces](/bakelib/spaces) follow the same shape. They are Bakebooks published as part of bakefile and installed as a dependency with the `lib` extra:
 
 ```bash
-pip install bakefile[lib]
+pip install "bakefile[lib]"
 ```
 
 ```python

@@ -1,9 +1,10 @@
+import importlib.util
 from pathlib import Path
 
 import zerv
 
-from bake import params
 from bake.ui.logger import strip_ansi
+from bakelib import _params as params
 
 from .base import BaseSpace
 from .utils import VENV_BIN
@@ -44,6 +45,8 @@ class PythonSpace(BaseSpace):
         coverage_path: str = "src",
         markers: str | None = None,
         extra_args: str = "",
+        parallel: bool = False,
+        durations: int | None = None,
     ) -> None:
         paths = tests_paths if isinstance(tests_paths, str) else " ".join(tests_paths)
 
@@ -55,11 +58,18 @@ class PythonSpace(BaseSpace):
                 " --cov-report=term-missing --cov-report=xml"
             )
 
+        # Runtime detect, not an import: consuming projects may not install pytest-xdist
+        if parallel and importlib.util.find_spec("xdist") is not None:
+            cmd += " -n auto"
+
         if verbose:
             cmd += " -s -v"
 
         if markers:
             cmd += f' -m "{markers}"'
+
+        if durations is not None:
+            cmd += f" --durations={durations}"
 
         if extra_args:
             cmd += f" {extra_args}"
@@ -77,10 +87,10 @@ class PythonSpace(BaseSpace):
         else:
             self._command_not_available("test_integration")
 
-    def test(self) -> None:
+    def test(self, durations: params.DurationsOption = None) -> None:
         unit_tests_path = "tests/unit/"
         tests_path = unit_tests_path if Path(unit_tests_path).exists() else "tests/"
-        self._test(tests_paths=tests_path)
+        self._test(tests_paths=tests_path, durations=durations)
 
     def test_all(self) -> None:
         unit_tests_path = "tests/unit/"
@@ -105,7 +115,12 @@ class PythonSpace(BaseSpace):
 
     def _uv_version(self) -> tuple[str, str]:
         result = self.ctx.run(
-            "uv version", stream=False, dry_run=False, echo=False, capture_output=True
+            "uv version",
+            stream=False,
+            dry_run=False,
+            echo=False,
+            capture_output=True,
+            clean_capture_output=False,  # parsed as tokens; ANSI stripped manually below
         )
         package_name, version = strip_ansi(result.stdout.strip()).split()
         return package_name, version

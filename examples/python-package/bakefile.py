@@ -1,5 +1,5 @@
 from bake import command, console
-from bakelib import PythonSpace
+from bakelib import PythonSpace, params
 
 
 class MyBakebook(PythonSpace):
@@ -9,8 +9,8 @@ class MyBakebook(PythonSpace):
         return mise_tools
 
     # Override an inherited task: same tests, but stop at the first failure
-    def test(self) -> None:
-        self._test(tests_paths="tests/", extra_args="-x")
+    def test(self, durations: params.DurationsOption = None) -> None:
+        self._test(tests_paths="tests/", extra_args="-x", durations=durations)
 
     # A project-specific task on top of the space
     @command(help="Build the package into dist/")

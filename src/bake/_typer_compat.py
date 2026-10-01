@@ -1,6 +1,4 @@
-# Centralized access to typer's private/vendored surface (typer._click, typer.core).
-# Single choke point: when a typer release moves these, only this file needs fixing.
-# Public typer API is used wherever it is stable across all supported versions.
+# choke point for typer's private/vendored imports (typer._click, typer.core)
 
 from typer import Abort, Exit, echo
 from typer._click.core import Context as ClickContext

@@ -236,7 +236,7 @@ src/
 │       ├── constants.py           # DEFAULT_FILE_NAME, DEFAULT_BAKEBOOK_NAME, GET_BAKEFILE_OBJECT
 │       ├── env.py                 # NO_COLOR support (should_use_colors)
 │       └── exceptions.py          # BakebookError, BaseBakefileError
-└── bakelib/             # Optional extra library (install: `pip install bakefile[lib]`)
+└── bakelib/             # Optional extra library (install: `pip install "bakefile[lib]"`)
     ├── __init__.py
     └── hello.py              # PoC module with extra dependencies (e.g., requests)
 

@@ -4,7 +4,7 @@ version = "0.0.0" # use git tag
 description = "An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reusable and in Python."
 readme = "README.md"
 authors = [
-  {name = "Wisaroot Lertthaweedech", email = "l.wisaroot@gmail.com"}
+  { name = "Wisaroot Lertthaweedech", email = "l.wisaroot@gmail.com" }
 ]
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -54,12 +54,12 @@ locked = [
   "python-dotenv==1.2.3",
   "pyyaml==6.0.3",
   "rich==15.0.0",
-  "ruff==0.16.5",
+  "ruff==0.16.9",
   "tomli==2.4.1; python_version < '3.11'",
-  "ty==0.0.75",
+  "ty==0.0.84",
   "typer==0.27.2",
   "typing-extensions==4.16.0",
-  "uv==0.12.7"
+  "uv==0.12.21"
 ]
 lib = [
   "keyring>=25.7.0",
@@ -85,8 +85,10 @@ dev = [
   "deptry>=0.24.0",
   "packaging>=26.3",
   "pandas>=2.3.3",
+  "pillow>=12.1.0",
   "pre-commit>=4.5.1",
   "pytest-cov>=7.0.0",
+  "pytest-xdist>=3.8.0",
   "pytest>=9.0.2",
   "python-package",
   "toml-sort>=0.24.3",
@@ -99,7 +101,7 @@ build-backend = "uv_build"
 
 [tool.deptry]
 known_first_party = ["bake", "bakelib", "python_package"]
-extend_exclude = ["scripts"]
+extend_exclude = ["docs", "scripts"]
 
 [tool.deptry.package_module_name_map]
 pydantic = ["pydantic", "pydantic_core"]
@@ -129,7 +131,7 @@ select = [
 ]
 
 [tool.ty.src]
-exclude = ["scripts"]
+exclude = ["docs", "scripts"]
 
 [tool.uv.build-backend]
 module-name = ["bake", "bakelib"]
@@ -142,7 +144,7 @@ publish-url = "https://test.pypi.org/legacy/"
 explicit = true
 
 [tool.uv.sources]
-python-package = {path = "examples/python-package", editable = true}
+python-package = { path = "examples/python-package", editable = true }
 
 # Debug with local zerv in editable mode
 # =============================================

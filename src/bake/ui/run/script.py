@@ -6,7 +6,7 @@ from typing_extensions import Unpack
 
 from bake.ui import console
 from bake.ui.run import StrOrNoneCompletedProcess, run
-from bake.ui.run.main import PopenKwargs
+from bake.ui.run.main import DecodeErrors, PopenKwargs
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +23,14 @@ def run_script(
     check: bool = True,
     cwd: Path | str | None = None,
     stream: bool = True,
+    clean_capture_output: bool = True,
     echo: bool = True,
     dry_run: bool = False,
     keep_temp_file: bool = False,
     env: dict[str, str] | None = None,
     timeout: float | None = None,
+    drain_timeout: float | None = 10.0,
+    decode_errors: DecodeErrors = "replace",
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a multi-line script with shebang support.
@@ -74,10 +77,13 @@ def run_script(
         check=check,
         cwd=cwd,
         stream=stream,
+        clean_capture_output=clean_capture_output,
         echo=False,
         shell=True,
         keep_temp_file=keep_temp_file,
         env=env,
         timeout=timeout,
+        drain_timeout=drain_timeout,
+        decode_errors=decode_errors,
         **kwargs,
     )

@@ -6,12 +6,14 @@ description: bakelib Spaces are Bakebooks preconfigured for a project type. Use 
 **bakelib** is an optional collection of opinionated helpers built on top of Bakebook. Install it with the `lib` extra:
 
 ```bash
-pip install bakefile[lib]
+pip install "bakefile[lib]"
 ```
 
 bakelib is optional. bakefile works without it, and you can write your own Bakebook classes if you prefer different conventions.
 
 A **Space** is a Bakebook preconfigured for a project type. Spaces share a common base and compose through inheritance: `BaseSpace` holds the shared tasks (lint, clean, setup-dev, tools, update, version), then `PythonSpace` and `RustSpace` add language-specific lint, test, and tool setup, and `PythonLibSpace` and `RustLibSpace` add publishing on top. `GitHubActionsTools`, `BaseServiceSpace`, and `SubmodulesUtils` extend `BaseSpace` directly.
+
+How these helpers earn their keep across real repos: [bakefile in practice: the supporting cast](https://wisl.dev/blog/bakefile-supporting-cast/).
 
 ## Prebuilt spaces
 

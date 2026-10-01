@@ -10,7 +10,7 @@ from typing_extensions import Unpack
 from bake._typer_compat import TyperCommand
 from bake.ui.run import CmdType, StrOrNoneCompletedProcess
 from bake.ui.run import run as _run
-from bake.ui.run.main import PopenKwargs
+from bake.ui.run.main import DecodeErrors, PopenKwargs
 from bake.ui.run.script import run_script as _run_script
 
 from .obj import BakefileObject
@@ -56,6 +56,7 @@ class Context(typer.Context):
         check: bool = True,
         cwd: Path | str | None = None,
         stream: bool = True,
+        clean_capture_output: bool = True,
         shell: bool | None = None,
         echo: bool = True,
         echo_cmd: str | None = None,
@@ -63,7 +64,9 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[str]: ...
 
@@ -76,6 +79,7 @@ class Context(typer.Context):
         check: bool = True,
         cwd: Path | str | None = None,
         stream: bool = True,
+        clean_capture_output: bool = True,
         shell: bool | None = None,
         echo: bool = True,
         echo_cmd: str | None = None,
@@ -83,7 +87,9 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> subprocess.CompletedProcess[None]: ...
 
@@ -95,6 +101,7 @@ class Context(typer.Context):
         check: bool = True,
         cwd: Path | str | None = None,
         stream: bool = True,
+        clean_capture_output: bool = True,
         shell: bool | None = None,
         echo: bool = True,
         echo_cmd: str | None = None,
@@ -102,7 +109,9 @@ class Context(typer.Context):
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
         _encoding: str | None = None,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run(
@@ -111,6 +120,7 @@ class Context(typer.Context):
             check=check,
             cwd=cwd,
             stream=stream,
+            clean_capture_output=clean_capture_output,
             shell=shell,
             echo=echo,
             echo_cmd=echo_cmd,
@@ -118,7 +128,9 @@ class Context(typer.Context):
             keep_temp_file=keep_temp_file,
             env=env,
             timeout=timeout,
+            drain_timeout=drain_timeout,
             _encoding=_encoding,
+            decode_errors=decode_errors,
             **kwargs,
         )
 
@@ -135,6 +147,9 @@ class Context(typer.Context):
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
+        drain_timeout: float | None = 10.0,
+        decode_errors: DecodeErrors = "replace",
         **kwargs: Unpack[PopenKwargs],
     ) -> StrOrNoneCompletedProcess:
         return _run_script(
@@ -148,6 +163,9 @@ class Context(typer.Context):
             dry_run=self.obj.dry_run if dry_run is None else dry_run,
             keep_temp_file=keep_temp_file,
             env=env,
+            timeout=timeout,
+            drain_timeout=drain_timeout,
+            decode_errors=decode_errors,
             **kwargs,
         )
 
