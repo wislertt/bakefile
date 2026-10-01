@@ -1,0 +1,38 @@
+name: pty-flake-repro
+
+on:
+    push:
+        branches: [ci/pty-flake-repro]
+    workflow_dispatch:
+
+jobs:
+    repro:
+        runs-on: macos-latest
+        steps:
+            - name: checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: set-python-version
+              run: echo "3.10" > .python-version
+
+            - name: setup-mise
+              uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+
+            - name: install-dependencies
+              run: uv sync --all-extras --all-groups --frozen
+
+            - name: stress-test
+              run: |
+                  unset CI
+                  uv run pytest tests/unit/bake/ui/run/test_pty_flake_stress.py -n auto -v --no-header
+
+            - name: print-trace
+              if: always()
+              run: tail -200 /tmp/pty_trace.log || true
+
+            - name: upload-trace
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: pty-trace
+                  path: /tmp/pty_trace.log
