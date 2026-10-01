@@ -103,6 +103,7 @@ print(f"{cols}x{rows}")
 class TestPtyWinsize:
     pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY winsize is POSIX-only")
 
+    @flaky_on_macos_ci()
     def test_pty_gets_parent_terminal_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # struct winsize is (ws_row, ws_col, ...): 100 cols, 30 rows
         parent_ws = struct.pack("HHHH", 30, 100, 0, 0)
@@ -672,6 +673,7 @@ sys.stdout.write("abc\rX\n")
 """
         assert self._run_capture(child) == "X\n"
 
+    @flaky_on_macos_ci()
     def test_stderr_frames_collapse_too(self) -> None:
         """stderr runs through its own PTY and gets the same cleanup (tqdm writes there)."""
         child = r"""

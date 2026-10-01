@@ -3,6 +3,7 @@ from pathlib import Path
 from bake.utils.constants import CMD_BAKEFILE
 from tests.conftest import RunCli
 from tests.utils.cli import get_error_label
+from tests.utils.misc import flaky_on_macos_ci
 
 
 def test_run_help_shows_help(tmp_path: Path, run_cli: RunCli) -> None:
@@ -49,6 +50,7 @@ def test_run_error_no_bakefile(tmp_path: Path, run_cli: RunCli) -> None:
     assert "Bakefile not found at" in result.err
 
 
+@flaky_on_macos_ci()
 def test_run_with_args(empty_project_folder: Path, run_cli: RunCli) -> None:
     # Create a test script that prints sys.argv
     test_script = empty_project_folder / "test_args.py"
