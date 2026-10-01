@@ -1,3 +1,5 @@
+import os
+
 from bakelib import suppress
 from tests.utils.cli import CaptureOutput, RunCli, run_cli
 from tests.utils.fixtures import (
@@ -29,6 +31,13 @@ from tests.utils.misc import (
 
 def pytest_configure() -> None:
     suppress.all()
+
+
+# TEMPORARY flake diagnosis: delete with the ci/pty-flake-repro branch
+if os.environ.get("PTY_TRACE"):
+    from tests.utils.pty_trace import install_pty_trace
+
+    install_pty_trace()
 
 
 __all__ = [

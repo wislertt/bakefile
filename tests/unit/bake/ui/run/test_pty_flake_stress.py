@@ -1,9 +1,8 @@
-"""TEMPORARY CI diagnostic for the macOS PTY empty-capture flake. Delete after diagnosis.
+"""TEMPORARY CI diagnostic for the macOS PTY empty-capture flake.
 
-Loops capture variants through run()/run_script() and, on the first lost
-payload, fails with the tail of an event trace collected from OutputSplitter.
-The trace distinguishes: thread crashed / EIO with zero reads / read but not
-captured / timed out.
+Delete with the ci/pty-flake-repro branch. Loops capture variants through
+run()/run_script(); on the first lost payload, fails with the tail of the
+event trace from tests/utils/pty_trace.py.
 """
 
 import fcntl
@@ -11,94 +10,26 @@ import os
 import struct
 import sys
 import termios
-import threading
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from bake.ui.run.main import run
 from bake.ui.run.script import run_script
-from bake.ui.run.splitter import OutputSplitter
+from tests.utils.pty_trace import trace, trace_tail
 
-TRACE_PATH = Path("/tmp/pty_trace.log")
+TRACE_PATH = os.environ.get("PTY_TRACE_PATH", "/tmp/pty_trace.log")
 ITERATIONS = 20
-_pid = str(os.getpid())
-
-
-def _trace(msg: str) -> None:
-    with TRACE_PATH.open("a") as f:
-        f.write(f"[{_pid}] {msg}\n")
-
-
-def _install_instrumentation() -> None:
-    _orig_handle = OutputSplitter._handle_data
-    _orig_eio_read = OutputSplitter._read_pty_eio_safe
-    _orig_read_pty = OutputSplitter._read_pty
-    _orig_drain = OutputSplitter._drain_pty
-
-    def handle_data(self: OutputSplitter, data: bytes, target: Any, output_list: list) -> bool:
-        result = _orig_handle(self, data, target, output_list)
-        _trace(f"handle_data len={len(data)} captured={result} head={data[:32]!r}")
-        return result
-
-    def eio_read(self: OutputSplitter, pty_fd: int) -> bytes | None:
-        data = _orig_eio_read(self, pty_fd)
-        if data is not None:
-            _trace(f"read fd={pty_fd} len={len(data)}")
-        else:
-            _trace(f"read fd={pty_fd} EOF-EIO")
-        return data
-
-    def read_pty(
-        self: OutputSplitter,
-        pty_fd: int,
-        target: Any,
-        output_list: list,
-        proc: Any,
-    ) -> None:
-        _trace(f"read_pty start fd={pty_fd}")
-        try:
-            _orig_read_pty(self, pty_fd, target, output_list, proc)
-        except BaseException as exc:
-            _trace(f"read_pty CRASH fd={pty_fd} {exc!r}")
-            raise
-        _trace(f"read_pty end fd={pty_fd} captured={len(b''.join(output_list))}")
-
-    def drain(self: OutputSplitter, pty_fd: int, target: Any, output_list: list) -> None:
-        _trace(f"drain start fd={pty_fd} have={len(b''.join(output_list))}")
-        _orig_drain(self, pty_fd, target, output_list)
-        _trace(f"drain end fd={pty_fd} captured={len(b''.join(output_list))}")
-
-    OutputSplitter._handle_data = handle_data  # type: ignore[method-assign]
-    OutputSplitter._read_pty_eio_safe = eio_read  # type: ignore[method-assign]
-    OutputSplitter._read_pty = read_pty  # type: ignore[method-assign]
-    OutputSplitter._drain_pty = drain  # type: ignore[method-assign]
-
-    def excepthook(args: threading.ExceptHookArgs) -> None:
-        thread_name = args.thread.name if args.thread is not None else "?"
-        _trace(f"THREAD CRASH {thread_name}: {args.exc_value!r}")
-
-    threading.excepthook = excepthook
-
-
-_install_instrumentation()
-
-
-def _trace_tail(lines: int = 120) -> str:
-    if not TRACE_PATH.exists():
-        return "<no trace>"
-    return "\n".join(TRACE_PATH.read_text().splitlines()[-lines:])
 
 
 def _loop(name: str, body: Callable[[], None]) -> None:
     for i in range(ITERATIONS):
-        _trace(f"ITER {name} #{i} begin pid={_pid}")
+        trace(f"ITER {name} #{i} begin pid={os.getpid()}")
         try:
             body()
         except AssertionError:
-            pytest.fail(f"{name} iter {i} lost payload\n--- trace tail ---\n{_trace_tail()}")
+            pytest.fail(f"{name} iter {i} lost payload\n--- trace tail ---\n{trace_tail()}")
 
 
 def test_stress_stdout_capture() -> None:

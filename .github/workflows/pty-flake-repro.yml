@@ -26,6 +26,11 @@ jobs:
                   unset CI
                   uv run pytest tests/unit/bake/ui/run/test_pty_flake_stress.py -n auto -v --no-header
 
+            - name: full-suite-instrumented
+              run: |
+                  unset CI
+                  PTY_TRACE=1 uv run pytest tests/unit --cov=src --cov-report= -n auto -q --no-header
+
             - name: print-trace
               if: always()
               run: tail -200 /tmp/pty_trace.log || true
