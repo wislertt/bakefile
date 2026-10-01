@@ -105,41 +105,47 @@ DecodeErrors = Literal[
 ]
 
 
-class RunKwargs(PopenKwargs, total=False):
-    # Keyword surface shared by run() overloads in bake.ui.run.main and
-    # bake.cli.common.context.Context; keeps the typed contract in one place.
-    # Defaults live on the run() implementation, not here.
+class _CoreRunKwargs(TypedDict, total=False):
+    # Options common to run(), run_script(), and run_uv(); defaults live on
+    # each implementation, not here.
     check: bool
     cwd: Path | str | None
     stream: bool
     clean_capture_output: bool
-    shell: bool | None
     echo: bool
-    echo_cmd: str | None
-    dry_run: bool | None
     keep_temp_file: bool
     env: dict[str, str] | None
     timeout: float | None
     drain_timeout: float | None
-    _encoding: str | None
     decode_errors: DecodeErrors
+
+
+class RunKwargs(PopenKwargs, _CoreRunKwargs, total=False):
+    # Keyword surface of run() overloads in bake.ui.run.main and
+    # bake.cli.common.context.Context; keeps the typed contract in one place.
+    shell: bool | None
+    echo_cmd: str | None
+    dry_run: bool | None
+    _encoding: str | None
+
+
+class RunScriptKwargs(PopenKwargs, _CoreRunKwargs, total=False):
+    # Keyword surface of run_script(); dry_run is a plain bool here (no
+    # inherit-from-context None sentinel like run()).
+    dry_run: bool
+
+
+class RunUvKwargs(PopenKwargs, _CoreRunKwargs, total=False):
+    # Keyword surface of run_uv(); shell and echo_cmd are owned by the
+    # implementation (uv is always run directly).
+    dry_run: bool
+    _encoding: str | None
 
 
 def _run_with_temp_file(
     cmd: str,
     capture_output: bool,
-    check: bool,
-    cwd: Path | str | None,
-    stream: bool,
-    clean_capture_output: bool = True,
-    keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
-    timeout: float | None = None,
-    drain_timeout: float | None = 10.0,
-    _encoding: str | None = None,
-    decode_errors: DecodeErrors = "replace",
-    echo_cmd: str | None = None,
-    **kwargs: Unpack[PopenKwargs],
+    **kwargs: Unpack[RunKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run multi-line script using temp file with shebang support.
 
@@ -167,6 +173,8 @@ def _run_with_temp_file(
     - Node.js: env={"NODE_OPTIONS": "--input-type=module"} or similar
     - Other interpreters: consult their documentation for UTF-8 environment variables
     """
+    keep_temp_file = kwargs.pop("keep_temp_file", False)
+
     # Determine temp file extension and shell for Windows
     if sys.platform == "win32":
         sh_path = shutil.which("sh.exe")
@@ -202,20 +210,11 @@ def _run_with_temp_file(
             os.chmod(path, 0o700)  # rwx------ (owner only, more secure)
             cmd_to_run: list[str] = [path]
 
+        # run() must not re-echo: the caller already echoed cmd_str_for_display
+        kwargs["echo"] = False
         return run(
             cmd=cmd_to_run,
             capture_output=capture_output,
-            check=check,
-            cwd=cwd,
-            stream=stream,
-            clean_capture_output=clean_capture_output,
-            echo=False,
-            echo_cmd=echo_cmd,
-            env=env,
-            timeout=timeout,
-            drain_timeout=drain_timeout,
-            _encoding=_encoding,
-            decode_errors=decode_errors,
             **kwargs,
         )
     finally:

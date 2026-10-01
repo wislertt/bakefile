@@ -1,3 +1,4 @@
+import contextlib
 import errno
 import os
 import select
@@ -178,38 +179,39 @@ class OutputSplitter:
 
         deadline = None if self._drain_timeout is None else time.monotonic() + self._drain_timeout
 
+        with contextlib.suppress(OSError):  # pragma: no cover
+            self._drain_loop(pty_fd, target, output_list, deadline)
+
+    def _past_deadline(self, deadline: float | None) -> bool:
+        return deadline is not None and time.monotonic() >= deadline
+
+    def _drain_loop(self, pty_fd: int, target, output_list, deadline: float | None) -> None:
         timeout = 0.05
         consecutive_timeouts = 0
         select_works = True
 
-        try:
-            while True:
-                if deadline is not None and time.monotonic() >= deadline:
+        while not self._past_deadline(deadline):
+            if select_works:
+                select_works, ready = self._try_select_read(pty_fd, timeout)
+            else:
+                ready = False
+
+            if ready:
+                # Data ready - read and handle
+                if not self._handle_data_ready(pty_fd, target, output_list):
                     return
+                consecutive_timeouts = 0
+                timeout = 0.02
+                continue
 
-                if select_works:
-                    select_works, ready = self._try_select_read(pty_fd, timeout)
-                else:
-                    ready = False
+            # No data ready - increment timeout and try direct read
+            timeout = min(timeout * 1.5, 0.2)
 
-                if ready:
-                    # Data ready - read and handle
-                    if not self._handle_data_ready(pty_fd, target, output_list):
-                        return
-                    consecutive_timeouts = 0
-                    timeout = 0.02
-                    continue
-
-                # No data ready - increment timeout and try direct read
-                timeout = min(timeout * 1.5, 0.2)
-
-                should_continue, consecutive_timeouts = self._handle_timeout(
-                    pty_fd, target, output_list, select_works, consecutive_timeouts
-                )
-                if not should_continue:
-                    return
-        except OSError:  # pragma: no cover
-            pass  # pragma: no cover
+            should_continue, consecutive_timeouts = self._handle_timeout(
+                pty_fd, target, output_list, select_works, consecutive_timeouts
+            )
+            if not should_continue:
+                return
 
     def attach(self, proc: subprocess.Popen):
         threads = []

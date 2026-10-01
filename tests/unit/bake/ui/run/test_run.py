@@ -29,7 +29,8 @@ from bake.ui.logger import (
     capture_to_logs_pretty,
     setup_logging,
 )
-from bake.ui.run import main, run_script, run_uv
+from bake.ui.run import main
+from bake.ui.run.main import RunKwargs, RunScriptKwargs, RunUvKwargs
 from tests.utils.misc import flaky_on_macos_ci
 
 
@@ -1419,37 +1420,42 @@ class TestDrainAfterExit:
 
 
 class TestSignatureCompatibility:
-    """Tests to ensure run wrappers have compatible signatures with run()."""
+    """Tests to ensure run wrappers cover run()'s common keyword surface.
 
-    def test_run_script_has_common_params(self) -> None:
-        """run_script should have all common params from run()."""
+    Wrappers take **kwargs: Unpack[RunScriptKwargs]/Unpack[RunUvKwargs], so the
+    contract is TypedDict key coverage, not inspect.signature parameters.
+    """
+
+    @staticmethod
+    def _typed_dict_keys(
+        td: type[RunKwargs] | type[RunScriptKwargs] | type[RunUvKwargs],
+    ) -> frozenset[str]:
+        return frozenset(td.__required_keys__ | td.__optional_keys__)
+
+    def test_run_script_kwargs_covers_common_params(self) -> None:
+        """RunScriptKwargs should have all common params from RunKwargs."""
         excluded = {
-            "cmd",  # uses 'script' instead
             "shell",  # always uses shell=True
             "echo_cmd",  # handles its own display
             "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run).parameters.keys())
-        script_params = set(inspect.signature(run_script).parameters.keys())
-        expected = run_params - excluded
+        run_keys = self._typed_dict_keys(RunKwargs) - excluded
+        script_keys = self._typed_dict_keys(RunScriptKwargs)
 
-        missing = expected - script_params
-        assert not missing, f"run_script missing params: {missing}"
+        missing = run_keys - script_keys
+        assert not missing, f"RunScriptKwargs missing params: {missing}"
 
-    def test_run_uv_has_common_params(self) -> None:
-        """run_uv should have all common params from run()."""
+    def test_run_uv_kwargs_covers_common_params(self) -> None:
+        """RunUvKwargs should have all common params from RunKwargs."""
         excluded = {
-            "cmd",  # constructs its own from uv_bin + args
             "shell",  # always uses shell=False
             "echo_cmd",  # handles its own display
-            "_encoding",  # private param
         }
-        run_params = set(inspect.signature(run).parameters.keys())
-        uv_params = set(inspect.signature(run_uv).parameters.keys())
-        expected = run_params - excluded
+        run_keys = self._typed_dict_keys(RunKwargs) - excluded
+        uv_keys = self._typed_dict_keys(RunUvKwargs)
 
-        missing = expected - uv_params
-        assert not missing, f"run_uv missing params: {missing}"
+        missing = run_keys - uv_keys
+        assert not missing, f"RunUvKwargs missing params: {missing}"
 
 
 class TestPopenKwargs:
