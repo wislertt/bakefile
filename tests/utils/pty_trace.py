@@ -1,25 +1,30 @@
 """TEMPORARY PTY capture instrumentation for flake diagnosis.
 
 Delete with the ci/pty-flake-repro branch. Activated by env PTY_TRACE=1
-(tests/conftest.py installs into OutputSplitter). The trace distinguishes
-loss modes: thread crash / EIO with zero reads / read but not captured /
-drain timeout.
+(tests/conftest.py installs into OutputSplitter + run()).
 """
 
 import os
+import sys
 import threading
+import time
 from pathlib import Path
+from typing import Any, cast
 
+import bake.ui.run.main  # noqa: F401
 from bake.ui.run.splitter import OutputSplitter
+
+run_main = sys.modules["bake.ui.run.main"]
 
 TRACE_PATH = Path("/tmp/pty_trace.log")
 _pid = os.getpid()
 _installed = False
+_run_seq = 0
 
 
 def trace(msg: str) -> None:
     with TRACE_PATH.open("a") as f:
-        f.write(f"[{_pid}] {msg}\n")
+        f.write(f"[{_pid}] {time.monotonic():.3f} {msg}\n")
 
 
 def trace_tail(lines: int = 120) -> str:
@@ -38,6 +43,8 @@ def install_pty_trace() -> None:
     _orig_eio_read = OutputSplitter._read_pty_eio_safe
     _orig_read_pty = OutputSplitter._read_pty
     _orig_drain = OutputSplitter._drain_pty
+    _orig_process = run_main._process_stream_output
+    _orig_split = run_main._run_with_split
 
     def handle_data(self, data, target, output_list):
         result = _orig_handle(self, data, target, output_list)
@@ -66,10 +73,33 @@ def install_pty_trace() -> None:
         _orig_drain(self, pty_fd, target, output_list)
         trace(f"drain end fd={pty_fd} captured={len(b''.join(output_list))}")
 
+    def process_stream_output(splitter, proc, cmd, **kwargs):
+        result = _orig_process(splitter, proc, cmd, **kwargs)
+        trace(
+            f"PROCESS cmd={cmd!r} raw_out={len(splitter.stdout)} "
+            f"raw_err={len(splitter.stderr)} final_out={len(result.stdout or '')} "
+            f"rc={result.returncode}"
+        )
+        return result
+
+    def run_with_split(*args, **kwargs):
+        global _run_seq
+        _run_seq += 1
+        seq = _run_seq
+        cmd = args[0] if args else kwargs.get("cmd")
+        trace(f"RUN #{seq} begin cmd={cmd!r}")
+        result = _orig_split(*args, **kwargs)
+        out = result.stdout if hasattr(result, "stdout") else None
+        trace(f"RUN #{seq} end rc={result.returncode} out={len(out) if out else 0}")
+        return result
+
     OutputSplitter._handle_data = handle_data  # type: ignore[method-assign]
     OutputSplitter._read_pty_eio_safe = eio_read  # type: ignore[method-assign]
     OutputSplitter._read_pty = read_pty  # type: ignore[method-assign]
     OutputSplitter._drain_pty = drain  # type: ignore[method-assign]
+    cast_any = cast("Any", run_main)
+    cast_any._process_stream_output = process_stream_output
+    cast_any._run_with_split = run_with_split
 
     def excepthook(args):
         thread_name = args.thread.name if args.thread is not None else "?"
