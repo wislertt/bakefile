@@ -30,11 +30,12 @@ from bake.ui.logger import (
     setup_logging,
 )
 from bake.ui.run import main
+
+# from tests.utils.misc import flaky_on_macos_ci
 from bake.ui.run.main import RunKwargs, RunScriptKwargs, RunUvKwargs
-from tests.utils.misc import flaky_on_macos_ci
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_run_simple_command(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()
@@ -48,6 +49,26 @@ def test_run_simple_command(capfd: pytest.CaptureFixture[str]) -> None:
     logs = capsys_to_logs(capfd)
     assert any("[run] echo hello" in log["message"] for log in logs)
     assert any("[done] echo hello" in log["message"] for log in logs)
+
+
+def test_pty_capture_survives_reader_starvation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """macOS discards unread PTY master data shortly after the last slave fd
+    closes. Under CPU contention the reader thread may not run until after
+    that window, so capture must not depend on the reader winning the race."""
+    orig_read_pty = main.OutputSplitter._read_pty
+
+    def starved_read_pty(self, *args: Any, **kwargs: Any) -> None:
+        time.sleep(1.0)  # simulate the reader being scheduled late (CI load)
+        return orig_read_pty(self, *args, **kwargs)
+
+    monkeypatch.setattr(main.OutputSplitter, "_read_pty", starved_read_pty)
+
+    result = run([sys.executable, "-c", "print('STARVE-MARKER')"], capture_output=True, echo=False)
+
+    assert result.returncode == 0
+    assert "STARVE-MARKER" in (result.stdout or "")
 
 
 def test_run_with_elapsed_time_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
@@ -103,7 +124,7 @@ print(f"{cols}x{rows}")
 class TestPtyWinsize:
     pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY winsize is POSIX-only")
 
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     def test_pty_gets_parent_terminal_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # struct winsize is (ws_row, ws_col, ...): 100 cols, 30 rows
         parent_ws = struct.pack("HHHH", 30, 100, 0, 0)
@@ -369,7 +390,7 @@ class TestPreexecForwarding:
         assert "<unset>" not in result.stdout
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_run_with_cwd(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()
@@ -390,12 +411,12 @@ def test_run_check_false_no_exception_on_error() -> None:
     assert result.returncode == 1
 
 
+# @flaky_on_macos_ci()
 def test_run_check_true_raises_on_error() -> None:
     with pytest.raises(typer.Exit):
         run(["false"], check=True)
 
 
-@flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "stream, capture_output",
     [
@@ -455,7 +476,7 @@ def test_run_returncode_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     assert done_log["returncode"] == 0
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_run_stdout_stderr_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()
@@ -673,7 +694,7 @@ sys.stdout.write("abc\rX\n")
 """
         assert self._run_capture(child) == "X\n"
 
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     def test_stderr_frames_collapse_too(self) -> None:
         """stderr runs through its own PTY and gets the same cleanup (tqdm writes there)."""
         child = r"""
@@ -780,7 +801,7 @@ sys.stdout.write("a\rb\n")
 
 
 class TestStringCommand:
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     @pytest.mark.parametrize(
         "cmd,expected_in_output",
         [
@@ -799,7 +820,7 @@ class TestStringCommand:
             for expected in expected_in_output:
                 assert expected in result.stdout
 
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     @pytest.mark.parametrize(
         "cmd_type,cmd,shell_override",
         [
@@ -957,7 +978,7 @@ class TestResolveInterpreter:
         assert check_func(result)
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_echo_cmd_overrides_all_display_and_logs(capfd: pytest.CaptureFixture[str]) -> None:
     """Test that echo_cmd overrides console echo, [run], [done], and [error] logs."""
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
@@ -985,7 +1006,7 @@ def test_echo_cmd_overrides_all_display_and_logs(capfd: pytest.CaptureFixture[st
     assert any("[error] failing command" in log["message"] for log in logs)
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_echo_cmd_executes_actual_command_not_display_string(
     capfd: pytest.CaptureFixture[str],
 ) -> None:
@@ -1002,7 +1023,7 @@ def test_echo_cmd_executes_actual_command_not_display_string(
     assert any("[run] not a real command" in log["message"] for log in logs)
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "kwargs,expected_log_prefix,expected_stdout,check_console_echo",
     [
@@ -1261,7 +1282,7 @@ class TestCheckExitCodeStreamFalse:
         err_plain = re.sub(r"\x1b\[[0-9;]*m", "", capture.err)
         assert "short" in err_plain
 
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     def test_stream_true_does_not_show_duplicate_stderr(
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -1293,7 +1314,7 @@ class TestTimeout:
         with pytest.raises(subprocess.TimeoutExpired):
             run("sleep 10", timeout=0.1, stream=stream, echo=False, capture_output=True)
 
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_completes_within_limit(self, stream: bool) -> None:
         """Command completes successfully when within timeout."""
@@ -1302,7 +1323,7 @@ class TestTimeout:
         assert result.returncode == 0
         assert "fast" in result.stdout
 
-    @flaky_on_macos_ci()
+    # @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_none_waits_indefinitely(self, stream: bool) -> None:
         """timeout=None (default) waits for command to complete."""
@@ -1919,7 +1940,6 @@ class TestKeyboardInterrupt:
     def test_ctrl_c_with_stream_true_kills_process_tree(self) -> None:
         """Test that KeyboardInterrupt during run() with stream=True calls _kill_process_tree."""
         mock_proc = mock.Mock(spec=subprocess.Popen)
-        mock_proc.wait.side_effect = KeyboardInterrupt()
         mock_proc.pid = 12345
         mock_proc.stdout = 1
         mock_proc.stderr = 2
@@ -1931,6 +1951,9 @@ class TestKeyboardInterrupt:
             mock.patch.object(
                 main, "_sigint_guard", side_effect=lambda _: contextlib.nullcontext()
             ),
+            # Patch at the wait boundary: a real pid could collide with a live
+            # process, and the mocked proc cannot actually exit
+            mock.patch.object(main, "_wait_no_reap", side_effect=KeyboardInterrupt()),
         ):
             with pytest.raises(KeyboardInterrupt):
                 run(["echo", "test"], stream=True, capture_output=True, echo=False)

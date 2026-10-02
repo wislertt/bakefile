@@ -1,0 +1,257 @@
+# Context: macOS PTY empty-capture flake fix
+
+## Problem
+
+macOS CI flake: real-subprocess capture tests intermittently get `stdout=''`
+while stderr echo intact, exit 0. Affected tests (all decorated with
+`@flaky_on_macos_ci()` on main as interim mitigation, commit a777f91):
+
+- `tests/unit/bake/ui/run/test_run.py::test_run_simple_command`
+- `tests/unit/bake/cli/bakefile/test_run.py::test_run_with_args`
+- `tests/unit/bake/ui/run/test_run.py::test_pty_gets_parent_terminal_size`
+- `tests/unit/bake/ui/run/test_run.py::test_stderr_frames_collapse_too`
+
+## ROOT CAUSE (proven with local probes, 2026-10-01)
+
+macOS XNU discards unread PTY master-side data when the parent process
+waits on the child. Details:
+
+1. `bake` PTY capture path (`src/bake/ui/run/main.py:_run_with_split`):
+   `setup.proc.wait()` reaps the child BEFORE reader threads finish.
+2. On macOS, `waitpid` (or ANY wait syscall: `os.waitid` with
+   `WNOHANG|WNOWAIT` also triggers it) on the PTY session leader
+   tears down the tty and discards master data no reader consumed yet.
+3. Reader threads (`OutputSplitter._read_pty`) are usually fast and consume
+   data live, so output survives. Under CPU starvation (CI: 3-vCPU runner,
+   8 xdist workers) the reader wakes after the reap, reads EOF `b""`
+   (macOS gives b"" not EIO), capture = empty.
+4. Even WITHOUT any wait, unread data decays ~0.65s after the last slave
+   fd closes (deferred kernel discard).
+5. Linux unaffected: reap does NOT discard unread master data there.
+   Windows unaffected: no PTY path (`use_pty` = POSIX only).
+6. Bug exists on ALL macOS (local too), not CI-specific. Local tests pass
+   because reader never starved. CI load opens the race window.
+
+### Probe evidence (local Darwin 27, `/tmp/flake_loop/`)
+
+| Probe       | Setup                                               | Result                                                           |
+| ----------- | --------------------------------------------------- | ---------------------------------------------------------------- |
+| probe2.py   | 1 pty, no wait, read after delay 0.4s / 0.8s        | lost 0/100 / 100/100                                             |
+| probe3.py A | parent slave kept open, delay 0.8s                  | lost 0/30                                                        |
+| probe3.py B | slave closed, delay 0.8s                            | lost 30/30                                                       |
+| probe4.py   | reap-first (waitpid), delay 0.05s                   | lost 40/40                                                       |
+| probe4.py   | no reap, delay 0.4s / 0.8s                          | lost 0/40 / 40/40                                                |
+| probe6.py   | waitid WNOHANG+WNOWAIT poll loop (even +0.4s later) | lost 30/30                                                       |
+| probe7.py   | kqueue NOTE_EXIT early-register                     | exit event fired 0/20 (SUSPECT MY BUG)                           |
+| probe8.py   | kqueue NOTE_EXIT, slow child (0.4s), raw event      | fires but at exit+0.60s, data already gone 5/5                   |
+| probe9.py   | kqueue NOTE_EXIT latency, 2s child                  | event at exit+0.604s (10/10), marker destroyed at delivery 10/10 |
+| probe11.py  | kqueue late registration, no PTY                    | fires immediately 10/10 (but useless, see latency)               |
+| probe12.py  | zombie flip timing, nopty vs pty                    | nopty +4ms, pty +0.605s (5/5 each)                               |
+| probe13.py  | p_stat/p_flag sampling through pty exit window      | p_stat stays SRUN until +0.63s, P_WEXIT set at +4ms              |
+
+### NEW ROOT-CAUSE DETAIL (probes 8-13, 2026-10-01)
+
+kqueue NOTE_EXIT is NOT buggy usage, it is disqualified:
+
+1. Fires ~0.60s AFTER true child exit (XNU deferred session teardown).
+2. PTY master data already destroyed at event delivery (probe9: 10/10
+   marker gone despite immediate drain after event).
+3. Unreliable for fast-exiting pty children: probe7 config misses 20/20
+   even with 2s timeout.
+
+Same 0.6s delay applies to sysctl zombie check alone (p_stat == SZOMB,
+probe12): a pty session leader stays p_stat=SRUN for ~0.6s after true
+exit. The deferred session/tty teardown both delays the zombie state
+AND discards the unread master data. Zombie-only check = useless.
+
+WINNER: `kinfo_proc.p_flag & P_WEXIT` (0x2000). Set within ~5ms of true
+exit, while p_stat still SRUN. Pure ctypes sysctl, no wait syscall.
+
+### Mechanism validation (`no_reap_wait.py`, `probe10.py`)
+
+`is_exited(pid)` = sysctl kern.proc.pid -> p_stat==SZOMB OR P_WEXIT.
+`wait_for_exit_no_reap(pid, timeout)` polls every 5ms, TimeoutExpired.
+
+- probe10 idle: exit detected 50/50, marker readable after detect+0.5s
+  sleep 50/50, detect latency 25-69ms
+- probe10 under 8 CPU spinners (CI-like): 50/50 + 50/50, latency
+  63-423ms (still under the 0.65s decay window)
+- SIGKILL long-lived child: detected 0-6ms after kill(), no reap
+  (returncode still None), master readable
+- Healthy child timeout path: TimeoutExpired raised, child unharmed
+- sysctl semantics on Darwin: gone/reaped pid returns success with
+  size=0 (NOT ESRCH). p_stat at offset 36, p_flag at 32, p_pid at 40
+  (validated at runtime via p_pid assert). SZOMB=5 per SDK proc.h
+- psutil is NOT a project dependency (checked pyproject.toml, uv.lock)
+
+kqueue probe7 mystery partially explained: probe7 0/20 was not a
+kevent-construction bug, the same code fires 5/5 with a slow child
+(probe8). Fast pty children never deliver the event. Irrelevant now.
+
+Key inference chain:
+
+- Any wait syscall on child = data destroyed immediately (probe4, probe6)
+- No wait = data survives >=0.4s, decays ~0.65s (probe2/4)
+- kqueue NOTE_EXIT = only remaining no-reap exit-detection candidate,
+  current probe7 result looks like a kevent usage bug (event should fire)
+
+### CI trace evidence (branch ci/pty-flake-repro, run 36875861541)
+
+Trace showed failing session: reader thread started 635ms after spawn
+(starved), first read `b""` on both master fds, `PROCESS raw_out=0 rc=0`.
+Successful sessions: reader starts ~10ms, blocks, gets data before exit.
+
+## Fix design (decided)
+
+In `_run_with_split` PTY path, delay the reap until capture drained:
+
+1. Detect child exit WITHOUT any wait syscall (the crux).
+   WINNER (validated): ctypes sysctl kern.proc.pid poll,
+   `p_stat == SZOMB or p_flag & P_WEXIT` (see probe evidence below).
+    - kqueue NOTE_EXIT IS **NOT** VIABLE (fires at exit+0.6s, data gone,
+      unreliable for fast pty children).
+    - WAITID WNOWAIT IS **NOT** VIABLE (probe6: also destroys data).
+    - Plain zombie check (p_stat only) IS **NOT** VIABLE (delayed 0.6s
+      for pty session leaders, probe12).
+    - psutil not in project deps, use ctypes.
+2. After exit detected: `OutputSplitter.rescue_pending()` drains both
+   master fds from the main thread (main is always scheduled, reads
+   within the window; kernel queue consumed once = no duplication).
+3. `finalize()` joins reader threads (they EOF at slave close).
+4. `setup.proc.wait()` LAST (reap, data already safe).
+5. Timeout semantics: exit-detection must support timeout ->
+   TimeoutExpired (keep parity with subprocess.run).
+
+Non-darwin POSIX can keep plain `wait(timeout=timeout)` (no bug there)
+OR share the same path if waitid/kqueue portable enough. Keep it simple:
+darwin-only special case acceptable.
+
+## Current uncommitted state (branch ci/pty-flake-repro)
+
+`git status`: 3 modified files, NOT committed:
+
+- `src/bake/ui/run/main.py`: added `_wait_no_reap()` (WAITID VERSION -
+  KNOWN BROKEN, to be replaced by kqueue/zombie-check) + rescue call +
+  `setup.proc.wait()` after finalize. The waitid body must be replaced.
+- `src/bake/ui/run/splitter.py`: added `OutputSplitter.rescue_pending()`
+  (keep; docstring may need tweak).
+- `tests/unit/bake/ui/run/test_run.py`: added
+  `test_pty_capture_survives_reader_starvation` (monkeypatches
+  `_read_pty` to sleep 1s, asserts marker captured). Currently FAILS
+  (correct TDD red state). This is the acceptance test for the fix.
+
+## Test/verify commands
+
+```sh
+unset CI && uv run pytest tests/unit/bake/ui/run/test_run.py::test_pty_capture_survives_reader_starvation -x -q --no-header
+unset CI && uv run pytest tests/unit/bake/ui/run/ -q --no-header
+bake lint
+```
+
+Full suite before commit: `unset CI && uv run pytest tests/unit -q -n auto` (~80s).
+
+## Temporary diagnostic artifacts (delete when done)
+
+- Branch `ci/pty-flake-repro` commits: 7792c1c (harness),
+  f8422ae (instrumentation), 722ce1e (run-boundary correlation)
+- `tests/utils/pty_trace.py`, conftest PTY_TRACE gate,
+  `tests/unit/bake/ui/run/test_pty_flake_stress.py`,
+  `.github/workflows/pty-flake-repro.yml`
+- CI workflow `pty-flake-repro` (manual dispatch ok)
+- Local probe scripts: `/tmp/flake_loop/probe*.py`, `debug_rescue*.py`
+
+## User constraints
+
+- CAVEMAN MODE full (terse replies), no em dashes / semicolons
+- NO automatic commits on user branches (diagnostic branch pushes were
+  explicitly authorized; final fix commit = user decides)
+- Keep this .md updated as work progresses (user requirement for
+  compaction resilience)
+- Use subagents aggressively to preserve context window
+- `@flaky_on_macos_ci` decorators stay on main until fix validated in CI
+
+## Update (2026-10-01, phase B complete)
+
+Validated exit-detection mechanism (subagent, 13 probes):
+
+- **kqueue NOTE_EXIT disqualified.** Correct construction fires 15/15 for slow children but at true-exit +0.60s: XNU defers PTY session-leader exit processing ~0.6s and event delivery + data destruction happen at the same moment (probe9: marker destroyed 10/10 despite immediate drain). Fast-exiting PTY children: event never fires (0/20), no-PTY control fires 10/10.
+- **Zombie check (p_stat==SZOMB) disqualified.** Session leader stays SRUN ~0.6s after true exit; flips exactly when data is destroyed (probe12).
+- **Winner: sysctl kinfo_proc poll, `p_flag & P_WEXIT` (0x2000)**, fallback `p_stat == SZOMB`. P_WEXIT set ~5ms after true exit inside exit1() (after last userspace write, before data decay). Read-only syscall, no wait, data untouched.
+- Validation (probe10): 50/50 idle + 50/50 under 8 CPU spinners, detection latency 25-69ms idle / 63-423ms loaded (decay window ~0.65s, rescue must run immediately after detection). SIGKILL of 30s child detected 0-6ms. Timeout raises TimeoutExpired, child untouched. psutil NOT a dependency (checked pyproject + uv.lock), ctypes is the only stdlib option.
+- Darwin quirk: reaped/nonexistent pid = sysctl success with size=0 (not ESRCH). p_pid offset assert guards struct layout.
+
+Wired (uncommitted):
+
+- `main.py`: `_process_is_exiting()` + rewritten `_wait_no_reap` (darwin = sysctl poll 5ms, non-darwin = plain `proc.wait(timeout)`). Imports ctypes/errno, module constants `_libc/_SZOMB/_P_WEXIT` under `sys.platform == "darwin"` guard.
+- `splitter.py`: `rescue_pending()` unchanged (keeper).
+- `test_run.py::test_pty_capture_survives_reader_starvation`: **GREEN** locally.
+
+Remaining: full run/ suite (in flight), full unit suite, lint, CI repro x3, cleanup.
+
+## Update (2026-10-02, hang bug found + fixed)
+
+- Full suite hung 2h with zero output. Cause: `_process_is_exiting` returned
+  False for nonexistent/reaped pids (sysctl size=0 / ESRCH), so
+  `_wait_no_reap(timeout=None)` polled forever. Unit tests mock Popen with
+  fake pids -> instant infinite loop. Subagent probe10 validated real pids
+  only, mocked-pid case untested until suite run.
+- Fix: pid gone (size=0 or ESRCH) now returns True (nothing to wait for).
+  Safe: child exists once Popen returns, so "gone" = exited or reaped.
+- Verified: bogus pid -> True, live pid -> False, no-timeout wait returns
+  with rc still None (not reaped), timeout raises with child untouched.
+  Acceptance test still green.
+- INCIDENT: overnight battery drain was NOT the unsolved fix. 8 CPU spinner
+  loops from the stress test leaked (kill missed them), load avg hit 248,
+  machine ground all night, background runs timed out. Lesson: spinner
+  kill must be verified with ps before ending the task.
+
+## Update (2026-10-02, KI-path restructure)
+
+- Suite failure: test_ctrl_c_with_stream_true_kills_process_tree. Final
+  setup.proc.wait() was outside the guard try/except, so KI raised there
+  skipped _kill_process_tree. Restructured: rescue_pending + finalize +
+  wait() all inside guarded try.
+- Test hardened: mock pid 12345 could collide with a live pid (infinite
+  poll). Test now patches _wait_no_reap side_effect=KeyboardInterrupt --
+  deterministic, no fake-pid sysctl.
+- test_run.py 149 passed. ruff + format + ty clean.
+
+## Update (2026-10-02, local verification complete -- STOPPED FOR REVIEW)
+
+- Full unit suite: 2365 passed, 3 xfailed, 44.7s. All lint clean.
+- Fix complete and uncommitted on ci/pty-flake-repro:
+    - src/bake/ui/run/main.py: _process_is_exiting + _wait_no_reap (sysctl
+      P_WEXIT poll, darwin-only) + rescue/finalize/wait inside guarded try
+    - src/bake/ui/run/splitter.py: rescue_pending()
+    - tests/unit/bake/ui/run/test_run.py: acceptance test + KI test patch
+- NEXT (needs user): review diff, commit, push. Then CI repro x3 green,
+  cleanup temp artifacts, decorator decision. NO merge to main without
+  explicit user approval.
+
+## Update (2026-10-02, decorator removal)
+
+Removed @flaky_on_macos_ci from PTY-capture-path tests (fix covers them):
+
+- tests/unit/bake/ui/run/test_run.py (13 decorators + import)
+- tests/unit/bake/ui/run/test_script.py (2 + import)
+- tests/unit/bake/cli/bakefile/test_run.py (1 + import)
+  Kept (different flake mechanisms, not solved by this fix):
+- tests/unit/bake/cli/bakefile/test_export.py:114 (shell parsing)
+- tests/unit/bakelib/refreshable_cache/test_cache.py:120 (TTL timing)
+  Edited files: 178 tests passed. Also: pty-flake-repro.yml now matrix x10
+  parallel unit suite (user-requested), trace upload only on failure.
+
+## Update (2026-10-02, decorators restored as comments)
+
+User decision: restore @flaky_on_macos_ci as COMMENTS (not deleted) until
+CI x10 proves the fix. All 17 back:
+
+- tests/unit/bake/ui/run/test_run.py: 14 decorators + commented import
+- tests/unit/bake/ui/run/test_script.py: 2 + import (regenerated from HEAD)
+- tests/unit/bake/cli/bakefile/test_run.py: 1 + import (regenerated from HEAD)
+  Kept active (unrelated mechanisms): test_export.py:114, cache TTL test.
+  ruff I001 auto-fixed (blank line after commented import). 178 tests in
+  edited files pass. Final full suite re-running.
+
+Plan after CI x10 green: delete the 17 comment lines in follow-up commit,
+re-run x10.

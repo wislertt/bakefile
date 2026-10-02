@@ -3,7 +3,8 @@ from textwrap import dedent
 import pytest
 
 from bake.ui import argv_to_multiline_cmd, run_script
-from tests.utils.misc import flaky_on_macos_ci
+
+# from tests.utils.misc import flaky_on_macos_ci
 
 
 @pytest.mark.parametrize(
@@ -136,7 +137,7 @@ def test_run_script_with_python_shebang() -> None:
     assert "hello from python" in result.stdout
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_run_script_concurrent_execution() -> None:
     """Test that multiple scripts can run concurrently without conflicts."""
     import concurrent.futures
@@ -251,7 +252,7 @@ def test_run_script_runtime_error_propagates() -> None:
     assert "ValueError" in result.stderr or "This is a test error" in result.stderr
 
 
-@flaky_on_macos_ci()
+# @flaky_on_macos_ci()
 def test_run_script_nonzero_exit_propagates() -> None:
     """Test that non-zero exit codes propagate correctly and temp files are cleaned up."""
     script = dedent("""

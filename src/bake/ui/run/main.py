@@ -1,4 +1,6 @@
 import contextlib
+import ctypes
+import errno
 import logging
 import os
 import shutil
@@ -35,6 +37,11 @@ logger = logging.getLogger(__name__)
 # Lock for subprocess.Popen calls - subprocess is not thread-safe by design
 # See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
 _subprocess_create_lock = threading.Lock()
+
+if sys.platform == "darwin":
+    _libc = ctypes.CDLL(None, use_errno=True)
+    _SZOMB = 5  # sys/proc.h: p_stat value for a zombie
+    _P_WEXIT = 0x2000  # p_flag: process is working on exiting
 
 
 @dataclass(frozen=True, slots=True)
@@ -736,6 +743,53 @@ def _setup_pipe_stream(
     return StreamSetup(proc=proc, splitter=splitter, threads=threads)
 
 
+def _process_is_exiting(pid: int) -> bool:
+    """Read the child's kinfo_proc via sysctl without touching it.
+
+    P_WEXIT is set inside exit1(), after the child's last userspace write but
+    ~0.6s before the session-leader exit processing that discards unread PTY
+    master data on macOS. SZOMB covers the final transition. Both waitid and
+    plain wait destroy that data, so they cannot be used for detection here.
+    """
+    mib = (ctypes.c_int * 4)(1, 14, 1, pid)  # CTL_KERN, KERN_PROC, KERN_PROC_PID
+    buf = ctypes.create_string_buffer(1024)
+    size = ctypes.c_size_t(1024)
+    if _libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0) != 0:
+        err = ctypes.get_errno()
+        if err == errno.ESRCH:
+            return True  # pid gone: nothing to wait for
+        raise OSError(err, os.strerror(err))
+    if size.value == 0:  # pid gone: already reaped or never existed
+        return True
+    # struct extern_proc: p_flag int @32, p_stat char @36, p_pid int @40
+    assert int.from_bytes(buf.raw[40:44], "little") == pid  # layout guard
+    return buf.raw[36] == _SZOMB or bool(int.from_bytes(buf.raw[32:36], "little") & _P_WEXIT)
+
+
+def _wait_no_reap(proc: subprocess.Popen, timeout: float | None) -> None:
+    """Wait for child exit without reaping it.
+
+    Reaping the PTY session leader makes macOS discard any master-side data
+    the reader threads have not consumed yet, so hold off on waitpid until
+    capture is drained. Non-darwin keeps plain wait() (reaping never discards
+    pipe/PTY data there).
+    """
+    if sys.platform != "darwin":
+        proc.wait(timeout=timeout)
+        return
+
+    if timeout is None:
+        while not _process_is_exiting(proc.pid):
+            time.sleep(0.005)
+        return
+
+    deadline = time.monotonic() + timeout
+    while not _process_is_exiting(proc.pid):
+        if time.monotonic() >= deadline:
+            raise subprocess.TimeoutExpired(cmd=proc.args, timeout=timeout)
+        time.sleep(0.005)
+
+
 def _run_with_split(
     cmd: str | list[str] | tuple[str, ...],
     shell: bool,
@@ -766,7 +820,19 @@ def _run_with_split(
 
     with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds, setup.proc):
         try:
-            setup.proc.wait(timeout=timeout)
+            _wait_no_reap(setup.proc, timeout)
+
+            # macOS discards unread PTY master data once the child is reaped,
+            # and the reader threads may not have consumed it yet (CPU
+            # starvation). Recover it from this thread, join the readers, and
+            # only then reap (see OutputSplitter.rescue_pending and
+            # _wait_no_reap)
+            if use_pty:
+                setup.splitter.rescue_pending(setup.master_fds, setup.threads)
+
+            setup.splitter.finalize(setup.threads)
+
+            setup.proc.wait()
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
             _kill_process_tree(setup.proc)
             setup.proc.wait()
@@ -783,8 +849,6 @@ def _run_with_split(
                 exc.output = partial.stdout
                 exc.stderr = partial.stderr  # ty: ignore[invalid-assignment]
             raise
-
-    setup.splitter.finalize(setup.threads)
 
     return _process_stream_output(
         splitter=setup.splitter,

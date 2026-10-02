@@ -8,6 +8,11 @@ on:
 jobs:
     repro:
         runs-on: macos-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                iteration: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        name: repro-x${{ matrix.iteration }}
         steps:
             - name: checkout
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -21,23 +26,18 @@ jobs:
             - name: install-dependencies
               run: uv sync --all-extras --all-groups --frozen
 
-            - name: stress-test
-              run: |
-                  unset CI
-                  uv run pytest tests/unit/bake/ui/run/test_pty_flake_stress.py -n auto -v --no-header
-
-            - name: full-suite-instrumented
+            - name: unit-suite-instrumented
               run: |
                   unset CI
                   PTY_TRACE=1 uv run pytest tests/unit --cov=src --cov-report= -n auto -q --no-header
 
             - name: print-trace
-              if: always()
+              if: failure()
               run: tail -200 /tmp/pty_trace.log || true
 
             - name: upload-trace
-              if: always()
+              if: failure()
               uses: actions/upload-artifact@v4
               with:
-                  name: pty-trace
+                  name: pty-trace-x${{ matrix.iteration }}
                   path: /tmp/pty_trace.log

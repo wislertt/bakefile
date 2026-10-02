@@ -213,6 +213,28 @@ class OutputSplitter:
             if not should_continue:
                 return
 
+    def rescue_pending(self, master_fds, threads) -> None:
+        """Recover pending master data immediately after the child exits.
+
+        macOS discards unread PTY master data when the session leader is
+        reaped, and reader threads may not have consumed it yet under CPU
+        contention. Drain from the calling thread here, before finalize joins
+        the readers. Data already read by a racing reader is not duplicated
+        (the kernel queue is consumed once).
+        """
+        for pty_fd, (_, output_list, name) in zip(master_fds, threads, strict=True):
+            target = sys.stdout if name == "stdout" else sys.stderr
+            while True:
+                select_works, ready = self._try_select_read(pty_fd, 0.02)
+                if not select_works or not ready:
+                    break
+                try:
+                    data = os.read(pty_fd, _READ_CHUNK)
+                except OSError:
+                    break
+                if not self._handle_data(data, target, output_list):
+                    break
+
     def attach(self, proc: subprocess.Popen):
         threads = []
 
