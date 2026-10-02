@@ -310,3 +310,18 @@ Changes:
 - Stress: 10/10 both PTY regression tests under 8 spinners, spinner
   cleanup verified (0 left).
 - READY: user commits + pushes, CI x10 round 2 decides decorator removal.
+
+## Update (2026-10-02, CI round 2 = 2365/2366, test-only bug)
+
+Run 36948258173: 10/10 jobs failed but ALL with the same single test
+error, 2365 others passed. ZERO empty-capture failures = the actual
+flake did not reproduce in 10 CI jobs. Fix itself holds.
+Failure: patch("bake.ui.run.splitter._process_is_exiting") breaks on
+py3.10: bake/ui/**init**.py does `from bake.ui.run import run` which
+REBINDS bake.ui.run attr to the run() function; mock's dotted-name
+_getter getattr-walk hits the function, AttributeError. Local 3.14
+unaffected (mock resolution changed in newer CPython).
+Fix: patch.object(import_module("bake.ui.run.splitter"),
+"_process_is_exiting") -- module object, no dotted resolution.
+test_splitter 19 pass, run/ dir 239 pass, lint clean. Ready for
+commit + push, x10 round 3.

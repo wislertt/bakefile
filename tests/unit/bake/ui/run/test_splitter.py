@@ -1,5 +1,6 @@
 import os
 import subprocess
+from importlib import import_module
 from unittest.mock import Mock, patch
 
 import pytest
@@ -195,7 +196,9 @@ class TestReadPty:
             patch.object(splitter, "_drain_pty") as mock_drain,
             patch("os.close"),
             patch("select.select", return_value=([], [], [])),
-            patch("bake.ui.run.splitter._process_is_exiting", return_value=True),
+            patch.object(
+                import_module("bake.ui.run.splitter"), "_process_is_exiting", return_value=True
+            ),
         ):
             splitter._read_pty(master_fd, Mock(), output_list, mock_proc)
             # _drain_pty should be called when process exits
