@@ -325,3 +325,84 @@ Fix: patch.object(import_module("bake.ui.run.splitter"),
 "_process_is_exiting") -- module object, no dotted resolution.
 test_splitter 19 pass, run/ dir 239 pass, lint clean. Ready for
 commit + push, x10 round 3.
+
+## Update (2026-10-02, CI round 3 = 5/10, mechanism B exposed)
+
+Run 36949127007 (commit 49bc692): 5/10 fail (x3, x4, x6, x7, x9),
+2364-2365 pass each. All failures = empty-capture signature, all in
+tests/unit/bake/ui/run/. No collection/mock errors: py3.10 fix good.
+
+Round 1 (5/10) trace showed destroy at 47ms by reader poll. Round 3
+trace (x3, pid 3282) shows NO poll before read:
+
+    264.069 RUN begin cmd=print('MARKER-STDOUT')
+    264.716 read_pty start fd=13   <- reader first scheduled 647ms late
+    264.717 read fd=13 len=0       <- data already gone
+
+Failing runs all show elapsed_seconds 0.61-0.66s for `echo hello`
+(x7: 0.610, x3: 0.658). That matches the ~0.65s no-wait decay timer
+(context root cause #4): kernel discards unread master data ~0.65s
+after child exit even with zero wait syscalls. CI runner starvation
+(3 vCPU, xdist workers churning subprocesses) delays first read past
+the timer. Coin flip -> 5/10.
+
+Verdict: mechanism A (wait/poll-observing destroy) FIXED and proven.
+Mechanism B (0.65s decay timer vs starved reads) remains. Under normal
+load reads land well inside 0.65s; x10 stress on 3-vCPU runners sits
+at the boundary.
+
+Options discussed with user (2026-10-02), awaiting decision:
+
+1. Probe: kill session leader. main.py:676 PTY path uses
+   start_new_session=True; child = session leader. Suspect 0.65s
+   discard = session-leader exit revoke. Probe child with setpgid
+   (own pgrp, same session, no ctty): if master data survives past
+   0.65s unreaped+unread, mechanism B dies = starvation-proof fix.
+   Risk: signal/pgrp semantics (_kill_process_tree, SIGINT, SIGWINCH
+   forwarding) need review.
+2. Main-thread pump in _wait_no_reap (select+drain master fds each
+   5ms loop). Weak: x3 trace shows whole-process stall (main thread
+   stalled too, RUN end logged at 264.719).
+3. Keep fix + decorators, cap CI xdist workers. Mitigation only.
+
+## Update (2026-10-02, probe C: session-leader theory dead, slave-hold fix)
+
+Probe C (/tmp/flake_loop/probeC.py, PROBEC_RESULT.txt), 20x each:
+
+| Variant | Setup                                           | Lost  |
+| ------- | ----------------------------------------------- | ----- |
+| C1      | start_new_session (current), no wait, read 1.0s | 20/20 |
+| C2      | setpgid only, same session, no wait, read 1.0s  | 20/20 |
+| C3      | setpgid + reap 0.2s, read 1.0s                  | 20/20 |
+| C4      | start_new_session + reap 0.2s, read 1.0s        | 20/20 |
+
+Session leadership NOT the trigger. Bonus: ps shows child TTY=?? in all
+variants -- subprocess start_new_session does setsid but never TIOCSCTTY,
+so the child never had a controlling terminal anyway. The ~0.65s decay
+fires on LAST SLAVE FD CLOSE, nothing else.
+
+User picked option 1 (recommended): implement slave-hold fix, which was
+already proven by probe3 A earlier (parent keeps one slave open, 0.8s
+delay, lost 0/30).
+
+Fix (main.py only):
+
+- StreamSetup gains `slave_fds: tuple[int, ...] = ()`.
+- _setup_pty_stream no longer closes slave_stdout/slave_stderr after
+  spawn; stores them in StreamSetup.
+- _run_with_split: local `slave_fds` list + idempotent _release_slave_fds
+  closure. Order: _wait_no_reap -> rescue_pending -> RELEASE SLAVES ->
+  finalize -> proc.wait(). Exception path: kill -> wait -> release ->
+  finalize. finally releases too (OSError on wait/rescue cannot leak).
+  Releasing before finalize gives readers in _drain_pty their EOF.
+
+Verification (local): test_run + test_splitter 169 pass (incl.
+test_pty_capture_survives_reader_starvation with reader delayed 1.0s >
+0.65s decay = mechanism B acceptance); 20x run() capture + fd delta 0
+(no leak); full suite 2366 passed / 3 xfailed (118s); ruff + format +
+ty clean.
+
+Status: AWAITING user commit + push, then CI x10 round 4. Decision
+rule: 10/10 green -> remove the 17 commented decorators (follow-up
+commit) + cleanup temp harness. Any empty-capture failure -> trace
+decides; this was the last planned mechanism.

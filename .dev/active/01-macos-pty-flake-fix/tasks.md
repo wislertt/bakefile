@@ -24,6 +24,21 @@
 - [x] Full unit suite green locally (2365 passed, 44.7s)
 - [x] bake lint clean (ruff + format + ty on changed files)
 - [ ] Push branch, CI x10 round 2 (round 1 = 5/10 fail, reader poll root cause found + fixed)
+- [x] Round 2 (run 36948258173): 2365/2366, zero empty-capture, py3.10
+      mock bug only -> fixed in 49bc692
+- [x] Round 3 (run 36949127007): 5/10 fail. Mechanism A fixed (trace:
+      no poll, reader first read at +647ms). Mechanism B remains: 0.65s
+      kernel decay timer vs starved reads on 3-vCPU runner. Options
+      with user: session-leader probe / main-thread pump / mitigate
+- [ ] User decision: probe removing session-leader (setpgid, same session)
+- [x] Probe C done (FINAL): session theory dead. Decay fires on last
+      slave fd close, not session-leader exit. Child never had ctty
+      (TTY=?? in all variants, no TIOCSCTTY from subprocess)
+- [x] Slave-hold fix implemented (main.py): parent keeps slave fds,
+      releases after rescue_pending / before finalize, idempotent
+      (try + except + finally). 169 targeted pass, full suite 2366
+      pass, lint clean, no fd leak
+- [ ] User commit + push, CI x10 round 4 decides decorators
 - [ ] Cleanup: pty_trace.py, conftest gate, stress file, workflow,
       probe files in /tmp/flake_loop
 - [ ] Decide decorator removal with user (separate commit)

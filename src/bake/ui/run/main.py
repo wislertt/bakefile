@@ -43,6 +43,7 @@ class StreamSetup:
     splitter: OutputSplitter
     threads: list
     master_fds: tuple[int, ...] = ()
+    slave_fds: tuple[int, ...] = ()
 
 
 def _parse_shebang(script: str) -> str | None:
@@ -682,8 +683,12 @@ def _setup_pty_stream(
                 with contextlib.suppress(OSError):
                     os.close(fd)
             raise
-        os.close(slave_stdout)
-        os.close(slave_stderr)
+        # macOS starts discarding unread PTY master data ~0.65s after the
+        # LAST slave fd closes, even with no wait syscall involved. Holding
+        # one slave copy here keeps the data alive until the readers have
+        # drained it; _run_with_split closes these after rescue_pending
+        # (PTYCaptureHold). On Linux closing early vs late makes no
+        # difference, so no platform split is needed.
 
     # Attach threads BEFORE releasing lock to ensure reader is ready
     # when fast-exiting processes complete
@@ -698,7 +703,11 @@ def _setup_pty_stream(
     threads = splitter.attach(proc)
 
     return StreamSetup(
-        proc=proc, splitter=splitter, threads=threads, master_fds=(stdout_fd, stderr_fd)
+        proc=proc,
+        splitter=splitter,
+        threads=threads,
+        master_fds=(stdout_fd, stderr_fd),
+        slave_fds=(slave_stdout, slave_stderr),
     )
 
 
@@ -788,6 +797,16 @@ def _run_with_split(
         **kwargs,
     )
 
+    # Slaves stay open until the capture is drained (PTYCaptureHold); closing
+    # them lets macOS start the ~0.65s unread-data decay. The list makes the
+    # release idempotent: try-path, except-path, and finally each call it.
+    slave_fds = list(setup.slave_fds)
+
+    def _release_slave_fds() -> None:
+        while slave_fds:
+            with contextlib.suppress(OSError):
+                os.close(slave_fds.pop())
+
     with _sigint_guard(setup.proc), _sigwinch_forwarder(setup.master_fds, setup.proc):
         try:
             _wait_no_reap(setup.proc, timeout)
@@ -800,12 +819,15 @@ def _run_with_split(
             if use_pty:
                 setup.splitter.rescue_pending(setup.master_fds, setup.threads)
 
+            _release_slave_fds()
+
             setup.splitter.finalize(setup.threads)
 
             setup.proc.wait()
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
             _kill_process_tree(setup.proc)
             setup.proc.wait()
+            _release_slave_fds()
             setup.splitter.finalize(setup.threads)
             if isinstance(exc, subprocess.TimeoutExpired):
                 # Parity with subprocess.run: attach the partial capture
@@ -819,6 +841,8 @@ def _run_with_split(
                 exc.output = partial.stdout
                 exc.stderr = partial.stderr  # ty: ignore[invalid-assignment]
             raise
+        finally:
+            _release_slave_fds()
 
     return _process_stream_output(
         splitter=setup.splitter,
