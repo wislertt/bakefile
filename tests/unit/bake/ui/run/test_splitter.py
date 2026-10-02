@@ -188,12 +188,14 @@ class TestReadPty:
         # Mock process that has exited
         mock_proc = Mock()
         mock_proc.poll.return_value = 1  # Process has exited
+        # darwin: reader guard uses the sysctl exit check instead of poll()
 
         # Mock _drain_pty to track if it was called
         with (
             patch.object(splitter, "_drain_pty") as mock_drain,
             patch("os.close"),
             patch("select.select", return_value=([], [], [])),
+            patch("bake.ui.run.splitter._process_is_exiting", return_value=True),
         ):
             splitter._read_pty(master_fd, Mock(), output_list, mock_proc)
             # _drain_pty should be called when process exits

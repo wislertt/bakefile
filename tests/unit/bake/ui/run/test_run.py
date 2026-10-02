@@ -71,6 +71,23 @@ def test_pty_capture_survives_reader_starvation(
     assert "STARVE-MARKER" in (result.stdout or "")
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS PTY wait-syscall data loss only")
+def test_pty_reader_never_polls_the_child(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any wait syscall (poll/waitpid/waitid) that observes the PTY child
+    reapable makes macOS discard unread master data. The reader loop must
+    check process state without a wait syscall on darwin."""
+
+    def boom(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("reader path called proc.poll() on darwin")
+
+    monkeypatch.setattr(subprocess.Popen, "poll", boom)
+
+    result = run([sys.executable, "-c", "print('NOPOLL-MARKER')"], capture_output=True, echo=False)
+
+    assert result.returncode == 0
+    assert "NOPOLL-MARKER" in (result.stdout or "")
+
+
 def test_run_with_elapsed_time_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()

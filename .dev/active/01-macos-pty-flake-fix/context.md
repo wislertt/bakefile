@@ -255,3 +255,58 @@ CI x10 proves the fix. All 17 back:
 
 Plan after CI x10 green: delete the 17 comment lines in follow-up commit,
 re-run x10.
+
+## Update (2026-10-02, CI x10 round 1 = 5/10 FAIL, root cause #2 found)
+
+CI run 36945345579: 5/10 matrix jobs failed. Trace (pty-trace-x1) shows
+stdout master fd first read returning b"" EOF 47ms into a RUNNING command.
+Culprit: OutputSplitter._read_pty calls proc.poll() every loop iteration
+(splitter.py:102). poll() = waitpid WNOHANG = wait syscall = destroys
+unread master data (same kernel path as probe6). Reader threads destroy
+the data themselves even with main-thread _wait_no_reap. Fix was
+incomplete. Local tests missed it: starvation test data already rescued
+by rescue_pending before reader poll could destroy.
+
+Second suspect ruled out: main.py:870 poll() is kill-path only, safe.
+
+Fix plan (user approved):
+
+1. Probe A: confirm WNOHANG on RUNNING child destroys data (subagent)
+2. Probe B: grandchild-holding-slave + reap order semantics (subagent)
+3. Move _process_is_exiting to splitter.py (circular import), reader
+   loop uses sysctl check on darwin, keeps poll() elsewhere
+4. Main-thread order: rescue -> wait() -> finalize IF probe B supports
+   (readers need master EOF after reap to exit; join before reap risks
+   hang until drain_timeout)
+5. Local: acceptance + suite + stress loop (verify spinner kill!)
+6. Push, x10 again
+
+## Update (2026-10-02, root cause #2 fixed: reader poll)
+
+Probe A (20x each): WNOHANG harmless on running/pre-flip child (20/20
+survive), but the wait call that first observes the child reapable
+destroys unread data (0/20). Reader-loop proc.poll() is that call under
+starvation.
+Probe B (20x each): master EOF governed purely by slave-fd count. Leader
+reap neither EOFs master nor destroys data while grandchild holds slave.
+Join-before-reap cannot hang.
+
+Changes:
+
+- splitter.py: _process_is_exiting moved here + new _reader_should_drain
+  (darwin = sysctl check, else poll). _read_pty guard uses it.
+- main.py: local sysctl copy deleted, imports _process_is_exiting from
+  splitter. Order unchanged: rescue -> finalize -> wait.
+- test_run.py: new test_pty_reader_never_polls_the_child (monkeypatches
+  Popen.poll to raise, darwin-only regression for root cause #2).
+  Local: 149 test_run.py pass, ruff/format/ty clean. Full suite + 10x
+  stress loop under 8 spinners (with verified cleanup) in flight.
+
+## Update (2026-10-02, round-2 fix complete, awaiting push)
+
+- test_splitter.py::test_read_pty_drains_on_process_exit updated: patches
+  _process_is_exiting (darwin guard) alongside poll mock. 19 pass.
+- Full suite clean machine: 2366 passed, 3 xfailed (89.98s).
+- Stress: 10/10 both PTY regression tests under 8 spinners, spinner
+  cleanup verified (0 left).
+- READY: user commits + pushes, CI x10 round 2 decides decorator removal.

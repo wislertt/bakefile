@@ -23,7 +23,7 @@
 - [x] Acceptance test green (unset CI, local)
 - [x] Full unit suite green locally (2365 passed, 44.7s)
 - [x] bake lint clean (ruff + format + ty on changed files)
-- [ ] Push branch, CI repro workflow green x3 consecutive (BLOCKED: needs user commit first, no auto-commit policy)
+- [ ] Push branch, CI x10 round 2 (round 1 = 5/10 fail, reader poll root cause found + fixed)
 - [ ] Cleanup: pty_trace.py, conftest gate, stress file, workflow,
       probe files in /tmp/flake_loop
 - [ ] Decide decorator removal with user (separate commit)

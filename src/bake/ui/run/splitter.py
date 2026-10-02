@@ -1,4 +1,5 @@
 import contextlib
+import ctypes
 import errno
 import os
 import select
@@ -11,6 +12,47 @@ import time
 # Locks were causing race conditions where threads waited while their process exited
 
 _READ_CHUNK = 4096  # tty line discipline delivers ~4KB per read regardless of ask
+
+if sys.platform == "darwin":
+    _libc = ctypes.CDLL(None, use_errno=True)
+    _SZOMB = 5  # sys/proc.h: p_stat value for a zombie
+    _P_WEXIT = 0x2000  # p_flag: process is working on exiting
+
+
+def _process_is_exiting(pid: int) -> bool:
+    """Read the child's kinfo_proc via sysctl without touching it.
+
+    P_WEXIT is set inside exit1(), after the child's last userspace write but
+    ~0.6s before the session-leader exit processing that discards unread PTY
+    master data on macOS. SZOMB covers the final transition. Any wait syscall
+    (waitpid, waitid, poll) that observes the child reapable triggers that
+    teardown, so reader threads must never poll() the child on darwin.
+    """
+    mib = (ctypes.c_int * 4)(1, 14, 1, pid)  # CTL_KERN, KERN_PROC, KERN_PROC_PID
+    buf = ctypes.create_string_buffer(1024)
+    size = ctypes.c_size_t(1024)
+    if _libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0) != 0:
+        err = ctypes.get_errno()
+        if err == errno.ESRCH:
+            return True  # pid gone: nothing to wait for
+        raise OSError(err, os.strerror(err))
+    if size.value == 0:  # pid gone: already reaped or never existed
+        return True
+    # struct extern_proc: p_flag int @32, p_stat char @36, p_pid int @40
+    assert int.from_bytes(buf.raw[40:44], "little") == pid  # layout guard
+    return buf.raw[36] == _SZOMB or bool(int.from_bytes(buf.raw[32:36], "little") & _P_WEXIT)
+
+
+def _reader_should_drain(proc: subprocess.Popen) -> bool:
+    """True when the child is done and the reader should drain its master fd.
+
+    poll() is a wait syscall: on darwin the call that observes the child
+    reapable discards unread PTY master data, so the reader checks process
+    state via sysctl instead. Other platforms never discard on reap.
+    """
+    if sys.platform == "darwin":
+        return _process_is_exiting(proc.pid)
+    return proc.poll() is not None
 
 
 class OutputSplitter:
@@ -99,7 +141,7 @@ class OutputSplitter:
                     if not self._blocking_pty_read(pty_fd, target, output_list):
                         break
 
-                if proc.poll() is not None:
+                if _reader_should_drain(proc):
                     self._drain_pty(pty_fd, target, output_list)
                     break
         finally:

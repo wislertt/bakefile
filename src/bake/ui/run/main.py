@@ -1,6 +1,4 @@
 import contextlib
-import ctypes
-import errno
 import logging
 import os
 import shutil
@@ -22,7 +20,7 @@ from typing_extensions import NotRequired, TypedDict, Unpack
 
 from bake.ui import console, style
 from bake.ui.logger.capsys import strip_ansi
-from bake.ui.run.splitter import OutputSplitter
+from bake.ui.run.splitter import OutputSplitter, _process_is_exiting
 from bake.utils.settings import ENV__BAKE_REINVOKED
 
 # CompletedProcess is invariant in T, so this is a str|None union, not [str | None].
@@ -37,11 +35,6 @@ logger = logging.getLogger(__name__)
 # Lock for subprocess.Popen calls - subprocess is not thread-safe by design
 # See: https://bugs.python.org/issue2320, https://bugs.python.org/issue12739
 _subprocess_create_lock = threading.Lock()
-
-if sys.platform == "darwin":
-    _libc = ctypes.CDLL(None, use_errno=True)
-    _SZOMB = 5  # sys/proc.h: p_stat value for a zombie
-    _P_WEXIT = 0x2000  # p_flag: process is working on exiting
 
 
 @dataclass(frozen=True, slots=True)
@@ -741,29 +734,6 @@ def _setup_pipe_stream(
         threads = splitter.attach(proc)
 
     return StreamSetup(proc=proc, splitter=splitter, threads=threads)
-
-
-def _process_is_exiting(pid: int) -> bool:
-    """Read the child's kinfo_proc via sysctl without touching it.
-
-    P_WEXIT is set inside exit1(), after the child's last userspace write but
-    ~0.6s before the session-leader exit processing that discards unread PTY
-    master data on macOS. SZOMB covers the final transition. Both waitid and
-    plain wait destroy that data, so they cannot be used for detection here.
-    """
-    mib = (ctypes.c_int * 4)(1, 14, 1, pid)  # CTL_KERN, KERN_PROC, KERN_PROC_PID
-    buf = ctypes.create_string_buffer(1024)
-    size = ctypes.c_size_t(1024)
-    if _libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0) != 0:
-        err = ctypes.get_errno()
-        if err == errno.ESRCH:
-            return True  # pid gone: nothing to wait for
-        raise OSError(err, os.strerror(err))
-    if size.value == 0:  # pid gone: already reaped or never existed
-        return True
-    # struct extern_proc: p_flag int @32, p_stat char @36, p_pid int @40
-    assert int.from_bytes(buf.raw[40:44], "little") == pid  # layout guard
-    return buf.raw[36] == _SZOMB or bool(int.from_bytes(buf.raw[32:36], "little") & _P_WEXIT)
 
 
 def _wait_no_reap(proc: subprocess.Popen, timeout: float | None) -> None:
