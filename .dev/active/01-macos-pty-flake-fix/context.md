@@ -406,3 +406,30 @@ Status: AWAITING user commit + push, then CI x10 round 4. Decision
 rule: 10/10 green -> remove the 17 commented decorators (follow-up
 commit) + cleanup temp harness. Any empty-capture failure -> trace
 decides; this was the last planned mechanism.
+
+## Update (2026-10-02, round 4 = 10/10 GREEN, fix proven)
+
+Run 36956751211 (commit 2603fe0, slave-hold fix): ALL 10 jobs success.
+First fully green round. Round history: r1 5/10 (reader poll, fixed),
+r2 2365/2366 (py3.10 mock bug, fixed), r3 5/10 (0.65s decay vs
+starved reads, fixed by slave-hold), r4 10/10.
+
+All three mechanisms now closed:
+
+1. Wait-observing destroy -> sysctl P_WEXIT no-reap wait (a8af7b9)
+2. Reader-thread poll destroy -> _reader_should_drain sysctl (acce2ca)
+3. 0.65s last-slave-close decay -> parent holds slave fds until
+   capture drained (2603fe0)
+
+Remaining follow-ups (user decides):
+
+- Remove 17 commented `# @flaky_on_macos_ci()` decorators + commented
+  imports from test_run.py, test_script.py, cli/bakefile/test_run.py.
+  Keep the 2 ACTIVE decorators (test_export.py shell parsing,
+  test_cache.py TTL) -- unrelated mechanisms.
+- Cleanup temp CI harness (delete): tests/utils/pty_trace.py,
+  conftest.py PTY_TRACE gate, tests/unit/bake/ui/run/test_pty_flake_stress.py,
+  .github/workflows/pty-flake-repro.yml, /tmp/flake_loop probe files.
+- Keep regression tests: test_pty_capture_survives_reader_starvation,
+  test_pty_reader_never_polls_the_child.
+- NO merge to main without explicit user review.

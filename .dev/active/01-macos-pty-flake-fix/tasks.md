@@ -39,6 +39,13 @@
       (try + except + finally). 169 targeted pass, full suite 2366
       pass, lint clean, no fd leak
 - [ ] User commit + push, CI x10 round 4 decides decorators
+- [x] Round 4 (run 36956751211, commit 2603fe0): 10/10 GREEN. Fix
+      proven. All 3 mechanisms closed
+- [ ] Follow-up commit: remove 17 commented decorators + commented
+      imports (3 test files). Keep 2 ACTIVE decorators (unrelated)
+- [ ] Cleanup: pty_trace.py, conftest gate, stress file, workflow,
+      /tmp/flake_loop probes
+- [ ] User review, then merge decision (no merge without approval)
 - [ ] Cleanup: pty_trace.py, conftest gate, stress file, workflow,
       probe files in /tmp/flake_loop
 - [ ] Decide decorator removal with user (separate commit)
