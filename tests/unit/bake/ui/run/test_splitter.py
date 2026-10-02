@@ -1,5 +1,7 @@
+import contextlib
 import os
 import subprocess
+import sys
 from importlib import import_module
 from unittest.mock import Mock, patch
 
@@ -339,3 +341,57 @@ class TestReadPty:
         # Verify process completed
         proc.wait()
         os.close(master_fd)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PTY fds are POSIX-only")
+def test_rescue_pending_never_reorders_capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """rescue_pending drains the same master fd as the reader thread. If a
+    chunk read by one consumer is appended after the other consumer's chunk
+    out of kernel order, capture is corrupted (CI x79: JSON doc tail arrived
+    before its head). read+handle must be atomic per fd."""
+    import pty
+    import threading
+    import time as time_mod
+
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(splitter_mod, "_reader_should_drain", lambda _proc: False)
+
+    orig_handle = OutputSplitter._handle_data
+    reader_read_a = threading.Event()
+
+    def slow_handle(self, data, target, output_list):
+        if data.startswith(b"AAAA"):
+            reader_read_a.set()
+            time_mod.sleep(0.2)  # reader stalls between read and append
+        return orig_handle(self, data, target, output_list)
+
+    monkeypatch.setattr(OutputSplitter, "_handle_data", slow_handle)
+
+    master, slave = pty.openpty()
+    reader = None
+    try:
+        os.write(slave, b"AAAA")
+        out_list: list[bytes] = []
+        splitter = OutputSplitter(stream=False, capture=True)
+        proc = Mock()
+        reader = threading.Thread(
+            target=splitter._read_pty,
+            args=(master, Mock(), out_list, proc),
+            daemon=True,
+        )
+        reader.start()
+
+        assert reader_read_a.wait(2.0), "reader never consumed first chunk"
+        os.write(slave, b"BBBB")
+
+        rescue_thread = threading.Thread(target=lambda: None, daemon=True)
+        splitter.rescue_pending([master], [(rescue_thread, out_list, "stdout")])
+
+        assert b"".join(out_list) == b"AAAABBBB"
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(slave)  # EIO unblocks the reader loop
+        if reader is not None:
+            reader.join(1.0)
+        with contextlib.suppress(OSError):
+            os.close(master)

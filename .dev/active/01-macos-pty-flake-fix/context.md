@@ -433,3 +433,78 @@ Remaining follow-ups (user decides):
 - Keep regression tests: test_pty_capture_survives_reader_starvation,
   test_pty_reader_never_polls_the_child.
 - NO merge to main without explicit user review.
+
+## Update (2026-10-02, x100 stress: 96/100 green, 0 empty-capture)
+
+Run 36958226255 (commit c21a72d, matrix x100, ~5h wall due to ~5 macOS
+runner concurrency). Job results: 96 success, 3 failure, 1 cancelled.
+
+Original flake (empty capture, out='') is DEAD: zero occurrences in
+100 full-suite stress jobs. Mechanisms A+B fixes hold under load.
+
+The 4 non-green jobs, none is empty-capture:
+
+- repro-x86: failed at install-dependencies (uv sync --frozen).
+  Infra flake, not PTY, not test code.
+- repro-x48: cancelled, no steps ran (runner-level cancel).
+- repro-x9: test_uv.py::TestBakefilePip::test_list_with_inline_metadata
+  failed, orjson "unexpected content after document".
+- repro-x79: test_run_uv.py::TestRunUvPip::test_with_uv_project,
+  same orjson signature.
+
+New rare mode (mode D, ~2/100, x79 trace analyzed):
+
+- pty_trace.log shows fd=17 (stdout master) captured 1190 bytes =
+  166-byte stale fragment (tail of the PREVIOUS run's JSON doc,
+  head=b'"name":"typer","version":"0.27.2') + the fresh 1024-byte
+  doc of the current run.
+- Both runs (#16, #17) back-to-back on the same xdist worker got
+  master fd number 17 from openpty. The stale tail of run #16's
+  output reappeared at the head of run #17's master stream.
+- Likely trigger: fd-number reuse plus our new close ORDER (slaves
+  released before finalize closes masters). Old code closed slaves
+  first thing after spawn; we flipped the order, so master close now
+  happens while/after slave teardown. macOS tty teardown appears to
+  carry the unread master buffer across into the reused fd in rare
+  races. Only shows with big multi-KB outputs back-to-back.
+- Not the original bug: capture non-empty, corruption not loss,
+  2/100 vs 50% before.
+
+Decision for user: (a) one bounded local probe to reproduce fragment
+injection, then fix = final drain-to-EIO loop before master close;
+or (b) accept 2/100 rare mode, ship as-is, note in docs.
+
+## Update (2026-10-02, mode D root cause found: rescue-vs-reader reorder)
+
+Probe D v1 + v2 (back-to-back captures, 2.4KB docs, unread bytes left
+in kernel at close): 0/300 + 0/300 injected locally. Kernel carryover
+theory WRONG on this Mac. Trace re-read with instrumentation knowledge
+(pty_trace wraps only _read_pty_eio_safe; rescue_pending uses raw
+os.read, so its reads log handle_data but no "read" line):
+
+x79 trace decodes as REORDER, not stale data. Run #17: reader thread
+read the doc head (1024B) at 387.943 but logged handle_data at
+387.979. rescue_pending read the doc tail (166B) at ~387.972 and
+logged handle_data at 387.974, BEFORE the reader processed its earlier
+chunk. Capture list = [tail, head] = corrupted output. Both consumers
+drain the same master fd concurrently; chunk appends land in read
+completion order, not kernel FIFO order. x9 same signature.
+
+Fix (splitter.py): per-fd threading.Lock (_fd_lock) serializing
+read+handle in ALL consumer paths: _try_immediate_read,
+_blocking_pty_read (with BlockingIOError tolerance for a stolen
+ready-chunk), _read_and_handle, rescue_pending (select moved inside
+the lock so a ready fd still has the selected chunk on read). With
+the lock held across read+handle, appends always land in kernel FIFO
+order regardless of which consumer wins the race. No fd ownership
+change, no thread joins, no latency cost.
+
+Regression test test_rescue_pending_never_reorders_capture
+(test_splitter.py): reader thread stalls 0.2s between read and append
+via monkeypatched _handle_data while holding the fd lock; rescue
+reads the next chunk concurrently. Old code: capture = b'BBBB' (chunk
+lost / reordered, test red). New code: b'AAAABBBB' (green). 15/15
+stable locally.
+
+Verification: splitter+run targeted 170 pass, full suite 2367 passed /
+3 xfailed (132s), ruff + format + ty clean.

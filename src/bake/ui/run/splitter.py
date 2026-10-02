@@ -71,6 +71,7 @@ class OutputSplitter:
         self._stderr_pty_fd = stderr_pty_fd
         self._encoding = encoding
         self._drain_timeout = drain_timeout
+        self._pty_locks: dict[int, threading.Lock] = {}
         self._stdout_data = b""
         self._stderr_data = b""
 
@@ -94,6 +95,22 @@ class OutputSplitter:
             output_list.append(data)
         return True
 
+    def _fd_lock(self, pty_fd: int) -> threading.Lock:
+        """Per-fd lock serializing read+handle between consumers.
+
+        The reader thread and rescue_pending may both drain the same
+        master fd. A read by one and a read by the other can complete in
+        opposite order to how the chunks are then appended to the capture
+        (seen in CI as a JSON doc whose tail preceded its head). Holding
+        the lock across read+handle makes each chunk append in kernel
+        FIFO order regardless of which consumer wins the race.
+        """
+        lock = self._pty_locks.get(pty_fd)
+        if lock is None:
+            lock = threading.Lock()
+            self._pty_locks[pty_fd] = lock
+        return lock
+
     def _read_pty_eio_safe(self, pty_fd: int) -> bytes | None:
         """Read from PTY, treating EIO as EOF (returns None)."""
         try:
@@ -110,8 +127,9 @@ class OutputSplitter:
         flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
         fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
         try:
-            data = self._read_pty_eio_safe(pty_fd)
-            return not (data is None or not self._handle_data(data, target, output_list))
+            with self._fd_lock(pty_fd):
+                data = self._read_pty_eio_safe(pty_fd)
+                return not (data is None or not self._handle_data(data, target, output_list))
         finally:
             # Restore on EAGAIN too: a leaked O_NONBLOCK makes drain misread EAGAIN as EOF
             fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
@@ -125,9 +143,14 @@ class OutputSplitter:
 
         ready, _, _ = select.select([pty_fd], [], [], 0.1)
         if ready:
-            data = self._read_pty_eio_safe(pty_fd)
-            if data is None or not self._handle_data(data, target, output_list):
-                return False
+            with self._fd_lock(pty_fd):
+                try:
+                    data = self._read_pty_eio_safe(pty_fd)
+                except BlockingIOError:
+                    # Another consumer drained the ready chunk first
+                    return True
+                if data is None or not self._handle_data(data, target, output_list):
+                    return False
         return True
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
@@ -175,8 +198,9 @@ class OutputSplitter:
             True if data was handled (or EAGAIN - no data yet), False if EOF/error
         """
         try:
-            data = os.read(pty_fd, _READ_CHUNK)
-            return self._handle_data(data, target, output_list)
+            with self._fd_lock(pty_fd):
+                data = os.read(pty_fd, _READ_CHUNK)
+                return self._handle_data(data, target, output_list)
         except BlockingIOError:
             return True
         except OSError:
@@ -264,18 +288,25 @@ class OutputSplitter:
         the readers. Data already read by a racing reader is not duplicated
         (the kernel queue is consumed once).
         """
+        # Reader threads may still be draining this fd: two consumers
+        # appending chunks in whichever order their reads complete can
+        # reorder the capture (seen in CI as a JSON doc whose tail
+        # preceded its head). _fd_lock serializes read+handle per fd.
         for pty_fd, (_, output_list, name) in zip(master_fds, threads, strict=True):
             target = sys.stdout if name == "stdout" else sys.stderr
             while True:
-                select_works, ready = self._try_select_read(pty_fd, 0.02)
-                if not select_works or not ready:
-                    break
-                try:
-                    data = os.read(pty_fd, _READ_CHUNK)
-                except OSError:
-                    break
-                if not self._handle_data(data, target, output_list):
-                    break
+                # select inside the lock: with it held, a ready fd is
+                # guaranteed to still have the selected chunk on read
+                with self._fd_lock(pty_fd):
+                    select_works, ready = self._try_select_read(pty_fd, 0.02)
+                    if not select_works or not ready:
+                        break
+                    try:
+                        data = os.read(pty_fd, _READ_CHUNK)
+                    except OSError:
+                        break
+                    if not self._handle_data(data, target, output_list):
+                        break
 
     def attach(self, proc: subprocess.Popen):
         threads = []

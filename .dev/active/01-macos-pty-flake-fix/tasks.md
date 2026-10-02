@@ -45,6 +45,18 @@
       imports (3 test files). Keep 2 ACTIVE decorators (unrelated)
 - [ ] Cleanup: pty_trace.py, conftest gate, stress file, workflow,
       /tmp/flake_loop probes
+- [x] Round 5 = x100 stress (run 36958226255, commit c21a72d):
+      96/100 green, 0 empty-capture. Original flake DEAD. New rare
+      mode D ~2/100: stale tail fragment of previous run's output
+      prefixed to next run's capture on reused master fd number
+      (x79 trace proves it). x86 = uv sync infra flake. x48 =
+      cancelled, no steps
+- [x] Probe D done: 0/600 injected. Kernel carryover theory dead.
+      Trace re-read: mode D = rescue_pending vs reader thread REORDER
+      race (both drain same fd, appends land in completion order).
+- [x] Fix: per-fd lock serializing read+handle in all pty consumer
+      paths (splitter.py). Regression test red on old code (b'BBBB'),
+      green on new (b'AAAABBBB'), 15/15 stable. 2367 pass, lint clean
 - [ ] User review, then merge decision (no merge without approval)
 - [ ] Cleanup: pty_trace.py, conftest gate, stress file, workflow,
       probe files in /tmp/flake_loop
