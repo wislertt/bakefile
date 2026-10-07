@@ -57,7 +57,7 @@ locked = [
   "ruff==0.16.9",
   "tomli==2.4.1; python_version < '3.11'",
   "ty==0.0.84",
-  "typer==0.27.2",
+  "typer==0.27.3",
   "typing-extensions==4.16.0",
   "uv==0.12.21"
 ]
