@@ -48,7 +48,7 @@ dependencies = [
 locked = [
   "beautysh==6.4.3",
   "loguru==0.7.3",
-  "orjson==3.12.0",
+  "orjson==3.13.0",
   "pydantic-settings==2.15.0",
   "pydantic==2.13.5",
   "python-dotenv==1.2.3",
