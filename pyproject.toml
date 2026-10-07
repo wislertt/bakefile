@@ -55,7 +55,7 @@ locked = [
   "pyyaml==6.0.3",
   "rich==15.0.0",
   "ruff==0.16.9",
-  "tomli==2.4.1; python_version < '3.11'",
+  "tomli==2.5.0; python_version < '3.11'",
   "ty==0.0.84",
   "typer==0.27.2",
   "typing-extensions==4.16.0",
