@@ -1,5 +1,10 @@
+import contextlib
+import errno
 import os
 import subprocess
+import sys
+import threading
+from importlib import import_module
 from unittest.mock import Mock, patch
 
 import pytest
@@ -188,12 +193,16 @@ class TestReadPty:
         # Mock process that has exited
         mock_proc = Mock()
         mock_proc.poll.return_value = 1  # Process has exited
+        # darwin: reader guard uses the sysctl exit check instead of poll()
 
         # Mock _drain_pty to track if it was called
         with (
             patch.object(splitter, "_drain_pty") as mock_drain,
             patch("os.close"),
             patch("select.select", return_value=([], [], [])),
+            patch.object(
+                import_module("bake.ui.run.splitter"), "_process_is_exiting", return_value=True
+            ),
         ):
             splitter._read_pty(master_fd, Mock(), output_list, mock_proc)
             # _drain_pty should be called when process exits
@@ -334,3 +343,154 @@ class TestReadPty:
         # Verify process completed
         proc.wait()
         os.close(master_fd)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PTY fds are POSIX-only")
+def test_rescue_pending_never_reorders_capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """rescue_pending drains the same master fd as the reader thread. If a
+    chunk read by one consumer is appended after the other consumer's chunk
+    out of kernel order, capture is corrupted (CI x79: JSON doc tail arrived
+    before its head). read+handle must be atomic per fd."""
+    import pty
+    import threading
+    import time as time_mod
+
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(splitter_mod, "_reader_should_drain", lambda _proc: False)
+
+    orig_handle = OutputSplitter._handle_data
+    reader_read_a = threading.Event()
+
+    def slow_handle(self, data, target, output_list):
+        if data.startswith(b"AAAA"):
+            reader_read_a.set()
+            time_mod.sleep(0.2)  # reader stalls between read and append
+        return orig_handle(self, data, target, output_list)
+
+    monkeypatch.setattr(OutputSplitter, "_handle_data", slow_handle)
+
+    master, slave = pty.openpty()
+    reader = None
+    try:
+        os.write(slave, b"AAAA")
+        out_list: list[bytes] = []
+        splitter = OutputSplitter(stream=False, capture=True)
+        proc = Mock()
+        reader = threading.Thread(
+            target=splitter._read_pty,
+            args=(master, Mock(), out_list, proc),
+            daemon=True,
+        )
+        reader.start()
+
+        assert reader_read_a.wait(2.0), "reader never consumed first chunk"
+        os.write(slave, b"BBBB")
+
+        rescue_thread = threading.Thread(target=lambda: None, daemon=True)
+        splitter.rescue_pending([master], [(rescue_thread, out_list, "stdout")])
+
+        assert b"".join(out_list) == b"AAAABBBB"
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(slave)  # EIO unblocks the reader loop
+        if reader is not None:
+            reader.join(1.0)
+        with contextlib.suppress(OSError):
+            os.close(master)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="sysctl exit check is darwin-only")
+class TestProcessIsExitingSysctlErrors:
+    def test_returns_true_when_pid_gone(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        monkeypatch.setattr(splitter_mod._libc, "sysctl", Mock(return_value=-1))
+        monkeypatch.setattr("ctypes.get_errno", Mock(return_value=errno.ESRCH))
+
+        assert splitter_mod._process_is_exiting(999999) is True
+
+    def test_raises_on_unexpected_errno(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        monkeypatch.setattr(splitter_mod._libc, "sysctl", Mock(return_value=-1))
+        monkeypatch.setattr("ctypes.get_errno", Mock(return_value=errno.EPERM))
+
+        with pytest.raises(OSError, match="Operation not permitted"):
+            splitter_mod._process_is_exiting(999999)
+
+
+def test_reader_should_drain_uses_poll_off_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Off darwin, reap never discards PTY data, so poll() is safe to use."""
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(sys, "platform", "linux")
+    proc = Mock()
+    proc.poll.return_value = 0
+
+    assert splitter_mod._reader_should_drain(proc) is True
+    proc.poll.assert_called_once()
+
+
+def test_blocking_pty_read_survives_stolen_ready_chunk(monkeypatch: pytest.MonkeyPatch) -> None:
+    """select reported ready, but the rescue drain consumed the chunk before
+    the reader's read ran: EAGAIN must keep the reader looping, not kill it."""
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(splitter_mod.select, "select", lambda *_a: ([1], [], []))
+    monkeypatch.setattr(
+        splitter_mod.OutputSplitter, "_read_pty_eio_safe", Mock(side_effect=BlockingIOError)
+    )
+
+    splitter = OutputSplitter(stream=False, capture=True)
+
+    assert splitter._blocking_pty_read(1, Mock(), []) is True
+
+
+def test_read_and_handle_returns_false_on_oserror(monkeypatch: pytest.MonkeyPatch) -> None:
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(splitter_mod.os, "read", Mock(side_effect=OSError(errno.EBADF, "bad fd")))
+
+    splitter = OutputSplitter(stream=False, capture=True)
+
+    assert splitter._read_and_handle(1, Mock(), []) is False
+
+
+class TestRescuePendingBreaks:
+    def test_read_oserror_stops_drain(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        monkeypatch.setattr(splitter_mod.os, "read", Mock(side_effect=OSError(errno.EIO, "eio")))
+
+        splitter = OutputSplitter(stream=False, capture=True)
+        out_list: list[bytes] = []
+        rescue_thread = threading.Thread(target=lambda: None, daemon=True)
+        splitter.rescue_pending([1], [(rescue_thread, out_list, "stdout")])
+
+        assert out_list == []
+
+    def test_empty_read_stops_drain(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        monkeypatch.setattr(splitter_mod.os, "read", Mock(return_value=b""))
+
+        splitter = OutputSplitter(stream=False, capture=True)
+        out_list: list[bytes] = []
+        rescue_thread = threading.Thread(target=lambda: None, daemon=True)
+        splitter.rescue_pending([1], [(rescue_thread, out_list, "stdout")])
+
+        assert out_list == []
+
+
+def test_read_and_handle_appends_read_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(splitter_mod.os, "read", Mock(return_value=b"chunk"))
+
+    splitter = OutputSplitter(stream=False, capture=True)
+    out_list: list[bytes] = []
+
+    assert splitter._read_and_handle(1, Mock(), out_list) is True
+    assert out_list == [b"chunk"]
+
+
+def test_read_and_handle_returns_true_on_eagain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """EAGAIN on a direct read means no data yet, not EOF: keep looping."""
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(splitter_mod.os, "read", Mock(side_effect=BlockingIOError))
+
+    splitter = OutputSplitter(stream=False, capture=True)
+
+    assert splitter._read_and_handle(1, Mock(), []) is True

@@ -1,4 +1,5 @@
 import contextlib
+import ctypes
 import errno
 import os
 import select
@@ -11,6 +12,47 @@ import time
 # Locks were causing race conditions where threads waited while their process exited
 
 _READ_CHUNK = 4096  # tty line discipline delivers ~4KB per read regardless of ask
+
+if sys.platform == "darwin":
+    _libc = ctypes.CDLL(None, use_errno=True)
+    _SZOMB = 5  # sys/proc.h: p_stat value for a zombie
+    _P_WEXIT = 0x2000  # p_flag: process is working on exiting
+
+
+def _process_is_exiting(pid: int) -> bool:
+    """Read the child's kinfo_proc via sysctl without touching it.
+
+    P_WEXIT is set inside exit1(), after the child's last userspace write but
+    ~0.6s before the session-leader exit processing that discards unread PTY
+    master data on macOS. SZOMB covers the final transition. Any wait syscall
+    (waitpid, waitid, poll) that observes the child reapable triggers that
+    teardown, so reader threads must never poll() the child on darwin.
+    """
+    mib = (ctypes.c_int * 4)(1, 14, 1, pid)  # CTL_KERN, KERN_PROC, KERN_PROC_PID
+    buf = ctypes.create_string_buffer(1024)
+    size = ctypes.c_size_t(1024)
+    if _libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0) != 0:
+        err = ctypes.get_errno()
+        if err == errno.ESRCH:
+            return True  # pid gone: nothing to wait for
+        raise OSError(err, os.strerror(err))
+    if size.value == 0:  # pid gone: already reaped or never existed
+        return True
+    # struct extern_proc: p_flag int @32, p_stat char @36, p_pid int @40
+    assert int.from_bytes(buf.raw[40:44], "little") == pid  # layout guard
+    return buf.raw[36] == _SZOMB or bool(int.from_bytes(buf.raw[32:36], "little") & _P_WEXIT)
+
+
+def _reader_should_drain(proc: subprocess.Popen) -> bool:
+    """True when the child is done and the reader should drain its master fd.
+
+    poll() is a wait syscall: on darwin the call that observes the child
+    reapable discards unread PTY master data, so the reader checks process
+    state via sysctl instead. Other platforms never discard on reap.
+    """
+    if sys.platform == "darwin":
+        return _process_is_exiting(proc.pid)
+    return proc.poll() is not None
 
 
 class OutputSplitter:
@@ -29,6 +71,7 @@ class OutputSplitter:
         self._stderr_pty_fd = stderr_pty_fd
         self._encoding = encoding
         self._drain_timeout = drain_timeout
+        self._pty_locks: dict[int, threading.Lock] = {}
         self._stdout_data = b""
         self._stderr_data = b""
 
@@ -52,6 +95,22 @@ class OutputSplitter:
             output_list.append(data)
         return True
 
+    def _fd_lock(self, pty_fd: int) -> threading.Lock:
+        """Per-fd lock serializing read+handle between consumers.
+
+        The reader thread and rescue_pending may both drain the same
+        master fd. A read by one and a read by the other can complete in
+        opposite order to how the chunks are then appended to the capture
+        (seen in CI as a JSON doc whose tail preceded its head). Holding
+        the lock across read+handle makes each chunk append in kernel
+        FIFO order regardless of which consumer wins the race.
+        """
+        lock = self._pty_locks.get(pty_fd)
+        if lock is None:
+            lock = threading.Lock()
+            self._pty_locks[pty_fd] = lock
+        return lock
+
     def _read_pty_eio_safe(self, pty_fd: int) -> bytes | None:
         """Read from PTY, treating EIO as EOF (returns None)."""
         try:
@@ -68,8 +127,9 @@ class OutputSplitter:
         flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
         fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
         try:
-            data = self._read_pty_eio_safe(pty_fd)
-            return not (data is None or not self._handle_data(data, target, output_list))
+            with self._fd_lock(pty_fd):
+                data = self._read_pty_eio_safe(pty_fd)
+                return not (data is None or not self._handle_data(data, target, output_list))
         finally:
             # Restore on EAGAIN too: a leaked O_NONBLOCK makes drain misread EAGAIN as EOF
             fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
@@ -83,9 +143,14 @@ class OutputSplitter:
 
         ready, _, _ = select.select([pty_fd], [], [], 0.1)
         if ready:
-            data = self._read_pty_eio_safe(pty_fd)
-            if data is None or not self._handle_data(data, target, output_list):
-                return False
+            with self._fd_lock(pty_fd):
+                try:
+                    data = self._read_pty_eio_safe(pty_fd)
+                except BlockingIOError:
+                    # Another consumer drained the ready chunk first
+                    return True
+                if data is None or not self._handle_data(data, target, output_list):
+                    return False
         return True
 
     def _read_pty(self, pty_fd: int, target, output_list, proc: subprocess.Popen):
@@ -99,7 +164,7 @@ class OutputSplitter:
                     if not self._blocking_pty_read(pty_fd, target, output_list):
                         break
 
-                if proc.poll() is not None:
+                if _reader_should_drain(proc):
                     self._drain_pty(pty_fd, target, output_list)
                     break
         finally:
@@ -133,8 +198,9 @@ class OutputSplitter:
             True if data was handled (or EAGAIN - no data yet), False if EOF/error
         """
         try:
-            data = os.read(pty_fd, _READ_CHUNK)
-            return self._handle_data(data, target, output_list)
+            with self._fd_lock(pty_fd):
+                data = os.read(pty_fd, _READ_CHUNK)
+                return self._handle_data(data, target, output_list)
         except BlockingIOError:
             return True
         except OSError:
@@ -212,6 +278,35 @@ class OutputSplitter:
             )
             if not should_continue:
                 return
+
+    def rescue_pending(self, master_fds, threads) -> None:
+        """Recover pending master data immediately after the child exits.
+
+        macOS discards unread PTY master data when the session leader is
+        reaped, and reader threads may not have consumed it yet under CPU
+        contention. Drain from the calling thread here, before finalize joins
+        the readers. Data already read by a racing reader is not duplicated
+        (the kernel queue is consumed once).
+        """
+        # Reader threads may still be draining this fd: two consumers
+        # appending chunks in whichever order their reads complete can
+        # reorder the capture (seen in CI as a JSON doc whose tail
+        # preceded its head). _fd_lock serializes read+handle per fd.
+        for pty_fd, (_, output_list, name) in zip(master_fds, threads, strict=True):
+            target = sys.stdout if name == "stdout" else sys.stderr
+            while True:
+                # select inside the lock: with it held, a ready fd is
+                # guaranteed to still have the selected chunk on read
+                with self._fd_lock(pty_fd):
+                    select_works, ready = self._try_select_read(pty_fd, 0.02)
+                    if not select_works or not ready:
+                        break
+                    try:
+                        data = os.read(pty_fd, _READ_CHUNK)
+                    except OSError:
+                        break
+                    if not self._handle_data(data, target, output_list):
+                        break
 
     def attach(self, proc: subprocess.Popen):
         threads = []

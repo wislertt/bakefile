@@ -31,10 +31,8 @@ from bake.ui.logger import (
 )
 from bake.ui.run import main
 from bake.ui.run.main import RunKwargs, RunScriptKwargs, RunUvKwargs
-from tests.utils.misc import flaky_on_macos_ci
 
 
-@flaky_on_macos_ci()
 def test_run_simple_command(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()
@@ -48,6 +46,43 @@ def test_run_simple_command(capfd: pytest.CaptureFixture[str]) -> None:
     logs = capsys_to_logs(capfd)
     assert any("[run] echo hello" in log["message"] for log in logs)
     assert any("[done] echo hello" in log["message"] for log in logs)
+
+
+def test_pty_capture_survives_reader_starvation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """macOS discards unread PTY master data shortly after the last slave fd
+    closes. Under CPU contention the reader thread may not run until after
+    that window, so capture must not depend on the reader winning the race."""
+    orig_read_pty = main.OutputSplitter._read_pty
+
+    def starved_read_pty(self, *args: Any, **kwargs: Any) -> None:
+        time.sleep(1.0)  # simulate the reader being scheduled late (CI load)
+        return orig_read_pty(self, *args, **kwargs)
+
+    monkeypatch.setattr(main.OutputSplitter, "_read_pty", starved_read_pty)
+
+    result = run([sys.executable, "-c", "print('STARVE-MARKER')"], capture_output=True, echo=False)
+
+    assert result.returncode == 0
+    assert "STARVE-MARKER" in (result.stdout or "")
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS PTY wait-syscall data loss only")
+def test_pty_reader_never_polls_the_child(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any wait syscall (poll/waitpid/waitid) that observes the PTY child
+    reapable makes macOS discard unread master data. The reader loop must
+    check process state without a wait syscall on darwin."""
+
+    def boom(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("reader path called proc.poll() on darwin")
+
+    monkeypatch.setattr(subprocess.Popen, "poll", boom)
+
+    result = run([sys.executable, "-c", "print('NOPOLL-MARKER')"], capture_output=True, echo=False)
+
+    assert result.returncode == 0
+    assert "NOPOLL-MARKER" in (result.stdout or "")
 
 
 def test_run_with_elapsed_time_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
@@ -368,7 +403,6 @@ class TestPreexecForwarding:
         assert "<unset>" not in result.stdout
 
 
-@flaky_on_macos_ci()
 def test_run_with_cwd(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()
@@ -394,7 +428,6 @@ def test_run_check_true_raises_on_error() -> None:
         run(["false"], check=True)
 
 
-@flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "stream, capture_output",
     [
@@ -454,7 +487,6 @@ def test_run_returncode_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     assert done_log["returncode"] == 0
 
 
-@flaky_on_macos_ci()
 def test_run_stdout_stderr_in_logs(capfd: pytest.CaptureFixture[str]) -> None:
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
     _ = capfd.readouterr()
@@ -778,7 +810,6 @@ sys.stdout.write("a\rb\n")
 
 
 class TestStringCommand:
-    @flaky_on_macos_ci()
     @pytest.mark.parametrize(
         "cmd,expected_in_output",
         [
@@ -797,7 +828,6 @@ class TestStringCommand:
             for expected in expected_in_output:
                 assert expected in result.stdout
 
-    @flaky_on_macos_ci()
     @pytest.mark.parametrize(
         "cmd_type,cmd,shell_override",
         [
@@ -955,7 +985,6 @@ class TestResolveInterpreter:
         assert check_func(result)
 
 
-@flaky_on_macos_ci()
 def test_echo_cmd_overrides_all_display_and_logs(capfd: pytest.CaptureFixture[str]) -> None:
     """Test that echo_cmd overrides console echo, [run], [done], and [error] logs."""
     setup_logging(level_per_module={"": logging.DEBUG}, is_pretty_log=False)
@@ -983,7 +1012,6 @@ def test_echo_cmd_overrides_all_display_and_logs(capfd: pytest.CaptureFixture[st
     assert any("[error] failing command" in log["message"] for log in logs)
 
 
-@flaky_on_macos_ci()
 def test_echo_cmd_executes_actual_command_not_display_string(
     capfd: pytest.CaptureFixture[str],
 ) -> None:
@@ -1000,7 +1028,6 @@ def test_echo_cmd_executes_actual_command_not_display_string(
     assert any("[run] not a real command" in log["message"] for log in logs)
 
 
-@flaky_on_macos_ci()
 @pytest.mark.parametrize(
     "kwargs,expected_log_prefix,expected_stdout,check_console_echo",
     [
@@ -1259,7 +1286,6 @@ class TestCheckExitCodeStreamFalse:
         err_plain = re.sub(r"\x1b\[[0-9;]*m", "", capture.err)
         assert "short" in err_plain
 
-    @flaky_on_macos_ci()
     def test_stream_true_does_not_show_duplicate_stderr(
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -1291,7 +1317,6 @@ class TestTimeout:
         with pytest.raises(subprocess.TimeoutExpired):
             run("sleep 10", timeout=0.1, stream=stream, echo=False, capture_output=True)
 
-    @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_completes_within_limit(self, stream: bool) -> None:
         """Command completes successfully when within timeout."""
@@ -1300,7 +1325,6 @@ class TestTimeout:
         assert result.returncode == 0
         assert "fast" in result.stdout
 
-    @flaky_on_macos_ci()
     @pytest.mark.parametrize("stream", [True, False])
     def test_timeout_none_waits_indefinitely(self, stream: bool) -> None:
         """timeout=None (default) waits for command to complete."""

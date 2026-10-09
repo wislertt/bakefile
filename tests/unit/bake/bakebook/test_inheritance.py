@@ -38,7 +38,7 @@ bakebook.py can be revisited.
 """
 
 import types
-from typing import Annotated, ClassVar, Generic, TypeVar
+from typing import Annotated, Any, ClassVar, Generic, TypeVar, cast
 
 import pytest
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError, field_validator
@@ -310,16 +310,15 @@ class TestParallelBranches:
         class RawCombined(RawOne, RawTwo):
             pass
 
+        def config(model: type[BaseModel]) -> dict[str, Any]:
+            return cast(dict[str, Any], model.model_config)
+
         # BaseModel never materializes undeclared defaults into the dict
         # (BaseSettings materializes "extra"), so only declared keys compare.
         # Both sides pin the concrete value too — equality alone could pass
         # with the same wrong answer on both.
-        assert Combined.model_config["env_file"] == RawCombined.model_config["env_file"] == ".one"
-        assert (
-            Combined.model_config["case_sensitive"]
-            is RawCombined.model_config["case_sensitive"]
-            is True
-        )
+        assert config(Combined)["env_file"] == config(RawCombined)["env_file"] == ".one"
+        assert config(Combined)["case_sensitive"] is config(RawCombined)["case_sensitive"] is True
 
 
 class TestSharedParentOverride:

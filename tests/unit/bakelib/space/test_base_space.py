@@ -895,6 +895,8 @@ def test_strip_matches_real_mise_list_keys(tmp_path: Path) -> None:
         capture_output=True,
         stream=False,
         echo=False,
+        # mise refuses to parse config files outside trusted paths
+        env={"MISE_TRUSTED_CONFIG_PATHS": str(tmp_path / "mise.toml")},
     )
     assert result.returncode == 0, result.stderr
     reported_keys = set(orjson.loads(result.stdout))
