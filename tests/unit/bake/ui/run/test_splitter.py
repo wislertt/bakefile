@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 from importlib import import_module
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -399,22 +400,77 @@ def test_rescue_pending_never_reorders_capture(monkeypatch: pytest.MonkeyPatch) 
             os.close(master)
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="sysctl exit check is darwin-only")
-class TestProcessIsExitingSysctlErrors:
-    def test_returns_true_when_pid_gone(self, monkeypatch: pytest.MonkeyPatch) -> None:
+class TestProcessIsExiting:
+    """_process_is_exiting parses kinfo_proc via sysctl; the real sysctl call
+    only happens on darwin, so tests fake _libc to run on every platform."""
+
+    @staticmethod
+    def _fake_libc(monkeypatch: pytest.MonkeyPatch, kinfo_buf: bytes | None, ret: int) -> Mock:
+        """Fake libc whose sysctl either returns ret or writes kinfo_buf."""
+        import ctypes
+
         splitter_mod = import_module("bake.ui.run.splitter")
-        monkeypatch.setattr(splitter_mod._libc, "sysctl", Mock(return_value=-1))
+
+        def fake_sysctl(_mib: Any, _namelen: Any, out: Any, size_ref: Any, *_a: Any) -> int:
+            if ret != 0:
+                return ret
+            if kinfo_buf is None:
+                # success but nothing written: size 0 == pid gone
+                ctypes.cast(size_ref, ctypes.POINTER(ctypes.c_size_t)).contents.value = 0
+                return 0
+            out.raw = kinfo_buf.ljust(1024, b"\x00")
+            ctypes.cast(size_ref, ctypes.POINTER(ctypes.c_size_t)).contents.value = 1024
+            return 0
+
+        libc = Mock()
+        libc.sysctl = Mock(side_effect=fake_sysctl)
+        monkeypatch.setattr(splitter_mod, "_libc", libc)
+        return libc
+
+    def test_true_when_sysctl_errors_with_esrch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        libc = self._fake_libc(monkeypatch, None, ret=-1)
         monkeypatch.setattr("ctypes.get_errno", Mock(return_value=errno.ESRCH))
 
         assert splitter_mod._process_is_exiting(999999) is True
+        libc.sysctl.assert_called_once()
 
     def test_raises_on_unexpected_errno(self, monkeypatch: pytest.MonkeyPatch) -> None:
         splitter_mod = import_module("bake.ui.run.splitter")
-        monkeypatch.setattr(splitter_mod._libc, "sysctl", Mock(return_value=-1))
+        self._fake_libc(monkeypatch, None, ret=-1)
         monkeypatch.setattr("ctypes.get_errno", Mock(return_value=errno.EPERM))
 
         with pytest.raises(OSError, match="Operation not permitted"):
             splitter_mod._process_is_exiting(999999)
+
+    def test_true_when_zero_size_pid_gone(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        # sysctl succeeds but writes nothing: size stays 0 => pid gone
+        self._fake_libc(monkeypatch, None, ret=0)
+
+        assert splitter_mod._process_is_exiting(999999) is True
+
+    @pytest.mark.parametrize(
+        ("p_stat", "p_flag", "expected"),
+        [
+            (5, 0, True),  # SZOMB: zombie
+            (1, 0x2000, True),  # P_WEXIT: working on exiting
+            (1, 0, False),  # alive and not exiting
+            (2, 0x2001, True),  # P_WEXIT plus unrelated flag bits
+        ],
+    )
+    def test_parses_kinfo_proc_fields(
+        self, monkeypatch: pytest.MonkeyPatch, p_stat: int, p_flag: int, expected: bool
+    ) -> None:
+        splitter_mod = import_module("bake.ui.run.splitter")
+        # extern_proc layout: p_flag int @32, p_stat char @36, p_pid int @40
+        buf = bytearray(1024)
+        buf[32:36] = int(p_flag).to_bytes(4, "little")
+        buf[36] = p_stat
+        buf[40:44] = (999999).to_bytes(4, "little")
+        self._fake_libc(monkeypatch, bytes(buf), ret=0)
+
+        assert splitter_mod._process_is_exiting(999999) is expected
 
 
 def test_reader_should_drain_uses_poll_off_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -428,6 +484,19 @@ def test_reader_should_drain_uses_poll_off_darwin(monkeypatch: pytest.MonkeyPatc
     proc.poll.assert_called_once()
 
 
+def test_reader_should_drain_uses_sysctl_on_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On darwin, poll() itself is a wait syscall that can discard PTY data,
+    so the reader consults _process_is_exiting instead."""
+    splitter_mod = import_module("bake.ui.run.splitter")
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(splitter_mod, "_process_is_exiting", lambda _pid: True)
+    proc = Mock()
+
+    assert splitter_mod._reader_should_drain(proc) is True
+    proc.poll.assert_not_called()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="fcntl is POSIX-only")
 def test_blocking_pty_read_survives_stolen_ready_chunk(monkeypatch: pytest.MonkeyPatch) -> None:
     """select reported ready, but the rescue drain consumed the chunk before
     the reader's read ran: EAGAIN must keep the reader looping, not kill it."""

@@ -97,6 +97,42 @@ def test_run_with_elapsed_time_in_logs(capfd: pytest.CaptureFixture[str]) -> Non
     assert done_log["elapsed_seconds"] >= 0
 
 
+class TestWaitNoReap:
+    """_wait_no_reap's darwin branches poll process state via sysctl instead
+    of reaping; faking _process_is_exiting lets every platform cover them."""
+
+    def test_non_darwin_delegates_to_wait(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(main.sys, "platform", "linux")
+        proc = mock.Mock()
+
+        main._wait_no_reap(proc, timeout=5.0)
+
+        proc.wait.assert_called_once_with(timeout=5.0)
+
+    def test_darwin_no_timeout_polls_until_exiting(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(main.sys, "platform", "darwin")
+        is_exiting = mock.Mock(side_effect=[False, False, True])
+        monkeypatch.setattr(main, "_process_is_exiting", is_exiting)
+        monkeypatch.setattr(main.time, "sleep", mock.Mock())
+        proc = mock.Mock()
+
+        main._wait_no_reap(proc, timeout=None)
+
+        proc.wait.assert_not_called()
+        assert is_exiting.call_count == 3
+
+    def test_darwin_timeout_raises_when_child_lingers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(main.sys, "platform", "darwin")
+        monkeypatch.setattr(main, "_process_is_exiting", mock.Mock(return_value=False))
+        proc = mock.Mock()
+        proc.args = ["sleep"]
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            main._wait_no_reap(proc, timeout=0.0)
+
+
 def test_run_capture_false_returns_none_stdout_stderr() -> None:
     result = run(["echo", "hello"], capture_output=False)
 

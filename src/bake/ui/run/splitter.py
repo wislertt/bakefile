@@ -13,10 +13,12 @@ import time
 
 _READ_CHUNK = 4096  # tty line discipline delivers ~4KB per read regardless of ask
 
-if sys.platform == "darwin":
-    _libc = ctypes.CDLL(None, use_errno=True)
-    _SZOMB = 5  # sys/proc.h: p_stat value for a zombie
-    _P_WEXIT = 0x2000  # p_flag: process is working on exiting
+# Loaded unconditionally (CDLL(None) is the self-handle on every platform)
+# so type checkers on non-darwin CI still see the attribute; sysctl is only
+# ever called from darwin-only code paths.
+_libc = ctypes.CDLL(None, use_errno=True)
+_SZOMB = 5  # sys/proc.h: p_stat value for a zombie (darwin only)
+_P_WEXIT = 0x2000  # p_flag: process is working on exiting (darwin only)
 
 
 def _process_is_exiting(pid: int) -> bool:
