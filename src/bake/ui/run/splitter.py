@@ -7,18 +7,23 @@ import subprocess
 import sys
 import threading
 import time
+from typing import Any
 
 # No PTY locks needed - each thread reads from its own PTY fd independently
 # Locks were causing race conditions where threads waited while their process exited
 
 _READ_CHUNK = 4096  # tty line discipline delivers ~4KB per read regardless of ask
 
-# Loaded unconditionally (CDLL(None) is the self-handle on every platform)
-# so type checkers on non-darwin CI still see the attribute; sysctl is only
-# ever called from darwin-only code paths.
-_libc = ctypes.CDLL(None, use_errno=True)
+# Declared unconditionally so type checkers and tests on every platform see
+# the attribute. Only loaded on darwin: CDLL(None) is the process self-handle
+# on POSIX (sysctl lives in libc there), but on Windows it raises, and sysctl
+# is never called off darwin anyway. Tests fake _libc everywhere.
+_libc: Any = None
 _SZOMB = 5  # sys/proc.h: p_stat value for a zombie (darwin only)
 _P_WEXIT = 0x2000  # p_flag: process is working on exiting (darwin only)
+
+if sys.platform == "darwin":
+    _libc = ctypes.CDLL(None, use_errno=True)
 
 
 def _process_is_exiting(pid: int) -> bool:
