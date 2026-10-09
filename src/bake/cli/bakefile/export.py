@@ -7,7 +7,6 @@ import orjson
 import typer
 import yaml
 from pydantic import SecretBytes, SecretStr
-from pydantic.fields import FieldInfo
 
 from bake._typer_compat import BadParameter
 from bake.bakebook.bakebook import Bakebook
@@ -155,7 +154,7 @@ class YamlExportFormatter(ExportFormatter):
 
 
 def _reveal_secrets(bakebook: Bakebook, data: dict[str, Any]) -> dict[str, Any]:
-    for field_name in cast(dict[str, FieldInfo], bakebook.__class__.model_fields):
+    for field_name in bakebook.__class__.model_fields:
         value = getattr(bakebook, field_name, None)
         if isinstance(value, (SecretStr, SecretBytes)):
             secret_val = cast(SecretStr | SecretBytes, value).get_secret_value()
@@ -164,7 +163,7 @@ def _reveal_secrets(bakebook: Bakebook, data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _get_data(bakebook: Bakebook, reveal_secrets: bool = False) -> dict[str, Any]:
-    data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+    data = bakebook.model_dump(mode="json")
     if reveal_secrets:
         data = _reveal_secrets(bakebook=bakebook, data=data)
     return data

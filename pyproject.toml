@@ -48,18 +48,18 @@ dependencies = [
 locked = [
   "beautysh==6.4.3",
   "loguru==0.7.3",
-  "orjson==3.12.0",
+  "orjson==3.13.0",
   "pydantic-settings==2.15.0",
-  "pydantic==2.13.5",
-  "python-dotenv==1.2.3",
+  "pydantic==2.14.0",
+  "python-dotenv==1.2.4",
   "pyyaml==6.0.3",
   "rich==15.0.0",
-  "ruff==0.16.9",
-  "tomli==2.4.1; python_version < '3.11'",
-  "ty==0.0.84",
-  "typer==0.27.2",
+  "ruff==0.16.10",
+  "tomli==2.5.0; python_version < '3.11'",
+  "ty==0.0.85",
+  "typer==0.27.3",
   "typing-extensions==4.16.0",
-  "uv==0.12.21"
+  "uv==0.12.24"
 ]
 lib = [
   "keyring>=25.7.0",

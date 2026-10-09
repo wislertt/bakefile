@@ -16,6 +16,8 @@ revisit the matching workaround.
 The Bakebook-level parity tests live in test_inheritance.py.
 """
 
+from typing import Any, cast
+
 import pytest
 from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
@@ -93,4 +95,4 @@ def test_pydantic_raw_model_config_mro_bug_still_present() -> None:
     class RawComposed(RawA, RawB):
         pass
 
-    assert RawComposed.model_config["env_file"] == ".a"
+    assert cast(dict[str, Any], RawComposed.model_config)["env_file"] == ".a"

@@ -870,7 +870,7 @@ class TestFormatDotEnvValueUnit:
 class TestRevealSecrets:
     def test_reveal_secrets_str(self) -> None:
         bakebook = ComplexVarsBakebook()
-        data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+        data = bakebook.model_dump(mode="json")
         result = _reveal_secrets(bakebook=bakebook, data=data)
         assert result["api_key"] == "super_secret_key_123"
         assert result["password"] == "my_password"
@@ -882,13 +882,13 @@ class TestRevealSecrets:
             secret_bytes: SecretBytes = SecretBytes(b"my_bytes_secret")
 
         bakebook = BytesBakebook()
-        data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+        data = bakebook.model_dump(mode="json")
         result = _reveal_secrets(bakebook=bakebook, data=data)
         assert result["secret_bytes"] == "my_bytes_secret"
 
     def test_reveal_secrets_preserves_non_secret_fields(self) -> None:
         bakebook = ComplexVarsBakebook()
-        data = cast(dict[str, Any], bakebook.model_dump(mode="json"))
+        data = bakebook.model_dump(mode="json")
         result = _reveal_secrets(bakebook=bakebook, data=data)
         assert result["name"] == "app"
         assert result["count"] == 42

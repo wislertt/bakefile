@@ -6,7 +6,7 @@ import time
 
 import keyring
 import pytest
-from keyring.errors import NoKeyringError
+from keyring.errors import NoKeyringError, PasswordDeleteError
 
 from bake.ui.logger import (
     capsys_to_logs,
@@ -114,7 +114,9 @@ class TestCacheBasics:
 
     @pytest.mark.parametrize(
         "cache_class, ttl",
-        [(MemoryCache, 0.01)] + ([(KeyringCache, 0.2)] if keyring_backend_available() else []),
+        # MemoryCache ttl must stay well above scheduler jitter on loaded CI
+        # runners: the cache-hit call must land inside the ttl window
+        [(MemoryCache, 0.5)] + ([(KeyringCache, 0.2)] if keyring_backend_available() else []),
     )
     @flaky_on_windows_ci()
     @flaky_on_macos_ci()
@@ -463,6 +465,30 @@ class TestKeyringCacheSpecific:
         cache2 = KeyringCache(KEY_PERSIST, fetch_value)
         assert cache2.get() == "persistent"
         assert fetch_count == 1
+
+    def test_keyring_cache_delete_missing_entry_is_noop(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        """Deleting an absent keyring entry raises PasswordDeleteError inside
+        the keyring backend; delete() must swallow it and log, not raise.
+        kr is patched so no real keyring backend is needed."""
+
+        def raise_missing(_service: str, _username: str) -> None:
+            raise PasswordDeleteError("entry not found")
+
+        monkeypatch.setattr("bakelib.refreshable_cache.cache.kr.delete_password", raise_missing)
+
+        def fetch_value() -> str:
+            return "unused"
+
+        setup_logging(
+            level_per_module={"": logging.WARNING, "bakelib": logging.DEBUG}, is_pretty_log=False
+        )
+        cache = KeyringCache(KEY_DELETE, fetch_value)
+        cache.delete()
+
+        logs = capsys_to_logs(capsys)
+        assert has_message_in_logs(logs, "entry not found for deletion")
 
 
 class TestMemoryCacheSpecific:

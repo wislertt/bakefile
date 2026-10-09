@@ -3,7 +3,7 @@
 import contextlib
 import sys
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator
 from functools import wraps
 from pathlib import Path
 
@@ -87,7 +87,7 @@ def flaky_on_windows_ci(max_retries: int = 5):
 
 
 @contextlib.contextmanager
-def xfail_on_local_failure(warning: str | None = None) -> Iterator[None]:
+def xfail_on_local_failure(warning: str | None = None) -> Generator[None, None, None]:
     """xfail if a wrapped assertion fails locally; enforce in CI."""
     try:
         yield
