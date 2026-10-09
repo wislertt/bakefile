@@ -54,7 +54,7 @@ locked = [
   "python-dotenv==1.2.4",
   "pyyaml==6.0.3",
   "rich==15.0.0",
-  "ruff==0.16.10",
+  "ruff==0.17.0",
   "tomli==2.5.0; python_version < '3.11'",
   "ty==0.0.85",
   "typer==0.27.3",
