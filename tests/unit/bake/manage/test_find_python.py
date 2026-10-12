@@ -421,6 +421,19 @@ class TestFindBakefilePython:
         ):
             assert _find_bakefile_python(bakefile_path) is None
 
+    def test_returns_none_when_pyvenv_cfg_exists_without_prompt_key(self, tmp_path: Path) -> None:
+        # unlike prompt=None above, pyvenv.cfg exists but carries no
+        # prompt line, so the scan runs to the end without a match
+        python_path = self._make_venv(tmp_path, prompt=None)
+        (python_path.parent.parent / "pyvenv.cfg").write_text("home = /x\n")
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        with patch(
+            "bake.manage.find_python.run_uv", return_value=self._mock_uv_result(python_path)
+        ):
+            assert _find_bakefile_python(bakefile_path) is None
+
     def test_returns_none_on_non_zero_returncode(self, tmp_path: Path) -> None:
         bakefile_path = tmp_path / "bakefile.py"
         bakefile_path.touch()

@@ -26,9 +26,15 @@ _RUSTUP_ERROR_66 = "os error 66"
 def _cleanup_rustup_temp_dirs() -> None:
     rustup_dir = Path.home() / ".rustup"
     for dir_path in (rustup_dir / "tmp", rustup_dir / "downloads"):
-        if dir_path.exists():
+        if not dir_path.exists():
+            continue
+        try:
             shutil.rmtree(dir_path)
-            console.echo(f"Removed {dir_path}", highlight=False)
+        except FileNotFoundError:
+            # another xdist worker's rmtree won the race between
+            # exists() and ours on the same real dirs (CI flake)
+            continue
+        console.echo(f"Removed {dir_path}", highlight=False)
 
 
 def _cleanup_rustup_temp(retry_state: RetryCallState) -> None:

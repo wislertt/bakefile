@@ -211,56 +211,57 @@ def _create_project_venv(project_root: Path) -> Path | None:
     return _find_project_python(project_root)
 
 
+def _resolve_standalone_python(bakefile_path: Path, cli_module: str) -> Path | None:
+    # Step 1: Try to find existing bakefile-level Python, but only trust it if the
+    # CLI module is importable. `uv python find --script` validates the interpreter,
+    # not the installed packages, so a gutted env passes discovery.
+    python_path = _find_bakefile_python(bakefile_path)
+    if python_path and _can_import(python_path, cli_module):
+        return python_path
+
+    if python_path:
+        # console (not logger): heal must be visible at default verbosity 0
+        console.warning(
+            f"Script environment at {python_path} is broken "
+            f"(cannot import {cli_module}). Re-syncing."
+        )
+
+    # Step 2: Create bakefile-level venv
+    return _create_bakefile_venv(bakefile_path)
+
+
+def _resolve_project_python(bakefile_path: Path) -> Path | None:
+    # project_root = directory containing pyproject.toml
+    project_root = _find_project_root(bakefile_path)
+    if project_root is None:
+        raise PythonNotFoundError(
+            f"No pyproject.toml found in {bakefile_path.parent} or any parent directory. "
+            f"Create a pyproject.toml or run 'bakefile add-inline' for bakefile-level Python."
+        )
+
+    # Step 1: Try to find existing project-level Python
+    python_path = _find_project_python(project_root)
+    if python_path:
+        return python_path
+
+    # Step 2: Create project-level venv
+    return _create_project_venv(project_root)
+
+
 def find_python_path(bakefile_path: Path | None, *, cli_module: str = "bake.cli.bake") -> Path:
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 
-    is_standalone = is_standalone_bakefile(bakefile_path)
-
-    if is_standalone:
+    if is_standalone_bakefile(bakefile_path):
         logger.debug("Bakefile has inline metadata -> bakefile-level Python")
-
-        # Step 1: Try to find existing bakefile-level Python, but only trust it if the
-        # CLI module is importable. `uv python find --script` validates the interpreter,
-        # not the installed packages, so a gutted env passes discovery.
-        python_path = _find_bakefile_python(bakefile_path)
-        if python_path and _can_import(python_path, cli_module):
-            return python_path
-
-        if python_path:
-            # console (not logger): heal must be visible at default verbosity 0
-            console.warning(
-                f"Script environment at {python_path} is broken "
-                f"(cannot import {cli_module}). Re-syncing."
-            )
-
-        # Step 2: Create bakefile-level venv
-        python_path = _create_bakefile_venv(bakefile_path)
-        if python_path:
-            return python_path
-
+        python_path = _resolve_standalone_python(bakefile_path, cli_module)
     else:
         logger.debug("No inline metadata -> project-level Python")
+        python_path = _resolve_project_python(bakefile_path)
 
-        # project_root = directory containing pyproject.toml
-        project_root = _find_project_root(bakefile_path)
-        if project_root is None:
-            raise PythonNotFoundError(
-                f"No pyproject.toml found in {bakefile_path.parent} or any parent directory. "
-                f"Create a pyproject.toml or run 'bakefile add-inline' for bakefile-level Python."
-            )
-
-        # Step 1: Try to find existing project-level Python
-        python_path = _find_project_python(project_root)
-        if python_path:
-            return python_path
-
-        # Step 2: Create project-level venv
-        python_path = _create_project_venv(project_root)
-        if python_path:
-            return python_path
-
-    raise PythonNotFoundError(
-        f"Could not find Python for {bakefile_path}. "
-        f"Run 'bakefile add-inline' to add PEP 723 metadata for bakefile-level Python."
-    )
+    if python_path is None:
+        raise PythonNotFoundError(
+            f"Could not find Python for {bakefile_path}. "
+            f"Run 'bakefile add-inline' to add PEP 723 metadata for bakefile-level Python."
+        )
+    return python_path

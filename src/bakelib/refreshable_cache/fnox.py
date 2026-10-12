@@ -133,8 +133,10 @@ class FnoxCache(RefreshableCache[CachedT]):
 
     def _get_full_key(self) -> str:
         # fnox secret names must be valid env-var names (letters/digits/
-        # underscores) — "namespace:key" from the base class is rejected
-        return re.sub(r"[^A-Za-z0-9_]", "_", f"{self._namespace}__{self._key}")
+        # underscores) — "namespace:key" from the base class is rejected.
+        # re.ASCII keeps \W identical to the spelled-out [^A-Za-z0-9_]
+        # (without it \W would spare non-ascii word chars like é)
+        return re.sub(r"\W", "_", f"{self._namespace}__{self._key}", flags=re.ASCII)
 
     def _get_entry(self) -> CacheEntry[CachedT] | None:
         logger.debug(

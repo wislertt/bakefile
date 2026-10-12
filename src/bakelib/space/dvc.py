@@ -40,7 +40,7 @@ def _extras_for_url(url: str) -> tuple[str, ...]:
     """
     scheme = url.partition("://")[0]
     extras = {"hdfs": "hadoop", "webdavs": "webdav"}.get(scheme, scheme)
-    if scheme in {
+    needs_extra = scheme in {
         "s3",
         "gs",
         "azure",
@@ -50,9 +50,8 @@ def _extras_for_url(url: str) -> tuple[str, ...]:
         "webdavs",
         "webhdfs",
         "hdfs",
-    }:
-        return (extras,)
-    return ()
+    }
+    return (extras,) if needs_extra else ()
 
 
 def _styled_path(path: str) -> Text:
@@ -76,6 +75,62 @@ def _gc_args(days: int, depth: int, today: date, *, cloud: bool, dry: bool) -> l
     if cloud:
         args.append("--cloud")
     return args
+
+
+def _emit(items: list[tuple[str, str]]) -> None:
+    width = max(len(label) for label, _ in items)
+    for label, path in items:
+        console.echo(Text(f"  {label.ljust(width)}  ") + _styled_path(path))
+
+
+def _emit_remedies(items: list[tuple[str, str]]) -> None:
+    width = max(len(label) for label, _ in items)
+    for label, remedy in items:
+        console.echo(f"    {label.ljust(width + 1)} {style.code(remedy)}")
+
+
+def _emit_report(
+    problems: list[tuple[str, str]],
+    warnings: list[tuple[str, str]],
+    required: list[tuple[str, str]],
+    optional: list[tuple[str, str]],
+) -> None:
+    if problems:
+        console.error(f"{len(problems)} problem(s):")
+        _emit(problems)
+    if warnings:
+        if problems:
+            console.echo("")
+        console.warning(f"{len(warnings)} warning(s):")
+        _emit(warnings)
+    if required or optional:
+        console.echo("")
+        console.echo(style.dim("remedies:"))
+        if required:
+            console.echo(style.dim("  required:"))
+            _emit_remedies(required)
+        if optional:
+            console.echo(style.dim("  optional:"))
+            _emit_remedies(optional)
+
+
+def _remedies(
+    needs_add: bool, has_metas: bool, needs_pull: bool, needs_push: bool
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    # required = fix a consistency break (the problems dvc_check found);
+    # optional = transfer gaps only — skip freely if bytes not needed.
+    required: list[tuple[str, str]] = []
+    if needs_add:
+        required.append(("fix", "bake dvc add"))
+    if has_metas:
+        # glob, not paths: stages exactly what this report flagged
+        required.append(("stage", "git add '*.dvc'"))
+    optional: list[tuple[str, str]] = []
+    if needs_pull:
+        optional.append(("pull", "bake dvc pull"))
+    if needs_push:
+        optional.append(("push", "bake dvc push"))
+    return required, optional
 
 
 class DvcSpace(SecretUtils[str | None], BaseSpace):
@@ -466,107 +521,20 @@ class DvcSpace(SecretUtils[str | None], BaseSpace):
             return
         problems: list[tuple[str, str]] = []
         warnings: list[tuple[str, str]] = []
-        needs_add = False
-        has_metas = False
-        unstaged = False
-        needs_pull = False
-        needs_push = False
 
         status = self._data_status()
-        not_in_cache = set(status.get("not_in_cache", []))
-        uncommitted = status.get("uncommitted", {})
-        for target in sorted(not_in_cache | set(uncommitted.get("deleted", []))):
-            # meta + remote intact, bytes just missing locally — pull restores,
-            # git tree stays consistent: transfer gap, not a break
-            warnings.append(("un-materialized", target))
-            needs_pull = True
-        for kind, targets in uncommitted.items():
-            if kind == "deleted":
-                continue  # already reported as un-materialized above
-            for target in targets:
-                if target in not_in_cache:
-                    continue
-                problems.append(("drift", target))
-                needs_add = True
-        if not self.dvc_remote_url:
-            problems.append(("no remote url", "dvc_remote_url"))
-        elif (env := self._remote_env()) is None:
-            console.echo(style.dim("(remote check skipped: missing creds — bake secret set …)"))
-        else:
-            result = self.ctx.run(
-                ["dvc", "data", "status", "--json", "--not-in-remote"],
-                capture_output=True,
-                check=False,
-                stream=False,
-                env=env,
-            )
-            if result.returncode != 0:
-                console.warning("remote check failed — un-pushed state unknown")
-            else:
-                not_in_remote = set(json.loads(result.stdout or "{}").get("not_in_remote", []))
-                for target in sorted(not_in_remote):
-                    warnings.append(("un-pushed", target))
-                    needs_push = True
-        metas = self.ctx.run(["git", "status", "--porcelain", "--", "*.dvc"], capture_output=True)
-        for line in metas.stdout.splitlines():
-            xy, path = line[:2], line[3:]
-            if xy == "??":
-                problems.append(("untracked meta", path))
-                has_metas = True
-            elif xy[1] != " ":
-                problems.append(("unstaged meta", path))
-                has_metas = True
-                unstaged = True
-        for target in self._glob_targets():
-            if not Path(f"{target}.dvc").is_file():
-                problems.append(("untracked data", target))
-                needs_add = True
+        needs_pull, needs_add = self._check_workspace(status, problems, warnings)
+        needs_push = self._check_remote(problems, warnings)
+        has_metas, unstaged = self._check_metas(problems)
+        if self._check_untracked_data(problems):
+            needs_add = True
 
         if not problems and not warnings:
             console.success("dvc state clean: workspace matches metas, all metas staged")
             return
 
-        def emit(items: list[tuple[str, str]]) -> None:
-            width = max(len(label) for label, _ in items)
-            for label, path in items:
-                console.echo(Text(f"  {label.ljust(width)}  ") + _styled_path(path))
-
-        if problems:
-            console.error(f"{len(problems)} problem(s):")
-            emit(problems)
-        if warnings:
-            if problems:
-                console.echo("")
-            console.warning(f"{len(warnings)} warning(s):")
-            emit(warnings)
-        # required = fix a consistency break (the problems above);
-        # optional = transfer gaps only — skip freely if bytes not needed.
-        required: list[tuple[str, str]] = []
-        if needs_add:
-            required.append(("fix", "bake dvc add"))
-        if has_metas:
-            # glob, not paths: stages exactly what this report flagged
-            required.append(("stage", "git add '*.dvc'"))
-        optional: list[tuple[str, str]] = []
-        if needs_pull:
-            optional.append(("pull", "bake dvc pull"))
-        if needs_push:
-            optional.append(("push", "bake dvc push"))
-        if required or optional:
-            console.echo("")
-            console.echo(style.dim("remedies:"))
-
-            def emit_remedies(items: list[tuple[str, str]], indent: str) -> None:
-                width = max(len(label) for label, _ in items)
-                for label, remedy in items:
-                    console.echo(f"{indent}{label.ljust(width + 1)} {style.code(remedy)}")
-
-            if required:
-                console.echo(style.dim("  required:"))
-                emit_remedies(required, "    ")
-            if optional:
-                console.echo(style.dim("  optional:"))
-                emit_remedies(optional, "    ")
+        required, optional = _remedies(needs_add, has_metas, needs_pull, needs_push)
+        _emit_report(problems, warnings, required, optional)
         if unstaged:
             console.echo(
                 style.dim(
@@ -576,6 +544,88 @@ class DvcSpace(SecretUtils[str | None], BaseSpace):
             )
         if problems:
             raise typer.Exit(1)
+
+    def _check_workspace(
+        self,
+        status: dict[str, Any],
+        problems: list[tuple[str, str]],
+        warnings: list[tuple[str, str]],
+    ) -> tuple[bool, bool]:
+        """Un-materialized dirs are warnings, drift is a problem. Returns
+        ``(needs_pull, needs_add)``."""
+        not_in_cache = set(status.get("not_in_cache", []))
+        uncommitted = status.get("uncommitted", {})
+        needs_pull = False
+        for target in sorted(not_in_cache | set(uncommitted.get("deleted", []))):
+            # meta + remote intact, bytes just missing locally — pull restores,
+            # git tree stays consistent: transfer gap, not a break
+            warnings.append(("un-materialized", target))
+            needs_pull = True
+        needs_add = False
+        for kind, targets in uncommitted.items():
+            if kind == "deleted":
+                continue  # already reported as un-materialized above
+            for target in targets:
+                if target in not_in_cache:
+                    continue
+                problems.append(("drift", target))
+                needs_add = True
+        return needs_pull, needs_add
+
+    def _check_remote(
+        self, problems: list[tuple[str, str]], warnings: list[tuple[str, str]]
+    ) -> bool:
+        """Flag a missing remote url, then ask the remote what it lacks.
+        Returns ``needs_push``; soft-skips without creds."""
+        if not self.dvc_remote_url:
+            problems.append(("no remote url", "dvc_remote_url"))
+            return False
+        env = self._remote_env()
+        if env is None:
+            console.echo(style.dim("(remote check skipped: missing creds — bake secret set …)"))
+            return False
+        result = self.ctx.run(
+            ["dvc", "data", "status", "--json", "--not-in-remote"],
+            capture_output=True,
+            check=False,
+            stream=False,
+            env=env,
+        )
+        if result.returncode != 0:
+            console.warning("remote check failed — un-pushed state unknown")
+            return False
+        needs_push = False
+        not_in_remote = set(json.loads(result.stdout or "{}").get("not_in_remote", []))
+        for target in sorted(not_in_remote):
+            warnings.append(("un-pushed", target))
+            needs_push = True
+        return needs_push
+
+    def _check_metas(self, problems: list[tuple[str, str]]) -> tuple[bool, bool]:
+        """Git state of the ``*.dvc`` metas. Returns ``(has_metas, unstaged)``."""
+        metas = self.ctx.run(["git", "status", "--porcelain", "--", "*.dvc"], capture_output=True)
+        has_metas = False
+        unstaged = False
+        for line in metas.stdout.splitlines():
+            xy, path = line[:2], line[3:]
+            if xy == "??":
+                problems.append(("untracked meta", path))
+                has_metas = True
+            elif xy[1] != " ":
+                problems.append(("unstaged meta", path))
+                has_metas = True
+                unstaged = True
+        return has_metas, unstaged
+
+    def _check_untracked_data(self, problems: list[tuple[str, str]]) -> bool:
+        """Data dirs matched by dvc_track_globs with no ``.dvc`` meta.
+        Returns ``needs_add``."""
+        needs_add = False
+        for target in self._glob_targets():
+            if not Path(f"{target}.dvc").is_file():
+                problems.append(("untracked data", target))
+                needs_add = True
+        return needs_add
 
 
 class MediaDvcSpace(DvcSpace):

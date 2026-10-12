@@ -38,6 +38,8 @@ class SecretUtils(Bakebook, Generic[T]):
         return self._vault
 
     def _setup_vault(self, vault: RefreshableCacheRegistry[T]) -> None:
+        # intentionally empty: the default vault is fully wired by the
+        # registry above; subclasses override this to insert extra caches
         pass
 
     def get_group_kwargs(self) -> dict[str, GroupKwargs]:
