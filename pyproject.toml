@@ -109,6 +109,7 @@ pydantic = ["pydantic", "pydantic_core"]
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 pythonpath = ["."]
+faulthandler_timeout = 120
 
 [tool.ruff]
 line-length = 100

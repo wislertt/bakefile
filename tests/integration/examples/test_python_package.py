@@ -23,7 +23,8 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     )
     stderr = strip_ansi(result.stderr).strip()
     assert result.returncode == 0
-    assert "All versions already on latest supported patch release" in stderr
+    # no assert on `uv python upgrade` output: fresh CI runners install Python
+    # instead of printing the warm-machine "already on latest patch" message
     assert "Installed" in stderr
     assert "packages" in stderr
 

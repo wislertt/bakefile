@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -242,6 +243,8 @@ class TestBootstrap:
 
         assert cache_file.read_text() == '[providers.age]\ntype = "age"\n'
 
+    # NTFS has no POSIX mode bits and always reports 0o666
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX file mode does not exist on Windows")
     @pytest.mark.usefixtures("cache_on_path")
     def test_cache_file_gets_0600(
         self, monkeypatch: pytest.MonkeyPatch, cache_file: Path, tmp_path: Path
