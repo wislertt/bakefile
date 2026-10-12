@@ -42,9 +42,11 @@ def _setup_project(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     pubkey = subprocess.run(
         ["age-keygen", "-y", str(key_file)], capture_output=True, text=True, check=True
     ).stdout.strip()
-    (tmp_path / "fnox.toml").write_text(
-        f'[providers.age]\ntype = "age"\nkey_file = "{key_file}"\nrecipients = ["{pubkey}"]\n'
+    provider_block = (
+        f'[providers.age]\ntype = "age"\n'
+        f'key_file = "{key_file.as_posix()}"\nrecipients = ["{pubkey}"]\n'
     )
+    (tmp_path / "fnox.toml").write_text(provider_block)
 
 
 class TestArgvShape:

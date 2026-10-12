@@ -1,4 +1,7 @@
+import sys
 from pathlib import Path
+
+import pytest
 
 from bake.ui import run
 from bake.ui.logger import strip_ansi
@@ -7,6 +10,7 @@ from tests.utils.fixtures import get_project_env
 BAKE = "bake"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="examples integration is untested on Windows")
 def test_python_package(examples_python_package_dir: Path) -> None:
     env = get_project_env(examples_python_package_dir)
 

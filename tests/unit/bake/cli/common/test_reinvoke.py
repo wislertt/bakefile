@@ -137,7 +137,8 @@ def test_reinvoke_failed_child_with_broken_env_prints_hint(
 
     assert exc_info.value.code == 1
     err = strip_ansi(capsys.readouterr().err)
-    assert "/venv/bin/python" in err
+    # str(Path(...)): output renders via Path str(), separator differs on Windows
+    assert str(Path("/venv/bin/python")) in err
     assert "uv sync" in err
 
 

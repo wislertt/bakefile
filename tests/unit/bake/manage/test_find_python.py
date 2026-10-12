@@ -724,8 +724,9 @@ class TestFindPythonPathStandaloneEnvValidation:
         assert result == created
         create.assert_called_once_with(bakefile_path)
         err = strip_ansi(capfd.readouterr().err)
+        # str(Path(...)): output renders via Path str(), separator differs on Windows
         assert (
-            "Script environment at /broken/env/bin/python is broken "
+            f"Script environment at {Path('/broken/env/bin/python')} is broken "
             "(cannot import bake.cli.bake). Re-syncing." in err
         )
 

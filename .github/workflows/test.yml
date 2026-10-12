@@ -134,4 +134,4 @@ jobs:
                   fi
 
             - name: run-integration-tests
-              run: uv run pytest tests/integration/fixtures -v
+              run: bake test-integration

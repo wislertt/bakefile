@@ -201,7 +201,8 @@ class FnoxCache(RefreshableCache[CachedT]):
         logger.debug(f"FnoxCache: bootstrapping cache file '{cache_file}'")
         cache_file.write_text(
             f'[providers.{FNOX_CACHE_PROVIDER}]\ntype = "age"\n'
-            f'key_file = "{key_file}"\nrecipients = ["{pubkey}"]\n'
+            # as_posix: backslashes would be invalid TOML basic-string escapes
+            f'key_file = "{key_file.as_posix()}"\nrecipients = ["{pubkey}"]\n'
         )
         cache_file.chmod(stat.S_IRUSR | stat.S_IWUSR)
 

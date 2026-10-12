@@ -223,7 +223,7 @@ class TestBootstrap:
         config = cache_file.read_text()
         assert "[providers.bake-cache-age]" in config
         assert 'type = "age"' in config
-        assert f'key_file = "{key_file}"' in config
+        assert f'key_file = "{key_file.as_posix()}"' in config
         assert f'"{pubkey}"' in config
 
     def test_idempotent_keeps_existing_config(
