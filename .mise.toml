@@ -3,7 +3,9 @@ pipx.uvx = true
 
 [tools]
 actionlint = "latest"
+age = "latest"
 bun = "latest"
+fnox = "latest"
 "npm:actions-up" = "latest"
 "npm:mintlify" = "latest"
 "pipx:pre-commit" = "latest"

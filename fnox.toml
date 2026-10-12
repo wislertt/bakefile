@@ -1,0 +1,9 @@
+# Remote secret references (commit-safe: pointers only, zero secret values).
+# Auth: BWS_ACCESS_TOKEN from env, e.g. `fnox exec -- bake ...`
+[providers.bw]
+type = "bitwarden-sm"
+project_id = "dd6bd5c9-8dcd-4051-8641-b4df00de8d93"
+
+[secrets.REMOTE_TOKEN]
+provider = "bw"
+value = "PLAY_TOKEN"

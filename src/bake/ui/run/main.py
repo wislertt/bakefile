@@ -9,7 +9,7 @@ import tempfile
 import threading
 import time
 import types
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, Literal, overload
@@ -21,7 +21,7 @@ from typing_extensions import NotRequired, TypedDict, Unpack
 from bake.ui import console, style
 from bake.ui.logger.capsys import strip_ansi
 from bake.ui.run.splitter import OutputSplitter, _process_is_exiting
-from bake.utils.settings import ENV__BAKE_REINVOKED
+from bake.utils.settings import ENV__BAKE_REINVOKED, bake_settings
 
 # CompletedProcess is invariant in T, so this is a str|None union, not [str | None].
 StrOrNoneCompletedProcess = subprocess.CompletedProcess[str] | subprocess.CompletedProcess[None]
@@ -105,6 +105,11 @@ DecodeErrors = Literal[
     "surrogatepass",
 ]
 
+#: Env override for ``run()``-family calls: ``None`` removes the var from the
+#: merged env entirely — the only way to hide bake's defaults (e.g.
+#: ``FORCE_COLOR``) from presence-based CLIs.
+SubprocessEnv = Mapping[str, str | None]
+
 
 class _CoreRunKwargs(TypedDict, total=False):
     # Options common to run(), run_script(), and run_uv(); defaults live on
@@ -113,12 +118,14 @@ class _CoreRunKwargs(TypedDict, total=False):
     cwd: Path | str | None
     stream: bool
     clean_capture_output: bool
+    color: bool
     echo: bool
     keep_temp_file: bool
-    env: dict[str, str] | None
+    env: SubprocessEnv | None
     timeout: float | None
     drain_timeout: float | None
     decode_errors: DecodeErrors
+    redact: bool
 
 
 class RunKwargs(PopenKwargs, _CoreRunKwargs, total=False):
@@ -252,16 +259,18 @@ def run(
     cwd: Path | str | None = None,
     stream: bool = True,
     clean_capture_output: bool = True,
+    color: bool = True,
     shell: bool | None = None,
     echo: bool = True,
     echo_cmd: str | None = None,
     dry_run: bool | None = False,
     keep_temp_file: bool = False,
-    env: dict[str, str] | None = None,
+    env: SubprocessEnv | None = None,
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     decode_errors: DecodeErrors = "replace",
+    redact: bool = False,
     **kwargs: Unpack[PopenKwargs],
 ) -> StrOrNoneCompletedProcess:
     """Run a command with optional streaming and output capture.
@@ -292,6 +301,18 @@ def run(
         ``capture_output=True`` on a PTY (POSIX); pipe captures are always
         raw regardless. Set False for byte-faithful capture (e.g. session
         logging or exact round-trips).
+    color : bool
+        Best-effort color control for the child process (precedent: Zig's
+        ``std.Build.Step.Run.color``). True (default) forces color on via
+        ``FORCE_COLOR``/``CLICOLOR_FORCE`` so piped children stay colorful,
+        unless ``NO_COLOR`` is non-empty (inherited or caller-supplied).
+        False = best-effort "no ANSI from this child": skips the injection,
+        *removes* the force vars (inherited ones included — empty string
+        still colors presence-based CLIs), and sets ``NO_COLOR=1``. Not a
+        guarantee — CLIs disagree on color signals, and per-CLI flags
+        (``--color never`` etc.) stay the caller's job. The ``env``
+        override wins over this flag, so ``env={"FORCE_COLOR": "1"}`` can
+        re-enable color even with ``color=False``.
     shell : bool | None, optional
         Whether to use shell for command execution, by default None.
         When None (default), auto-detected from command type:
@@ -305,6 +326,8 @@ def run(
         Override the command string displayed in logs and console output.
         The actual command is still executed, but this string is shown instead.
         Useful for hiding complex binary paths or secrets in commands.
+        With ``redact=True`` this also replaces the automatic ``<bin> <redacted>``
+        masking in DEBUG logs — the caller vouches the string is secret-free.
         Default is None (show actual command).
     dry_run : bool
         Display command without executing (dry-run mode).
@@ -314,10 +337,19 @@ def run(
         Keep temporary script files for debugging instead of deleting them.
         Only applies when temp files are created (multi-line scripts on Windows
         or scripts with shebang). Default is False. Logs temp file path when True.
-    env : dict[str, str] | None, optional
+    env : Mapping[str, str | None] | None, optional
         Environment variables for the subprocess. Merged with system environment
         to preserve critical variables like SYSTEMROOT on Windows. User-provided
-        variables override defaults. Default is None (use system environment).
+        variables override defaults. A ``None`` value removes the variable from
+        the merged env entirely (winning over bake's own ``setdefault``s), which
+        is the only way to hide a variable from presence-based CLIs. Default is
+        None (use system environment).
+    redact : bool
+        Keep secret values out of logs and console output. When True: DEBUG
+        entries show ``<bin> <redacted>`` instead of the argv, captured
+        stdout/stderr never appear in log extras or failure dumps, and a
+        failing command prints a generic error instead of its output.
+        Default is False (full detail in DEBUG).
     timeout : float | None, optional
         Maximum time in seconds to wait for the command to complete.
         If the command exceeds this time, it will be killed and
@@ -371,13 +403,18 @@ def run(
     _validate_params(stream=stream, capture_output=capture_output)
     shell = _detect_shell(cmd=cmd, shell=shell)
     cmd_str = _format_cmd_str(cmd=cmd)
-    cmd_str_for_display = echo_cmd if echo_cmd is not None else cmd_str
+    # redact + no explicit display override: auto-mask to "<bin> <redacted>".
+    # A caller-provided echo_cmd wins as-is — the caller vouches it's
+    # secret-free (that's the point of passing one).
+    cmd_str_for_display = echo_cmd if echo_cmd is not None else _redacted_cmd(cmd_str, redact)
 
     if echo:
         console.cmd(cmd_str_for_display)
 
     if dry_run:
-        return _dry_run_result(cmd=cmd, capture_output=capture_output, cwd=cwd, echo_cmd=echo_cmd)
+        return _dry_run_result(
+            cmd=cmd, capture_output=capture_output, cwd=cwd, cmd_str_for_display=cmd_str_for_display
+        )
 
     # Handle multi-line scripts that require temp file approach:
     # - Windows: Any multi-line script with shell=True (cmd.exe limitation)
@@ -406,6 +443,7 @@ def run(
             cwd=cwd,
             stream=stream,
             clean_capture_output=clean_capture_output,
+            color=color,
             keep_temp_file=keep_temp_file,
             env=env,
             timeout=timeout,
@@ -431,6 +469,7 @@ def run(
         cwd=cwd,
         capture_output=capture_output,
         clean_capture_output=clean_capture_output,
+        color=color,
         env=env,
         timeout=timeout,
         drain_timeout=drain_timeout,
@@ -440,10 +479,16 @@ def run(
     )
 
     _check_exit_code(
-        result=result, check=check, cmd_str_for_display=cmd_str_for_display, stream=stream
+        result=result,
+        check=check,
+        cmd_str_for_display=cmd_str_for_display,
+        stream=stream,
+        redact=redact,
     )
 
-    _log_completion(cmd_str_for_display=cmd_str_for_display, result=result, start=start)
+    _log_completion(
+        cmd_str_for_display=cmd_str_for_display, result=result, start=start, redact=redact
+    )
     return result
 
 
@@ -482,10 +527,8 @@ def _dry_run_result(
     cmd: str | list[str] | tuple[str, ...],
     capture_output: bool,
     cwd: Path | str | None,
-    echo_cmd: str | None = None,
+    cmd_str_for_display: str,
 ) -> subprocess.CompletedProcess[str]:
-    cmd_str = _format_cmd_str(cmd)
-    cmd_str_for_display = echo_cmd if echo_cmd is not None else cmd_str
     logger.debug(f"[dry-run] {cmd_str_for_display}", extra={"cwd": cwd})
     return subprocess.CompletedProcess(
         args=cmd,
@@ -516,25 +559,32 @@ def _check_exit_code(
     check: bool,
     cmd_str_for_display: str,
     stream: bool = True,
+    redact: bool = False,
 ) -> None:
     if check and result.returncode != 0:
-        logger.debug(
-            f"[error] {cmd_str_for_display}",
-            extra={
-                "returncode": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-            },
-        )
-        # Show output if not streamed (user hasn't seen it)
-        if not stream:
-            if result.stdout or result.stderr:
-                dump_output(result)
-            else:
-                console.error(
-                    f"Command {style.code(_cmd_name(cmd_str_for_display))} "
-                    f"failed with exit code {result.returncode}"
-                )
+        if redact:
+            logger.debug(
+                f"[error] {cmd_str_for_display}",
+                extra={"returncode": result.returncode},
+            )
+        else:
+            logger.debug(
+                f"[error] {cmd_str_for_display}",
+                extra={
+                    "returncode": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                },
+            )
+        # Show output if not streamed (user hasn't seen it). With redact,
+        # argv/output may carry secrets — generic error with masked name only.
+        if not stream and not redact and (result.stdout or result.stderr):
+            dump_output(result)
+        elif not stream:
+            console.error(
+                f"Command {style.code(_cmd_name(cmd_str_for_display))} "
+                f"failed with exit code {result.returncode}"
+            )
         raise typer.Exit(result.returncode)
 
 
@@ -569,17 +619,42 @@ def _process_stream_output(
     )
 
 
-def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]:
+def _apply_color_env(merged_env: dict[str, str], env: SubprocessEnv | None, color: bool) -> None:
+    """Best-effort color control for the child (precedent: Zig's
+    ``std.Build.Step.Run.color`` knob). CLIs disagree on color signals
+    (``NO_COLOR`` vs ``FORCE_COLOR`` vs ``CLICOLOR_FORCE`` vs per-CLI flags),
+    so this handles only the common env conventions.
+
+    ``color=True`` (bake's default): force color on via ``FORCE_COLOR`` /
+    ``CLICOLOR_FORCE`` so piped children stay colorful — unless ``NO_COLOR``
+    is non-empty, inherited or caller-supplied (no-color.org opt-out).
+
+    ``color=False``: best-effort "no ANSI from this child" — no injection,
+    force vars *removed* (inherited ones included; an empty string still
+    colors presence-based CLIs), and ``NO_COLOR=1`` as the standard opt-out
+    signal.
+
+    Runs before the caller ``env`` merge in ``_prepare_subprocess_env``:
+    explicit caller values override any of these defaults.
+    """
+    if not color:
+        merged_env.pop("FORCE_COLOR", None)
+        merged_env.pop("CLICOLOR_FORCE", None)
+        merged_env.setdefault("NO_COLOR", "1")
+        return
+    caller_no_color = env.get("NO_COLOR") if env else None
+    # no-color.org: any non-empty NO_COLOR means skip color forcing entirely
+    if bake_settings.colors_enabled() and not caller_no_color:
+        merged_env.setdefault("FORCE_COLOR", "1")
+        merged_env.setdefault("CLICOLOR_FORCE", "1")
+
+
+def _prepare_subprocess_env(env: SubprocessEnv | None = None, color: bool = True) -> dict[str, str]:
     merged_env = os.environ.copy()
     merged_env.pop(ENV__BAKE_REINVOKED, None)
 
-    if env:
-        merged_env.update(env)
-
-    # no-color.org: any non-empty NO_COLOR means skip color forcing entirely
-    if merged_env.get("NO_COLOR", "") == "":
-        merged_env.setdefault("FORCE_COLOR", "1")
-        merged_env.setdefault("CLICOLOR_FORCE", "1")
+    # Color defaults first, so the caller env below can override them.
+    _apply_color_env(merged_env, env=env, color=color)
 
     # Disable progress indicators for tools that support it
     merged_env.setdefault("UV_NO_PROGRESS", "1")  # uv
@@ -595,6 +670,16 @@ def _prepare_subprocess_env(env: dict[str, str] | None = None) -> dict[str, str]
             size = (fallback.columns, fallback.lines)
         merged_env.setdefault("COLUMNS", str(size[0]))
         merged_env.setdefault("LINES", str(size[1]))
+
+    if env:
+        merged_env.update({k: v for k, v in env.items() if v is not None})
+    remove_keys = {k for k, v in env.items() if v is None} if env else set()
+
+    # Caller removals win over everything above — setdefaults included:
+    # presence-based CLIs need vars *absent*, not empty. Applied last so no
+    # setdefault can resurrect a removed key.
+    for key in remove_keys:
+        merged_env.pop(key, None)
     return merged_env
 
 
@@ -634,7 +719,8 @@ def _setup_pty_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
-    env: dict[str, str] | None = None,
+    color: bool = True,
+    env: SubprocessEnv | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
@@ -656,7 +742,7 @@ def _setup_pty_stream(
         _set_pty_winsize(stdout_fd, winsize)
         _set_pty_winsize(stderr_fd, winsize)
 
-        env = _prepare_subprocess_env(env)
+        env = _prepare_subprocess_env(env, color=color)
         user_preexec: Callable[[], Any] | None = kwargs.get("preexec_fn")
 
         def _preexec() -> None:
@@ -716,7 +802,8 @@ def _setup_pipe_stream(
     shell: bool,
     cwd: Path | str | None,
     capture_output: bool,
-    env: dict[str, str] | None = None,
+    color: bool = True,
+    env: SubprocessEnv | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
     **kwargs: Unpack[PopenKwargs],
@@ -726,7 +813,7 @@ def _setup_pipe_stream(
     # subprocess.Popen is not thread-safe, protect with lock
     # See: https://bugs.python.org/issue2320
     with _subprocess_create_lock:
-        env = _prepare_subprocess_env(env)
+        env = _prepare_subprocess_env(env, color=color)
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
@@ -775,7 +862,8 @@ def _run_with_split(
     cwd: Path | str | None,
     capture_output: bool,
     clean_capture_output: bool = True,
-    env: dict[str, str] | None = None,
+    color: bool = True,
+    env: SubprocessEnv | None = None,
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
@@ -791,6 +879,7 @@ def _run_with_split(
         shell=shell,
         cwd=cwd,
         capture_output=capture_output,
+        color=color,
         env=env,
         drain_timeout=drain_timeout,
         _encoding=_encoding,
@@ -975,7 +1064,8 @@ def _run_without_split(
     cwd: Path | str | None,
     capture_output: bool,
     clean_capture_output: bool = True,
-    env: dict[str, str] | None = None,
+    color: bool = True,
+    env: SubprocessEnv | None = None,
     timeout: float | None = None,
     drain_timeout: float | None = 10.0,
     _encoding: str | None = None,
@@ -987,7 +1077,7 @@ def _run_without_split(
     # communicate() already waits for pipe EOF unconditionally (subprocess parity)
     _ = drain_timeout
     # Prepare environment (merges with system env to preserve SYSTEMROOT on Windows)
-    env = _prepare_subprocess_env(env)
+    env = _prepare_subprocess_env(env, color=color)
 
     # Use Popen instead of run() for better cleanup control on KeyboardInterrupt
     with _subprocess_create_lock:
@@ -1041,9 +1131,18 @@ def _run_without_split(
 
 
 def _log_completion(
-    cmd_str_for_display: str, result: subprocess.CompletedProcess, start: float
+    cmd_str_for_display: str,
+    result: subprocess.CompletedProcess,
+    start: float,
+    redact: bool = False,
 ) -> None:
     elapsed_seconds = time.perf_counter() - start
+    if redact:
+        logger.debug(
+            f"[done] {cmd_str_for_display}",
+            extra={"returncode": result.returncode, "elapsed_seconds": elapsed_seconds},
+        )
+        return
     logger.debug(
         f"[done] {cmd_str_for_display}",
         extra={
@@ -1053,3 +1152,15 @@ def _log_completion(
             "elapsed_seconds": elapsed_seconds,
         },
     )
+
+
+def _redacted_cmd(cmd_str: str, redact: bool) -> str:
+    """Display fallback under redact: never show any of the command. The
+    caller's claim "this is secret" covers every token (env-prefixed shell
+    form ``VAR=val cmd``, shebang scripts, wrapped chains) — no parsing, no
+    heuristics (same censor-all stance as Ansible's ``no_log``). Which parts
+    are safe is the caller's knowledge: pass ``echo_cmd`` to vouch a
+    secret-free display instead."""
+    if not redact:
+        return cmd_str
+    return "<redacted>"

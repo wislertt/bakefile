@@ -8,7 +8,7 @@ import typer
 from typing_extensions import Unpack
 
 from bake._typer_compat import TyperCommand
-from bake.ui.run import CmdType, StrOrNoneCompletedProcess
+from bake.ui.run import CmdType, StrOrNoneCompletedProcess, SubprocessEnv
 from bake.ui.run import run as _run
 from bake.ui.run.main import DecodeErrors, PopenKwargs, RunKwargs
 from bake.ui.run.script import run_script as _run_script
@@ -89,7 +89,8 @@ class Context(typer.Context):
         echo: bool = True,
         dry_run: bool | None = None,
         keep_temp_file: bool = False,
-        env: dict[str, str] | None = None,
+        color: bool = True,
+        env: SubprocessEnv | None = None,
         timeout: float | None = None,
         drain_timeout: float | None = 10.0,
         decode_errors: DecodeErrors = "replace",
@@ -105,6 +106,7 @@ class Context(typer.Context):
             echo=echo,
             dry_run=self.obj.dry_run if dry_run is None else dry_run,
             keep_temp_file=keep_temp_file,
+            color=color,
             env=env,
             timeout=timeout,
             drain_timeout=drain_timeout,

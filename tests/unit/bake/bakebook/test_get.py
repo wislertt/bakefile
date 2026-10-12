@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import typer
 
 from bake import Bakebook
 from bake.bakebook.get import (
@@ -273,3 +274,77 @@ class TestRetryLoadModuleWithUvSyncDryRun:
             )
             mock_console_error.assert_called_once()
             assert "uv cache clean" in mock_console_error.call_args[0][0]
+
+
+class TestRetryLoadModuleSyncFailure:
+    def test_sync_failure_raises_clean_bakebook_error(self, tmp_path: Path) -> None:
+        import importlib.util
+
+        bakefile_path = tmp_path / DEFAULT_FILE_NAME
+        bakefile_path.write_text("import x\n")
+
+        error = ModuleNotFoundError("No module named 'x'", name="x")
+
+        spec = importlib.util.spec_from_file_location("bakefile", bakefile_path)
+        assert spec is not None and spec.loader is not None
+
+        module = importlib.util.module_from_spec(spec)
+        loader_mock = MagicMock(spec=spec.loader)
+
+        with (
+            patch("bake.bakebook.get.run_uv", side_effect=typer.Exit(2)),
+            pytest.raises(BakebookError, match="No module named 'x'") as exc_info,
+        ):
+            retry_load_module_with_uv_sync(
+                target_dir_path=bakefile_path,
+                error=error,
+                parent_dir=str(tmp_path),
+                loader=loader_mock,
+                module=module,
+            )
+
+        # no __cause__: cli prints one clean line instead of a traceback
+        assert exc_info.value.__cause__ is None
+        assert "uv sync" in str(exc_info.value)
+        loader_mock.exec_module.assert_not_called()
+
+    def test_sync_failure_standalone_bakefile(self, empty_project_folder: Path) -> None:
+        import importlib.util
+
+        bakefile_path = empty_project_folder / DEFAULT_FILE_NAME
+
+        error = ModuleNotFoundError("No module named 'x'", name="x")
+
+        spec = importlib.util.spec_from_file_location("bakefile", bakefile_path)
+        assert spec is not None and spec.loader is not None
+
+        module = importlib.util.module_from_spec(spec)
+        loader_mock = MagicMock(spec=spec.loader)
+
+        with (
+            patch("bake.bakebook.get.run_uv_sync", side_effect=typer.Exit(2)),
+            pytest.raises(BakebookError, match="uv sync"),
+        ):
+            retry_load_module_with_uv_sync(
+                target_dir_path=bakefile_path,
+                error=error,
+                parent_dir=str(empty_project_folder),
+                loader=loader_mock,
+                module=module,
+            )
+
+        loader_mock.exec_module.assert_not_called()
+
+    def test_load_module_sync_failure_no_raw_exit(self, tmp_path: Path) -> None:
+        # full chain: missing import + failing sync -> BakebookError, not typer.Exit
+        module_path = tmp_path / "test_module.py"
+        module_path.write_text("import nonexistent_module")
+
+        def fake_run_uv(*_args: object, **_kwargs: object) -> None:
+            raise typer.Exit(2)  # what _check_exit_code raises on sync failure
+
+        with (
+            patch("bake.bakebook.get.run_uv", side_effect=fake_run_uv),
+            pytest.raises(BakebookError),
+        ):
+            load_module(module_path)

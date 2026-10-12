@@ -388,7 +388,7 @@ class TestSharedParentOverride:
                 return "override-method"
 
             @property
-            def dial(self) -> str:  # ty: ignore[invalid-attribute-override]
+            def dial(self) -> str:  # ty: ignore[invalid-property-type-override]
                 return "override-dial"
 
         class MatrixPlain(MatrixBase):
@@ -1512,8 +1512,8 @@ class TestKindFlips:
             _knob: str = "base-default"
 
         class TypedSpace(SpaceBase):
-            knob: int = 7
-            _knob: int = 7
+            knob: int = 7  # ty: ignore[invalid-attribute-override]
+            _knob: int = 7  # ty: ignore[invalid-attribute-override]
 
         class PlainSpace(SpaceBase):
             pass
@@ -1714,7 +1714,7 @@ class TestGenerics:
             knob: str = "base"
 
         class GenericOverrideSpace(SpaceBase, Generic[E]):
-            knob: E
+            knob: E  # ty: ignore[invalid-attribute-override]
 
         class PlainSpace(SpaceBase):
             pass
@@ -1734,7 +1734,7 @@ class TestGenerics:
             _knob: str = "base-default"
 
         class GenericOverrideSpace(SpaceBase, Generic[E]):
-            knob: E
+            knob: E  # ty: ignore[invalid-attribute-override]
             _knob: str = "override"
 
         class PlainSpace(SpaceBase):
@@ -1796,7 +1796,7 @@ class TestGenerics:
             knob: str = "base"
 
         class GenericOverrideSpace(SpaceBase, Generic[E]):
-            knob: E
+            knob: E  # ty: ignore[invalid-attribute-override]
 
         class SubOverrideSpace(GenericOverrideSpace[E]):
             extra: str = "extra"

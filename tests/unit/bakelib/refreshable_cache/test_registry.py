@@ -10,10 +10,13 @@ from bakelib.refreshable_cache import (
     ChainedCache,
     ChainedCacheKwargs,
     FetchFn,
+    FnoxCache,
     KeyringCache,
     MemoryCache,
     RefreshableCache,
     RefreshableCacheRegistry,
+    SecretUtilsFnoxCacheRegistry,
+    SecretUtilsKeyringCacheRegistry,
 )
 
 
@@ -225,6 +228,38 @@ class TestCacheKwargs:
         )
 
 
+class TestSecretUtilsRegistries:
+    def test_keyring_registry_shape(self):
+        registry = SecretUtilsKeyringCacheRegistry(cached_type=str)
+        assert registry.backends == [MemoryCache, KeyringCache]
+        assert registry.namespace == "bakebook"
+
+    def test_fnox_registry_shape(self):
+        registry = SecretUtilsFnoxCacheRegistry(cached_type=str)
+        assert registry.backends == [MemoryCache, FnoxCache]
+        assert registry.namespace == "bakebook"
+
+    def test_fnox_registry_builds_chained_cache(self):
+        registry = SecretUtilsFnoxCacheRegistry(cached_type=str)
+        cache = registry.insert_cache("k", fetch_fn=lambda: "v")
+        assert isinstance(cache, ChainedCache)
+        assert [type(b) for b in cache._backends] == [MemoryCache, FnoxCache]
+
+
+class TestRegistryListEntries:
+    def test_sorted_key_bool_pairs(self):
+        registry = RefreshableCacheRegistry(cached_type=str, namespace="ns")
+        registry.insert_cache("b", fetch_fn=lambda: "v")
+        registry.insert_cache("a", fetch_fn=lambda: "v")
+        assert registry.list_entries() == [("a", False), ("b", False)]
+
+    def test_tracked_status_after_set(self):
+        registry = RefreshableCacheRegistry(cached_type=str, namespace="ns")
+        registry.insert_cache("k", fetch_fn=lambda: "v")
+        registry.set("k", "val")
+        assert registry.list_entries() == [("k", True)]
+
+
 class TestRegistryPolicy:
     def test_ttl_default_inherited_from_registry(self):
         registry = make_registry("reg-ttl-default", ttl=42)
@@ -335,9 +370,10 @@ class TestRegistryHasValue:
         registry.delete("k")
         assert registry.has_value("k") is False
 
-    def test_not_cached_for_unregistered_key(self):
+    def test_unregistered_key_raises(self):
         registry = make_registry("reg-status-missing")
-        assert registry.has_value("nope") is False
+        with pytest.raises(KeyError, match="Key 'nope' not registered"):
+            registry.has_value("nope")
 
 
 class TestRegistrySet:
@@ -424,7 +460,8 @@ class TestRegistryMutation:
         registry.get("k")
         registry.remove_cache("k")
         assert "k" not in registry
-        assert registry.has_value("k") is False
+        with pytest.raises(KeyError, match="not registered"):
+            registry.has_value("k")
         with pytest.raises(KeyError, match="not registered"):
             registry.get_cache("k")
 

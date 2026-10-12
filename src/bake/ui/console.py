@@ -125,11 +125,13 @@ class Console(RichConsole):
 
 out = Console(
     stderr=False,
+    no_color=not bake_settings.colors_enabled(),
     force_terminal=_FORCE_TERMINAL_DEFAULT,
     legacy_windows=_LEGACY_WINDOWS_DEFAULT,
 )
 err = Console(
     stderr=True,
+    no_color=not bake_settings.colors_enabled(),
     force_terminal=_FORCE_TERMINAL_DEFAULT,
     legacy_windows=_LEGACY_WINDOWS_DEFAULT,
 )

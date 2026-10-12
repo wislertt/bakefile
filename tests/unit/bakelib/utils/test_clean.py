@@ -258,6 +258,10 @@ class TestCleanUtils:
         assert "git clean -fdX -n" in err
         assert ".env" in err
         assert ".cache" in err
+        assert ".scratch" in err
+        assert ".local" in err
+        assert "*.local" in err
+        assert "*.local.*" in err
 
     def test_clean_without_default_excludes(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture

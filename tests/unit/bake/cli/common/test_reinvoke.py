@@ -7,6 +7,7 @@ import pytest
 
 from bake.cli.common import reinvocation
 from bake.cli.common.reinvocation import _reinvoke_with_detected_python, detect_target_python
+from bake.ui.logger.capsys import strip_ansi
 from bake.utils import ENV__BAKE_REINVOKED, settings
 
 
@@ -110,6 +111,61 @@ def test_reinvoke_keyboard_interrupt_exits_cleanly(
         with pytest.raises(SystemExit) as exc_info:
             _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
         assert exc_info.value.code == 130  # Standard SIGINT exit code (128 + 2)
+
+
+def test_reinvoke_failed_child_with_broken_env_prints_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Child re-invoke fails AND env cannot import CLI module -> actionable hint on stderr."""
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    importlib.reload(settings)
+    importlib.reload(reinvocation)
+
+    def fake_run_fails(args, env=None):
+        _ = args, env
+        return type("CompletedProcess", (), {"returncode": 1})()
+
+    with (
+        patch("bake.manage.find_python.find_python_path", return_value=Path("/venv/bin/python")),
+        patch("bake.manage.find_python._can_import", return_value=False),
+        patch("sys.executable", "/usr/bin/python3"),
+        patch("bake.cli.common.reinvocation.subprocess.run", fake_run_fails),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
+
+    assert exc_info.value.code == 1
+    err = strip_ansi(capsys.readouterr().err)
+    assert "/venv/bin/python" in err
+    assert "uv sync" in err
+
+
+def test_reinvoke_failed_child_with_healthy_env_no_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Child re-invoke fails but env is healthy -> no remediation hint, exit code preserved."""
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    importlib.reload(settings)
+    importlib.reload(reinvocation)
+
+    def fake_run_fails(args, env=None):
+        _ = args, env
+        return type("CompletedProcess", (), {"returncode": 1})()
+
+    with (
+        patch("bake.manage.find_python.find_python_path", return_value=Path("/venv/bin/python")),
+        patch("bake.manage.find_python._can_import", return_value=True),
+        patch("sys.executable", "/usr/bin/python3"),
+        patch("bake.cli.common.reinvocation.subprocess.run", fake_run_fails),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
+
+    assert exc_info.value.code == 1
+    err = strip_ansi(capsys.readouterr().err)
+    assert "broken" not in err
 
 
 def test_detect_target_python_switch_when_differs() -> None:

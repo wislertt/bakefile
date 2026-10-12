@@ -7,8 +7,10 @@ from bakelib.refreshable_cache.cache import (
     NullCache,
     RefreshableCache,
 )
+from bakelib.refreshable_cache.fnox import FnoxCache, FnoxFetchFn, run_fnox
 from bakelib.refreshable_cache.registry import (
     RefreshableCacheRegistry,
+    SecretUtilsFnoxCacheRegistry,
     SecretUtilsKeyringCacheRegistry,
 )
 from bakelib.refreshable_cache.utils import (
@@ -24,6 +26,8 @@ __all__ = [
     "ChainedCache",
     "ChainedCacheKwargs",
     "FetchFn",
+    "FnoxCache",
+    "FnoxFetchFn",
     "KeyringCache",
     "MemoryCache",
     "NullCache",
@@ -31,5 +35,7 @@ __all__ = [
     "RefreshNeededError",
     "RefreshableCache",
     "RefreshableCacheRegistry",
+    "SecretUtilsFnoxCacheRegistry",
     "SecretUtilsKeyringCacheRegistry",
+    "run_fnox",
 ]

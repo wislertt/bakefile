@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import pytest
@@ -43,3 +44,56 @@ def test_reinvocation_actually_switches_python(
     assert bakefile_path.exists()
     assert bakefile_path.is_file()
     assert uv_project_folder_with_deps.as_posix() in bakefile_path.as_posix()
+
+
+def test_reinvocation_self_heals_corrupted_script_env(
+    empty_project_folder: Path,
+    isolate_virtual_env: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A gutted script env (interpreter present, packages gone) must self-heal
+    instead of failing forever with ModuleNotFoundError."""
+    _ = isolate_virtual_env
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    uv_cache = tmp_path / "uv-cache"
+    monkeypatch.setenv("UV_CACHE_DIR", str(uv_cache))
+
+    # sys.executable is the repo venv Python; reinvoke must switch to the script env.
+    # (PATH `bake` may be a released install without the code under test.)
+    def run_bake():
+        return run(
+            [sys.executable, "-m", "bake.cli.bake", "-vvv", "--help"],
+            cwd=empty_project_folder,
+            capture_output=True,
+        )
+
+    # First run creates the script env and the frozen lock
+    result = run_bake()
+    assert result.returncode == 0
+    env_dirs = list((uv_cache / "environments-v2").glob("bakefile-*"))
+    assert env_dirs, "expected uv script env under isolated cache"
+    # POSIX: <env>/lib/python3.X/site-packages; Windows: <env>/Lib/site-packages
+    site_packages = next(
+        candidate
+        for pattern in ("lib/python*/site-packages", "Lib/site-packages")
+        for candidate in env_dirs[0].glob(pattern)
+    )
+    assert (empty_project_folder / "bakefile.py.lock").exists()
+
+    # Gut the env: keep the interpreter, drop every installed package
+    site_packages.rename(site_packages.with_name("site-packages.corrupt"))
+
+    # Second run must warn, re-sync (frozen lock), and succeed
+    result = run_bake()
+    assert result.returncode == 0
+    err = strip_ansi(result.stderr)
+    assert "is broken" in err
+    assert "Re-syncing" in err
+    logs = parse_pretty_log(result.stderr)
+    assert has_messages_in_logs(logs, ["Syncing bakefile with frozen lock"])
+
+    # Third run is steady state: healthy env, no warning
+    result = run_bake()
+    assert result.returncode == 0
+    assert "is broken" not in strip_ansi(result.stderr)

@@ -209,7 +209,7 @@ class TestEnvTypeValidation:
         ):
 
             class _BadEnvBakebook(EnvBakebook[GcpLandingZoneEnv]):
-                env: BaseEnv = BaseEnv("dev")
+                env: BaseEnv = BaseEnv("dev")  # ty: ignore[invalid-attribute-override]
 
     def test_valid_when_env_matches_generic_param(self):
         """Subclass with correct env type passes validation."""

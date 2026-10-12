@@ -23,7 +23,7 @@ from bake.utils.constants import DEFAULT_FILE_NAME
 class TestRichMarkupMode:
     def test_rich_markup_mode(self) -> None:
         """rich_markup_mode should be 'rich' or None based on env."""
-        # Value depends on env.should_use_colors(), just check it's a valid type
+        # Value depends on console.out.no_color (NO_COLOR gate), just check it's a valid type
         assert rich_markup_mode in ("rich", None)
 
 
