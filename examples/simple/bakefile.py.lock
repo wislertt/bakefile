@@ -92,6 +92,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "python-package", editable = "../python-package" },
     { name = "toml-sort", specifier = ">=0.24.3" },
+    { name = "tomli", specifier = ">=2.0.0" },
     { name = "tomlkit", specifier = ">=0.15.1" },
 ]
 
