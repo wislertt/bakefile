@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal, overload
 import typer
 from typing_extensions import Unpack
 
-from bake._typer_compat import TyperCommand
+from bake._typer_compat import ClickContext, TyperCommand
 from bake.ui.run import CmdType, StrOrNoneCompletedProcess, SubprocessEnv
 from bake.ui.run import run as _run
 from bake.ui.run.main import DecodeErrors, PopenKwargs, RunKwargs
@@ -116,7 +116,7 @@ class Context(typer.Context):
 
 
 class BakeCommand(TyperCommand):
-    context_class: type[Context] = Context
+    context_class: type[ClickContext] = Context
 
 
 def context(

@@ -375,6 +375,30 @@ class TestPipeResizeForwarding:
 
         assert count_file.read_text().strip() != "0"
 
+    def test_pipe_forwarder_tolerates_eperm_after_child_exit(self) -> None:
+        # macOS killpg can raise EPERM (not ESRCH) once the child pgrp is reaped
+        proc = subprocess.Popen(["true"])
+        proc.wait()
+        eperm = PermissionError(1, "Operation not permitted")
+        with (
+            mock.patch.object(os, "killpg", side_effect=eperm),
+            main._pipe_sigwinch_forwarder(proc),
+        ):
+            os.kill(os.getpid(), signal.SIGWINCH)
+            time.sleep(0.05)
+
+    def test_pty_forwarder_tolerates_eperm_after_child_exit(self) -> None:
+        proc = subprocess.Popen(["true"])
+        proc.wait()
+        eperm = PermissionError(1, "Operation not permitted")
+        with (
+            mock.patch.object(main, "_get_parent_terminal_size", return_value=None),
+            mock.patch.object(os, "killpg", side_effect=eperm),
+            main._sigwinch_forwarder((0,), proc),
+        ):
+            os.kill(os.getpid(), signal.SIGWINCH)
+            time.sleep(0.05)
+
     def test_forwarder_skipped_off_main_thread(self) -> None:
         done = threading.Event()
 

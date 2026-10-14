@@ -994,8 +994,9 @@ def _sigwinch_forwarder(master_fds: tuple[int, ...], proc: subprocess.Popen):
             for fd in master_fds:
                 _set_pty_winsize(fd, size)
         # pgid == proc.pid: the child leads its own group (start_new_session);
-        # killpg rejects non-positive pgids on Linux with EINVAL
-        with contextlib.suppress(ProcessLookupError):
+        # killpg rejects non-positive pgids on Linux with EINVAL; reaped pgrp
+        # can yield EPERM on macOS instead of ESRCH
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(proc.pid, signal.SIGWINCH)
 
     if (
@@ -1019,8 +1020,9 @@ def _pipe_sigwinch_forwarder(proc: subprocess.Popen):
     def _on_sigwinch(signum: int, frame: types.FrameType | None) -> None:
         _ = signum, frame
         # pgid == proc.pid: the child leads its own group (start_new_session);
-        # killpg rejects non-positive pgids on Linux with EINVAL
-        with contextlib.suppress(ProcessLookupError):
+        # killpg rejects non-positive pgids on Linux with EINVAL; reaped pgrp
+        # can yield EPERM on macOS instead of ESRCH
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(proc.pid, signal.SIGWINCH)
 
     if not hasattr(signal, "SIGWINCH") or threading.current_thread() is not threading.main_thread():

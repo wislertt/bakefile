@@ -71,7 +71,7 @@ class TestAssertDeployCommand:
 
 
 class TrackingServiceSpace(BaseServiceSpace):
-    service_name: str = "tracking-service"
+    service_name: str | None = "tracking-service"
     called: list[str]
 
     def build(self) -> None:
