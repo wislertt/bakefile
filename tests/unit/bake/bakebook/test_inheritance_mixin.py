@@ -117,7 +117,7 @@ class TestMixinBeforeSpaces:
             _knob = "mixin"
             _factory = "mix-factory"
             mode = "mixin-var"
-            model_config: ClassVar[dict[str, str]] = {"env_prefix": "mix_"}
+            model_config: ClassVar[dict[str, object]] = {"env_prefix": "mix_"}
 
             def mix_action(self) -> str:
                 return "mixin-action"
@@ -206,7 +206,7 @@ class TestMixinBeforeSpaces:
             replicas: ClassVar[list[str]] = ["web", "api"]
             _registry = "internal"
             platform = "linux/amd64"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".docker"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".docker"}
 
             def push(self) -> str:
                 return f"push {self._registry}/{self.image}"
@@ -305,7 +305,7 @@ class TestMixinAfterSpaces:
         # NativeBakebook models Bakebook's own env_file declaration: it
         # precedes a late mixin in the MRO, so it wins the key natively too.
         class NativeBakebook:
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".env"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".env"}
 
         class NativeBase(NativeBakebook):
             knob = "base"
@@ -332,7 +332,7 @@ class TestMixinAfterSpaces:
             _knob = "mixin"
             _factory = "mix-factory"
             mode = "mixin-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".myenv"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".myenv"}
 
             def mix_action(self) -> str:
                 return "mixin-action"
@@ -406,7 +406,7 @@ class TestMixinAfterSpaces:
         # models Bakebook's own env_file declaration: it precedes a late mixin
         # in the MRO, so it wins the key natively too.
         class NativeBakebook:
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".env"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".env"}
 
         class NativeBase(NativeBakebook):
             knob = "base"
@@ -425,7 +425,7 @@ class TestMixinAfterSpaces:
             _knob = "mixin"
             _factory = "mix-factory"
             mode = "mixin-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".myenv"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".myenv"}
 
             def mix_action(self) -> str:
                 return "mixin-action"
@@ -546,7 +546,7 @@ class TestMixinBetweenSpaces:
             _knob = "mixin"
             _factory = "mix-factory"
             mode = "mixin-var"
-            model_config: ClassVar[dict[str, str]] = {"env_prefix": "mix_"}
+            model_config: ClassVar[dict[str, object]] = {"env_prefix": "mix_"}
 
             def mix_action(self) -> str:
                 return "mixin-action"
@@ -684,7 +684,7 @@ class TestMultipleMixins:
             tags: ClassVar[list[str]] = ["first-tags"]
             _knob = "first"
             mode = "first-mode"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".first"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".first"}
 
             def mix_action(self) -> str:
                 return "first-action"
@@ -821,7 +821,7 @@ class TestMultipleMixins:
             tags: ClassVar[list[str]] = ["mixin-tags"]
             _knob = "mixin"
             mode = "mixin-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".mixin"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".mixin"}
 
             def mix_action(self) -> str:
                 return "mixin-action"
@@ -834,7 +834,7 @@ class TestMultipleMixins:
             tags: ClassVar[list[str]] = ["book-tags"]
             _knob = "book"
             mode = "book-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".book"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".book"}
 
             def book_action(self) -> str:
                 return "book-action"
@@ -930,7 +930,7 @@ class TestMultipleMixins:
         # models Bakebook's own env_file declaration: the trailing mixin sits
         # after it in the MRO natively too, so it loses the shared key.
         class NativeBakebook:
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".env"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".env"}
 
         class NativeBase(NativeBakebook):
             knob = "base"
@@ -946,7 +946,7 @@ class TestMultipleMixins:
             tags: ClassVar[list[str]] = ["first-tags"]
             _knob = "first"
             mode = "first-var"
-            model_config: ClassVar[dict[str, str]] = {"env_prefix": "first_"}
+            model_config: ClassVar[dict[str, object]] = {"env_prefix": "first_"}
 
             def mix_action(self) -> str:
                 return "first-action"
@@ -1094,7 +1094,7 @@ class TestMultipleMixins:
         # models Bakebook's own env_file declaration: both mixins trail it in
         # the MRO natively too, so the shared key stays Bakebook's.
         class NativeBakebook:
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".env"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".env"}
 
         class NativeBase(NativeBakebook):
             knob = "base"
@@ -1110,7 +1110,7 @@ class TestMultipleMixins:
             tags: ClassVar[list[str]] = ["first-tags"]
             _knob = "first"
             mode = "first-var"
-            model_config: ClassVar[dict[str, str]] = {"env_prefix": "first_"}
+            model_config: ClassVar[dict[str, object]] = {"env_prefix": "first_"}
 
             def mix_action(self) -> str:
                 return "first-action"
@@ -1248,7 +1248,7 @@ class TestMixinChains:
             tags: ClassVar[list[str]] = ["base-tags"]
             _shared = "base"
             mode = "base-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".base-mix"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".base-mix"}
 
             def mix_action(self) -> str:
                 return "base-action"
@@ -1369,7 +1369,7 @@ class TestMixinChains:
             tags: ClassVar[list[str]] = ["base-tags"]
             _knob = "base-default"
             mode = "base-var"
-            model_config: ClassVar[dict[str, str]] = {"env_prefix": "base_"}
+            model_config: ClassVar[dict[str, object]] = {"env_prefix": "base_"}
 
             def mix_action(self) -> str:
                 return "base-action"
@@ -1502,7 +1502,7 @@ class TestLayeredComposition:
         # shared mixin root: the diamond pins the late mixin between the
         # baked-in mixin and the book, ahead of Bakebook — natively too.
         class NativeBakebook:
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".env"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".env"}
 
         class NativeMixinBase:
             pass
@@ -1521,7 +1521,7 @@ class TestLayeredComposition:
             tags: ClassVar[list[str]] = ["knob-tags"]
             _knob = "knob-mix"
             mode = "knob-var"
-            model_config: ClassVar[dict[str, str]] = {"env_prefix": "knob_"}
+            model_config: ClassVar[dict[str, object]] = {"env_prefix": "knob_"}
 
             def mix_action(self) -> str:
                 return "knob-action"
@@ -1534,7 +1534,7 @@ class TestLayeredComposition:
             bonus = "bonus"
             _knob = "extra-mix"
             mode = "extra-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".extra"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".extra"}
 
             def mix_action(self) -> str:
                 return "extra-action"
@@ -1695,7 +1695,7 @@ class TestRedeclaration:
             tags: ClassVar[list[str]] = ["mixin-tags"]
             _knob = "mixin"
             mode = "mixin-var"
-            model_config: ClassVar[dict[str, str]] = {"env_file": ".myenv"}
+            model_config: ClassVar[dict[str, object]] = {"env_file": ".myenv"}
 
             def mix_action(self) -> str:
                 return "mixin-action"
@@ -1977,7 +1977,7 @@ class TestGenericMixin:
             _knob: str = "base-default"
 
         class GenericOverrideMixin(BaseMixin, Generic[E]):
-            knob: E
+            knob: E  # ty: ignore[invalid-attribute-override]
             _knob: str = "override"
 
         class PlainMixin(BaseMixin):

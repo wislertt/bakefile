@@ -12,6 +12,7 @@ from bakelib.environ import (
 )
 from bakelib.space import SubmodulesUtils
 from bakelib.space.base import BaseSpace
+from bakelib.space.fnox import FnoxSpace
 from bakelib.space.github import GitHubActionsTools
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
@@ -29,6 +30,7 @@ __all__ = [
     "DevEnvMixin",
     "EnvBakebook",
     "EnvBakebooks",
+    "FnoxSpace",
     "GcpLandingZoneEnv",
     "GitHubActionsTools",
     "ProdEnvMixin",

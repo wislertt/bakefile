@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from contextvars import ContextVar
 from datetime import tzinfo
@@ -42,6 +43,9 @@ class BakeSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         populate_by_name=True,
+        # Empty env vars count as unset (no-color.org: "NO_COLOR=" must not
+        # disable color; also avoids "" bool-parsing crashes).
+        env_ignore_empty=True,
     )
 
     ci: bool = False
@@ -51,8 +55,14 @@ class BakeSettings(BaseSettings):
     bake_reinvoked: bool = Field(default=False, alias=ENV__BAKE_REINVOKED)
     _bake_logging_setup: bool = PrivateAttr(default=False)
 
-    def should_use_colors(self) -> bool:
-        return self.no_color
+    def colors_enabled(self) -> bool:
+        # Permission gate for color output: False is absolute; True only
+        # permits (per-call knobs like console no_color= or run(color=False)
+        # can still opt out). The field is a sticky off-switch (env/.env at
+        # startup); the live env read keeps runtime changes working.
+        if self.no_color:
+            return False
+        return os.environ.get(ENV_NO_COLOR, "") == ""
 
     def setup_bake_logging(
         self,

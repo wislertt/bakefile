@@ -93,10 +93,11 @@ class TestBakefileObject:
             file_name=DEFAULT_FILE_NAME,
             bakebook_name=DEFAULT_BAKEBOOK_NAME,
         )
-        obj.warn_if_no_bakebook(color_echo=False)
+        obj.warn_if_no_bakebook()
 
         mock_warning.assert_called_once()
-        mock_info.assert_called_once()
+        assert mock_info.call_count == 2  # searched-in line + -vvv hint
+        assert "-vvv" in mock_info.call_args_list[1][0][0]
 
 
 class TestBakefileObjAppArgs:

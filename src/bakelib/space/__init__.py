@@ -1,4 +1,6 @@
 from .base import BaseSpace
+from .dvc import DvcSpace, MediaDvcSpace
+from .fnox import FnoxSpace
 from .github import GitHubActionsTools
 from .python import PythonSpace
 from .python_lib import PythonLibSpace
@@ -10,7 +12,10 @@ from .submodules import SubmodulesUtils
 __all__ = [
     "BaseServiceSpace",
     "BaseSpace",
+    "DvcSpace",
+    "FnoxSpace",
     "GitHubActionsTools",
+    "MediaDvcSpace",
     "PythonLibSpace",
     "PythonSpace",
     "RustLibSpace",

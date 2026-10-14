@@ -10,6 +10,7 @@ from bakelib.refreshable_cache.cache import (
     MemoryCache,
     RefreshableCache,
 )
+from bakelib.refreshable_cache.fnox import FnoxCache
 from bakelib.refreshable_cache.utils import FetchFn, NullFetchFn
 
 if TYPE_CHECKING:
@@ -156,8 +157,10 @@ class RefreshableCacheRegistry(Generic[T]):
             cache.refresh()
 
     def has_value(self, key: str) -> bool:
-        cache = self._caches.get(key)
-        return cache is not None and cache.has_value()
+        return self.get_cache(key).has_value()
+
+    def list_entries(self) -> list[tuple[str, bool]]:
+        return sorted((key, self.has_value(key)) for key in self._caches)
 
     # ── Internal ──
 
@@ -187,4 +190,9 @@ class RefreshableCacheRegistry(Generic[T]):
 
 class SecretUtilsKeyringCacheRegistry(RefreshableCacheRegistry[T]):
     _backends: ClassVar[list[type[RefreshableCache[Any]]]] = [MemoryCache, KeyringCache]
+    namespace: str = "bakebook"
+
+
+class SecretUtilsFnoxCacheRegistry(RefreshableCacheRegistry[T]):
+    _backends: ClassVar[list[type[RefreshableCache[Any]]]] = [MemoryCache, FnoxCache]
     namespace: str = "bakebook"

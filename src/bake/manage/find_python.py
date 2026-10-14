@@ -1,9 +1,10 @@
 import logging
 import re
+import subprocess
 from pathlib import Path
 
 from bake.manage.add_inline import read_inline
-from bake.ui import run_uv
+from bake.ui import console, run_uv
 from bake.utils import BakebookError
 from bake.utils.exceptions import PythonNotFoundError
 
@@ -66,32 +67,45 @@ def _find_project_lock(project_root: Path) -> Path | None:
     return None
 
 
-def _find_bakefile_python(bakefile_path: Path) -> Path | None:
-    # References:
-    #   https://github.com/astral-sh/uv/blob/543f1f3f5924d1d2734fd718381e6f0d0f6f70b5/crates/uv/src/commands/project/mod.rs#L843
+def _is_bakefile_script_env(python_path: Path, bakefile_name: str) -> bool:
+    """Check the candidate Python is the uv script env for this bakefile.
 
-    kind = "script"
-    found_bakefile_level_venv_message = (
-        f"The {kind} environment's Python version satisfies the request"
-    )
+    uv sets the venv `prompt` (PEP 405 pyvenv.cfg) to the script file name,
+    e.g. `prompt = bakefile.py`. This is a stable marker, unlike uv's debug
+    log prose which we must not parse.
+    """
+    pyvenv_cfg = python_path.parent.parent / "pyvenv.cfg"
+    if not pyvenv_cfg.exists():
+        return False
+
+    for line in pyvenv_cfg.read_text().splitlines():
+        key, _, value = line.partition("=")
+        if key.strip().lower() == "prompt":
+            return value.strip() == bakefile_name
+    return False
+
+
+def _find_bakefile_python(bakefile_path: Path) -> Path | None:
     result = run_uv(
-        ["python", "find", "--script", str(bakefile_path.name), "-v"],
+        ["python", "find", "--script", str(bakefile_path.name)],
         check=False,
         cwd=bakefile_path.parent,
         echo=False,
     )
 
-    is_bakefile_python_found = (
-        result.returncode == 0 and found_bakefile_level_venv_message in result.stderr.strip()
-    )
+    if result.returncode != 0:
+        logger.debug("No bakefile Python found")
+        return None
 
-    if is_bakefile_python_found:
-        python_path = Path(result.stdout.strip())
-        logger.debug(f"Found bakefile Python at {python_path.as_posix()}")
-        return python_path
+    python_path = Path(result.stdout.strip())
+    # uv exits 0 with a fallback (non-script) Python when the script env is
+    # missing, so the returned path alone proves nothing. pyvenv.cfg does.
+    if not _is_bakefile_script_env(python_path, bakefile_path.name):
+        logger.debug("No bakefile Python found")
+        return None
 
-    logger.debug("No bakefile Python found")
-    return None
+    logger.debug(f"Found bakefile Python at {python_path.as_posix()}")
+    return python_path
 
 
 def _find_project_python(project_root: Path) -> Path | None:
@@ -136,6 +150,16 @@ def _find_project_python(project_root: Path) -> Path | None:
 
     logger.debug(f"Found project Python at {python_path_from_stdout} (source: {source})")
     return python_path_from_stdout
+
+
+def _can_import(python_path: Path, module: str) -> bool:
+    """Check that the env behind python_path can actually import module."""
+    result = subprocess.run(
+        [str(python_path), "-I", "-c", f"import {module}"],
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def _create_bakefile_venv(bakefile_path: Path) -> Path | None:
@@ -187,47 +211,57 @@ def _create_project_venv(project_root: Path) -> Path | None:
     return _find_project_python(project_root)
 
 
-def find_python_path(bakefile_path: Path | None) -> Path:
+def _resolve_standalone_python(bakefile_path: Path, cli_module: str) -> Path | None:
+    # Step 1: Try to find existing bakefile-level Python, but only trust it if the
+    # CLI module is importable. `uv python find --script` validates the interpreter,
+    # not the installed packages, so a gutted env passes discovery.
+    python_path = _find_bakefile_python(bakefile_path)
+    if python_path and _can_import(python_path, cli_module):
+        return python_path
+
+    if python_path:
+        # console (not logger): heal must be visible at default verbosity 0
+        console.warning(
+            f"Script environment at {python_path} is broken "
+            f"(cannot import {cli_module}). Re-syncing."
+        )
+
+    # Step 2: Create bakefile-level venv
+    return _create_bakefile_venv(bakefile_path)
+
+
+def _resolve_project_python(bakefile_path: Path) -> Path | None:
+    # project_root = directory containing pyproject.toml
+    project_root = _find_project_root(bakefile_path)
+    if project_root is None:
+        raise PythonNotFoundError(
+            f"No pyproject.toml found in {bakefile_path.parent} or any parent directory. "
+            f"Create a pyproject.toml or run 'bakefile add-inline' for bakefile-level Python."
+        )
+
+    # Step 1: Try to find existing project-level Python
+    python_path = _find_project_python(project_root)
+    if python_path:
+        return python_path
+
+    # Step 2: Create project-level venv
+    return _create_project_venv(project_root)
+
+
+def find_python_path(bakefile_path: Path | None, *, cli_module: str = "bake.cli.bake") -> Path:
     if bakefile_path is None or not bakefile_path.exists():
         raise PythonNotFoundError(f"Bakefile not found at {bakefile_path}")
 
-    is_standalone = is_standalone_bakefile(bakefile_path)
-
-    if is_standalone:
+    if is_standalone_bakefile(bakefile_path):
         logger.debug("Bakefile has inline metadata -> bakefile-level Python")
-
-        # Step 1: Try to find existing bakefile-level Python
-        python_path = _find_bakefile_python(bakefile_path)
-        if python_path:
-            return python_path
-
-        # Step 2: Create bakefile-level venv
-        python_path = _create_bakefile_venv(bakefile_path)
-        if python_path:
-            return python_path
-
+        python_path = _resolve_standalone_python(bakefile_path, cli_module)
     else:
         logger.debug("No inline metadata -> project-level Python")
+        python_path = _resolve_project_python(bakefile_path)
 
-        # project_root = directory containing pyproject.toml
-        project_root = _find_project_root(bakefile_path)
-        if project_root is None:
-            raise PythonNotFoundError(
-                f"No pyproject.toml found in {bakefile_path.parent} or any parent directory. "
-                f"Create a pyproject.toml or run 'bakefile add-inline' for bakefile-level Python."
-            )
-
-        # Step 1: Try to find existing project-level Python
-        python_path = _find_project_python(project_root)
-        if python_path:
-            return python_path
-
-        # Step 2: Create project-level venv
-        python_path = _create_project_venv(project_root)
-        if python_path:
-            return python_path
-
-    raise PythonNotFoundError(
-        f"Could not find Python for {bakefile_path}. "
-        f"Run 'bakefile add-inline' to add PEP 723 metadata for bakefile-level Python."
-    )
+    if python_path is None:
+        raise PythonNotFoundError(
+            f"Could not find Python for {bakefile_path}. "
+            f"Run 'bakefile add-inline' to add PEP 723 metadata for bakefile-level Python."
+        )
+    return python_path

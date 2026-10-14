@@ -148,13 +148,19 @@ class OutputSplitter:
         flags = fcntl.fcntl(pty_fd, fcntl.F_GETFL)
         fcntl.fcntl(pty_fd, fcntl.F_SETFL, flags)
 
-        ready, _, _ = select.select([pty_fd], [], [], 0.1)
-        if ready:
-            with self._fd_lock(pty_fd):
+        # select inside the lock (same invariant as rescue_pending): with it
+        # held, a ready fd still has the selected chunk on read. Selecting
+        # outside let rescue_pending steal the chunk, and the blocking read
+        # then waited forever for EIO that needs the parent's slave fds
+        # released first (CI deadlock).
+        with self._fd_lock(pty_fd):
+            ready, _, _ = select.select([pty_fd], [], [], 0.1)
+            if ready:
                 try:
                     data = self._read_pty_eio_safe(pty_fd)
                 except BlockingIOError:
-                    # Another consumer drained the ready chunk first
+                    # unreachable while every consumer takes the lock;
+                    # guards a leaked O_NONBLOCK flag
                     return True
                 if data is None or not self._handle_data(data, target, output_list):
                     return False

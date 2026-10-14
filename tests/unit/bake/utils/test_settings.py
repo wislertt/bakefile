@@ -26,6 +26,28 @@ class TestSetupBakeLogging:
         assert "warning should appear" in captured.err
 
 
+class TestColorsEnabled:
+    def test_true_when_no_color_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        assert BakeSettings().colors_enabled() is True
+
+    @pytest.mark.parametrize("value", ["1", "0", "true", "false"])
+    def test_false_when_no_color_non_empty(
+        self, value: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("NO_COLOR", value)
+        assert BakeSettings().colors_enabled() is False
+
+    def test_empty_no_color_counts_as_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("NO_COLOR", "")
+        assert BakeSettings().colors_enabled() is True
+
+    def test_field_is_sticky_off_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        settings = BakeSettings(no_color=True)
+        assert settings.colors_enabled() is False
+
+
 class TestDetectPlatform:
     @pytest.mark.parametrize(
         "sys_platform,expected",

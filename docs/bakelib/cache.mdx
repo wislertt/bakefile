@@ -55,6 +55,7 @@ The cache then clears and `call_api` retries, re-fetching a fresh token via `cac
 
 - `MemoryCache` - default, ephemeral
 - `KeyringCache` - system keyring, persistent
+- `FnoxCache` - age-encrypted `fnox.local.toml` per project (gitignored), persistent
 - `ChainedCache` - several backends, read-first/write-all
 - `NullCache` - disabled
 

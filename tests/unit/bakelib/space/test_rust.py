@@ -8,7 +8,12 @@ import typer
 from bake import Context
 from bake.ui.logger import strip_ansi
 from bakelib.space.base import BaseSpace
-from bakelib.space.rust import RustSpace, _cleanup_rustup_temp, run_rustup_update
+from bakelib.space.rust import (
+    RustSpace,
+    _cleanup_rustup_temp,
+    _cleanup_rustup_temp_dirs,
+    run_rustup_update,
+)
 
 _CARGO_TOML_CONTENT = """\
 [package]
@@ -87,6 +92,23 @@ class TestRustSpace:
             space._setup_tools()
         captured = capsys.readouterr()
         assert "rustup update" in captured.err
+
+
+class TestCleanupRustupTempDirs:
+    def test_tolerates_dir_removed_by_parallel_worker(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # xdist workers race on the real ~/.rustup/tmp: another worker's
+        # rmtree deletes the dir between our exists() and rmtree (CI flake)
+        (tmp_path / ".rustup" / "tmp").mkdir(parents=True)
+        (tmp_path / ".rustup" / "downloads").mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.setattr(
+            "bakelib.space.rust.shutil.rmtree",
+            mock.MagicMock(side_effect=FileNotFoundError(2, "No such file or directory")),
+        )
+
+        _cleanup_rustup_temp_dirs()  # must not raise
 
 
 class TestRunRustupUpdate:

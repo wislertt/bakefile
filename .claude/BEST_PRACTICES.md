@@ -768,26 +768,21 @@ with console.block("Running tests"):
 
 ### Respect NO_COLOR Environment Variable
 
-The console module automatically handles NO_COLOR:
+Single gate: `bake_settings.colors_enabled()` in `bake/utils/settings.py`.
+False is absolute (no color anywhere); True only permits — per-call knobs
+(console `no_color=`, `run(color=False)`) can still opt out. Field
+`bake_settings.no_color` is a sticky off-switch (env/.env at startup);
+the live env read keeps runtime changes working.
+
+The console module applies the gate at console construction:
 
 - Colors enabled: Labels show as "SUCCESS", "WARNING", "ERROR"
-- NO_COLOR set: Labels show as "[SUCCESS]", "[WARNING]", "[ERROR]"
+- NO_COLOR set (non-empty, per no-color.org): Labels show as "[SUCCESS]", "[WARNING]", "[ERROR]"
+- Empty string counts as unset
 
-```python
-# env.py
-import os
-
-ENV_NO_COLOR = "NO_COLOR"
-
-
-def should_use_colors() -> bool:
-    value = os.environ.get(ENV_NO_COLOR)
-    return value == "" or value is None
-
-
-# Usage
-rich_markup_mode = "rich" if env.should_use_colors() else None
-```
+Child processes: `run()` forwards the decision via `FORCE_COLOR` /
+`CLICOLOR_FORCE` injection (or `NO_COLOR=1` with `color=False`). See
+`_apply_color_env` in `bake/ui/run/main.py`.
 
 ---
 

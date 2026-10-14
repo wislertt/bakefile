@@ -375,6 +375,30 @@ class TestPipeResizeForwarding:
 
         assert count_file.read_text().strip() != "0"
 
+    def test_pipe_forwarder_tolerates_eperm_after_child_exit(self) -> None:
+        # macOS killpg can raise EPERM (not ESRCH) once the child pgrp is reaped
+        proc = subprocess.Popen(["true"])
+        proc.wait()
+        eperm = PermissionError(1, "Operation not permitted")
+        with (
+            mock.patch.object(os, "killpg", side_effect=eperm),
+            main._pipe_sigwinch_forwarder(proc),
+        ):
+            os.kill(os.getpid(), signal.SIGWINCH)
+            time.sleep(0.05)
+
+    def test_pty_forwarder_tolerates_eperm_after_child_exit(self) -> None:
+        proc = subprocess.Popen(["true"])
+        proc.wait()
+        eperm = PermissionError(1, "Operation not permitted")
+        with (
+            mock.patch.object(main, "_get_parent_terminal_size", return_value=None),
+            mock.patch.object(os, "killpg", side_effect=eperm),
+            main._sigwinch_forwarder((0,), proc),
+        ):
+            os.kill(os.getpid(), signal.SIGWINCH)
+            time.sleep(0.05)
+
     def test_forwarder_skipped_off_main_thread(self) -> None:
         done = threading.Event()
 
@@ -1607,6 +1631,117 @@ class TestPrepareSubprocessEnv:
         assert "FORCE_COLOR" not in env
         assert "CLICOLOR_FORCE" not in env
 
+    def test_none_value_removes_var_even_against_setdefaults(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """None value = remove from merged env, winning over bake's setdefaults."""
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        monkeypatch.setenv("SOME_SECRET_VAR", "value")
+        env = _prepare_subprocess_env(
+            env={"FORCE_COLOR": None, "CLICOLOR_FORCE": None, "SOME_SECRET_VAR": None}
+        )
+
+        assert "FORCE_COLOR" not in env
+        assert "CLICOLOR_FORCE" not in env
+        assert "SOME_SECRET_VAR" not in env
+        assert "UV_NO_PROGRESS" in env  # unrelated setdefaults survive
+
+    def test_none_value_removes_inherited_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """None value removes a var that only exists in the inherited environment."""
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.setenv("ONLY_IN_PARENT", "leak-me-not")
+        env = _prepare_subprocess_env(env={"ONLY_IN_PARENT": None})
+
+        assert "ONLY_IN_PARENT" not in env
+
+    def test_str_value_still_overrides(self) -> None:
+        """Plain str values keep the existing override semantics."""
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        env = _prepare_subprocess_env(env={"MY_VAR": "v", "FORCE_COLOR": "0"})
+
+        assert env["MY_VAR"] == "v"
+        assert env["FORCE_COLOR"] == "0"
+
+
+class TestColorFalse:
+    """Tests for the color=False best-effort env handling."""
+
+    def test_removes_inherited_force_vars_and_sets_no_color(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # presence-based CLIs color on var presence, so inherited force vars
+        # must be *absent* (empty string would not be enough)
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        monkeypatch.setenv("CLICOLOR_FORCE", "")
+        monkeypatch.delenv("NO_COLOR", raising=False)
+
+        env = _prepare_subprocess_env(color=False)
+
+        assert "FORCE_COLOR" not in env
+        assert "CLICOLOR_FORCE" not in env
+        assert env["NO_COLOR"] == "1"
+
+    def test_default_color_forces_on(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.delenv("FORCE_COLOR", raising=False)
+        monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
+        monkeypatch.delenv("NO_COLOR", raising=False)
+
+        env = _prepare_subprocess_env()
+
+        assert env["FORCE_COLOR"] == "1"
+        assert env["CLICOLOR_FORCE"] == "1"
+
+    def test_default_color_skips_injection_when_caller_env_has_no_color(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        # clear ambient force vars too — the guard skips *injection*; inherited
+        # vars are the user's own choice and survive, so the test must start clean
+        monkeypatch.delenv("FORCE_COLOR", raising=False)
+        monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        env = _prepare_subprocess_env(env={"NO_COLOR": "1"})
+
+        assert "FORCE_COLOR" not in env
+        assert "CLICOLOR_FORCE" not in env
+
+    def test_color_false_respects_inherited_no_color(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.setenv("NO_COLOR", "1")
+        env = _prepare_subprocess_env(color=False)
+
+        assert env["NO_COLOR"] == "1"
+
+    def test_caller_env_overrides_color_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # escape hatch: explicit env values win over the color=False sugar
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        env = _prepare_subprocess_env(env={"FORCE_COLOR": "3"}, color=False)
+
+        assert env["FORCE_COLOR"] == "3"
+        assert env["NO_COLOR"] == "1"
+
+    def test_caller_none_removal_wins_over_color_false_no_color(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from bake.ui.run.main import _prepare_subprocess_env
+
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        env = _prepare_subprocess_env(env={"NO_COLOR": None}, color=False)
+
+        assert "NO_COLOR" not in env
+
 
 class TestEncodingParameter:
     """Tests for the _encoding parameter with stream=False."""
@@ -2205,3 +2340,94 @@ class TestKillProcessTree:
         ):
             main._kill_process_tree(mock_proc)
             mock_proc.kill.assert_called_once()
+
+
+class TestRedact:
+    """redact=True keeps secret argv/output out of DEBUG logs."""
+
+    SECRET = "SECRETVALUE-do-not-log-123"
+
+    def _logged(self, caplog: pytest.LogCaptureFixture) -> str:
+        # message text + all record extras (caplog.text misses extras)
+        return "\n".join(
+            [r.getMessage() for r in caplog.records]
+            + [str(v) for r in caplog.records for v in vars(r).values()]
+        )
+
+    def test_secrets_absent_from_debug_logs(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.DEBUG, logger="bake.ui.run.main"):
+            result = main.run(
+                ["echo", self.SECRET],
+                stream=False,
+                capture_output=True,
+                check=False,
+                echo=False,
+                redact=True,
+            )
+        assert result.stdout is not None and self.SECRET in result.stdout  # caller gets value
+        logged = self._logged(caplog)
+        assert self.SECRET not in logged
+        assert "<redacted>" in logged
+        # censor-all: not even the binary name survives (env-prefixed shell
+        # form `VAR=secret cmd` puts the secret in the first token)
+        assert "echo" not in logged
+
+    def test_failure_generic_error_without_output_dump(
+        self, caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture
+    ) -> None:
+        script = f'echo "{self.SECRET}"; exit 3'
+        with (
+            caplog.at_level(logging.DEBUG, logger="bake.ui.run.main"),
+            pytest.raises(typer.Exit),
+        ):
+            main.run(script, stream=False, capture_output=True, check=True, echo=False, redact=True)
+        captured = capsys.readouterr()
+        assert self.SECRET not in captured.out + captured.err
+        assert self.SECRET not in self._logged(caplog)
+
+    def test_without_redact_debug_logs_carry_full_detail(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.DEBUG, logger="bake.ui.run.main"):
+            main.run(
+                ["echo", self.SECRET],
+                stream=False,
+                capture_output=True,
+                check=False,
+                echo=False,
+            )
+        assert self.SECRET in self._logged(caplog)
+
+    def test_redact_with_explicit_echo_cmd_shows_it_verbatim(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # caller-provided echo_cmd wins as-is (they vouch it's secret-free);
+        # auto-masking is only the fallback when echo_cmd is None
+        with caplog.at_level(logging.DEBUG, logger="bake.ui.run.main"):
+            result = main.run(
+                ["echo", self.SECRET],
+                stream=False,
+                capture_output=True,
+                check=False,
+                echo=False,
+                redact=True,
+                echo_cmd="fnox get ***",
+            )
+        assert self.SECRET not in self._logged(caplog)
+        assert "fnox get ***" in self._logged(caplog)
+        assert "<redacted>" not in self._logged(caplog)
+        _ = result
+
+    def test_dry_run_debug_log_redacted_too(self, caplog: pytest.LogCaptureFixture) -> None:
+        # dry-run used to recompute the display from the raw argv, bypassing
+        # _redacted_cmd — the [dry-run] DEBUG line leaked the full command
+        with caplog.at_level(logging.DEBUG, logger="bake.ui.run.main"):
+            main.run(
+                ["echo", self.SECRET],
+                dry_run=True,
+                echo=False,
+                redact=True,
+            )
+        logged = self._logged(caplog)
+        assert self.SECRET not in logged
+        assert "<redacted>" in logged

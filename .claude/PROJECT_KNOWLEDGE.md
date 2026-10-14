@@ -234,7 +234,7 @@ src/
 │   └── utils/               # Package-level utilities
 │       ├── __init__.py
 │       ├── constants.py           # DEFAULT_FILE_NAME, DEFAULT_BAKEBOOK_NAME, GET_BAKEFILE_OBJECT
-│       ├── env.py                 # NO_COLOR support (should_use_colors)
+│       ├── settings.py            # BakeSettings: NO_COLOR gate (colors_enabled), CI/GHA flags
 │       └── exceptions.py          # BakebookError, BaseBakefileError
 └── bakelib/             # Optional extra library (install: `pip install "bakefile[lib]"`)
     ├── __init__.py
@@ -459,7 +459,7 @@ Usage:
 ```python
 bakefile_obj = get_bakefile_object()  # Parses CLI args
 bakefile_obj.get_bakebook()
-bakefile_obj.warn_if_no_bakebook(color_echo=env.should_use_colors())
+bakefile_obj.warn_if_no_bakebook()
 ```
 
 ### Dry Run Flag

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Literal, NamedTuple
 
+from bake.ui import console, style
 from bake.utils.settings import ENV__BAKE_REINVOKED, bake_settings
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
     try:
         from bake.manage.find_python import find_python_path
 
-        python_path = find_python_path(bakefile_path)
+        python_path = find_python_path(bakefile_path, cli_module=cli_module)
     except Exception:
         logger.debug("Failed to find Python for bakefile, continuing with current Python")
         return  # Continue with current Python
@@ -68,10 +69,23 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
             [str(target_python), "-m", cli_module, *sys.argv[1:]],
             env=env,
         )
-        raise SystemExit(result.returncode)
     except KeyboardInterrupt as e:
         # User pressed Ctrl+C - exit cleanly with standard SIGINT exit code (128 + 2)
         raise SystemExit(130) from e
+
+    if result.returncode != 0:
+        # Defense in depth for the race where the env is corrupted between the
+        # find_python_path probe and this exec: re-check and print a remediation hint.
+        from bake.manage.find_python import _can_import
+
+        if not _can_import(target_python, cli_module):
+            console.error(
+                f"Re-invoked CLI failed: the script environment at {target_python} is broken "
+                f"(cannot import {cli_module}).\n"
+                f"Run {style.code('uv sync --script bakefile.py')} or delete the environment "
+                f"directory and retry."
+            )
+    raise SystemExit(result.returncode)
 
 
 DetectStatus = Literal["no_bakefile", "no_project_python", "unified", "switch"]

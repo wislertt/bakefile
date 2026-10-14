@@ -37,7 +37,6 @@ from bake.utils.constants import (
     DEFAULT_FILE_NAME,
     DEFAULT_IS_CHAIN_COMMAND,
 )
-from bake.utils.settings import bake_settings
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +96,7 @@ def main():
         reinvoke_cli_module="bake.cli.bake",
     )
 
-    bakefile_obj.warn_if_no_bakebook(color_echo=bake_settings.should_use_colors())
+    bakefile_obj.warn_if_no_bakebook()
 
     bake_app = typer.Typer(
         help=f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it.",

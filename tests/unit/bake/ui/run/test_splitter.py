@@ -1,6 +1,7 @@
 import contextlib
 import errno
 import os
+import select
 import subprocess
 import sys
 import threading
@@ -563,3 +564,30 @@ def test_read_and_handle_returns_true_on_eagain(monkeypatch: pytest.MonkeyPatch)
     splitter = OutputSplitter(stream=False, capture=True)
 
     assert splitter._read_and_handle(1, Mock(), []) is True
+
+
+# os.openpty does not exist on Windows; the pty splitter path is POSIX-only
+@pytest.mark.skipif(sys.platform == "win32", reason="os.openpty is POSIX-only")
+def test_blocking_pty_read_selects_inside_fd_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """select outside the fd lock let rescue_pending steal the ready
+    chunk and the read then blocked forever (CI deadlock)."""
+    splitter_mod = import_module("bake.ui.run.splitter")
+    splitter = OutputSplitter(stream=False, capture=True)
+    master_fd, slave_fd = os.openpty()
+    try:
+        os.write(slave_fd, b"x")
+
+        lock_state_at_select = []
+        real_select = select.select
+
+        def spy_select(*args):
+            lock_state_at_select.append(splitter._fd_lock(master_fd).locked())
+            return real_select(*args)
+
+        monkeypatch.setattr(splitter_mod.select, "select", spy_select)
+        assert splitter._blocking_pty_read(master_fd, Mock(), []) is True
+
+        assert lock_state_at_select == [True]
+    finally:
+        os.close(master_fd)
+        os.close(slave_fd)

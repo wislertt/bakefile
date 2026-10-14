@@ -12,6 +12,7 @@ from bake.ui.run.main import (
     OutputSplitter,
     PopenKwargs,
     StrOrNoneCompletedProcess,
+    SubprocessEnv,
     run,
 )
 from bake.ui.run.script import run_script
@@ -27,6 +28,7 @@ __all__ = [
     "PopenKwargs",
     "SequentialCliTaskRunner",
     "StrOrNoneCompletedProcess",
+    "SubprocessEnv",
     "main",
     "run",
     "run_script",

@@ -1,12 +1,15 @@
 import logging
 import re
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from bake.manage.find_python import (
+    _can_import,
+    _find_bakefile_python,
     _find_project_python,
     _find_project_root,
     find_python_path,
@@ -17,6 +20,7 @@ from bake.ui.logger import (
     count_message_in_logs,
     has_messages_in_logs,
     setup_logging,
+    strip_ansi,
 )
 from bake.utils import BakebookError
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
@@ -353,6 +357,95 @@ def test_find_python_with_no_bakefile(
     assert str(bakefile_path) in error_message
 
 
+class TestFindBakefilePython:
+    """_find_bakefile_python identifies the script env via pyvenv.cfg prompt,
+    not uv's debug log prose."""
+
+    @staticmethod
+    def _make_venv(tmp_path: Path, prompt: str | None = "bakefile.py") -> Path:
+        env_bin = tmp_path / "env" / "bin"
+        env_bin.mkdir(parents=True)
+        if prompt is not None:
+            (tmp_path / "env" / "pyvenv.cfg").write_text(f"home = /x\nprompt = {prompt}\n")
+        python = env_bin / "python"
+        python.touch()
+        return python
+
+    @staticmethod
+    def _mock_uv_result(python_path: Path) -> MagicMock:
+        mock_result = MagicMock(spec=subprocess.CompletedProcess)
+        mock_result.returncode = 0
+        mock_result.stdout = f"{python_path}\n"
+        mock_result.stderr = ""
+        return mock_result
+
+    def test_returns_python_from_script_env(self, tmp_path: Path) -> None:
+        python_path = self._make_venv(tmp_path, prompt="bakefile.py")
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        with patch(
+            "bake.manage.find_python.run_uv", return_value=self._mock_uv_result(python_path)
+        ):
+            assert _find_bakefile_python(bakefile_path) == python_path
+
+    def test_returns_none_for_non_venv_python(self, tmp_path: Path) -> None:
+        python_path = tmp_path / "usr" / "bin" / "python3"
+        python_path.parent.mkdir(parents=True)
+        python_path.touch()
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        with patch(
+            "bake.manage.find_python.run_uv", return_value=self._mock_uv_result(python_path)
+        ):
+            assert _find_bakefile_python(bakefile_path) is None
+
+    def test_returns_none_for_venv_with_other_prompt(self, tmp_path: Path) -> None:
+        python_path = self._make_venv(tmp_path, prompt="some-project")
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        with patch(
+            "bake.manage.find_python.run_uv", return_value=self._mock_uv_result(python_path)
+        ):
+            assert _find_bakefile_python(bakefile_path) is None
+
+    def test_returns_none_for_venv_without_prompt_key(self, tmp_path: Path) -> None:
+        python_path = self._make_venv(tmp_path, prompt=None)
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        with patch(
+            "bake.manage.find_python.run_uv", return_value=self._mock_uv_result(python_path)
+        ):
+            assert _find_bakefile_python(bakefile_path) is None
+
+    def test_returns_none_when_pyvenv_cfg_exists_without_prompt_key(self, tmp_path: Path) -> None:
+        # unlike prompt=None above, pyvenv.cfg exists but carries no
+        # prompt line, so the scan runs to the end without a match
+        python_path = self._make_venv(tmp_path, prompt=None)
+        (python_path.parent.parent / "pyvenv.cfg").write_text("home = /x\n")
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+
+        with patch(
+            "bake.manage.find_python.run_uv", return_value=self._mock_uv_result(python_path)
+        ):
+            assert _find_bakefile_python(bakefile_path) is None
+
+    def test_returns_none_on_non_zero_returncode(self, tmp_path: Path) -> None:
+        bakefile_path = tmp_path / "bakefile.py"
+        bakefile_path.touch()
+        mock_result = MagicMock(spec=subprocess.CompletedProcess)
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_result.stderr = "error"
+
+        with patch("bake.manage.find_python.run_uv", return_value=mock_result):
+            assert _find_bakefile_python(bakefile_path) is None
+
+
 class TestFindProjectPythonEdgeCases:
     """Tests for _find_project_python edge cases."""
 
@@ -599,6 +692,56 @@ def test_find_python_standalone_in_project_subfolder(
     # Assert =================
     # Bakefile-level Python lives in uv cache, not in project .venv
     assert assert_bakefile_level_python_exe(python_path)
+
+
+class TestCanImport:
+    def test_returns_true_when_module_importable(self) -> None:
+        assert _can_import(Path(sys.executable), "bake") is True
+
+    def test_returns_false_when_module_missing(self) -> None:
+        assert _can_import(Path(sys.executable), "bake_module_that_does_not_exist") is False
+
+
+class TestFindPythonPathStandaloneEnvValidation:
+    def test_returns_found_python_when_probe_passes(self, empty_project_folder: Path) -> None:
+        """Healthy script env: probe passes, no re-sync."""
+        found = Path("/found/env/bin/python")
+        bakefile_path = empty_project_folder / DEFAULT_FILE_NAME
+
+        with (
+            patch("bake.manage.find_python._find_bakefile_python", return_value=found),
+            patch("bake.manage.find_python._can_import", return_value=True) as probe,
+            patch("bake.manage.find_python._create_bakefile_venv") as create,
+        ):
+            result = find_python_path(bakefile_path)
+
+        assert result == found
+        probe.assert_called_once_with(found, "bake.cli.bake")
+        create.assert_not_called()
+
+    def test_resyncs_when_found_python_cannot_import(
+        self, empty_project_folder: Path, capfd: pytest.CaptureFixture[str]
+    ) -> None:
+        """Broken script env (probe fails): falls through to re-sync with visible warning."""
+        found = Path("/broken/env/bin/python")
+        created = Path("/fresh/env/bin/python")
+        bakefile_path = empty_project_folder / DEFAULT_FILE_NAME
+
+        with (
+            patch("bake.manage.find_python._find_bakefile_python", return_value=found),
+            patch("bake.manage.find_python._can_import", return_value=False),
+            patch("bake.manage.find_python._create_bakefile_venv", return_value=created) as create,
+        ):
+            result = find_python_path(bakefile_path)
+
+        assert result == created
+        create.assert_called_once_with(bakefile_path)
+        err = strip_ansi(capfd.readouterr().err)
+        # str(Path(...)): output renders via Path str(), separator differs on Windows
+        assert (
+            f"Script environment at {Path('/broken/env/bin/python')} is broken "
+            "(cannot import bake.cli.bake). Re-syncing." in err
+        )
 
 
 def test_find_python_project_venv_creation_fails(

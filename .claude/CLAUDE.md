@@ -72,6 +72,28 @@ uv run pytest tests/unit/bakelib/ -v
 - **Run targeted tests only**: Specific test files or individual tests related to your changes
 - **Full test suite is for verification**: Only run before committing or when verifying larger changes
 
+**Real dev-ex testing via a scratch bakebook (`bakebook2` pattern):**
+
+Unit tests mock commands; real UX needs a real `bake` run. Add a temporary
+second bakebook instance at the bottom of `bakefile.py` combining the Space
+under test with a subclass exposing its private steps:
+
+```python
+# TEMP: try <Space> for real (remove after evaluation)
+class Trybook(SomeSpace[str | None]):
+    @command(name="foo-setup", help="Run only the foo part of setup-dev")
+    def foo_setup(self) -> None:
+        self._ensure_foo()
+
+
+bakebook2 = Trybook()
+```
+
+Then run for real: `bake -b bakebook2 fnox-setup` (or any command on
+`bakebook2`, e.g. `bake -b bakebook2 setup-dev -ff`). Subclass may add
+narrow wrapper commands around private methods so the test skips unrelated
+setup steps. Mark the block TEMP and remove after evaluation.
+
 ## Pydantic Patterns
 
 Always use the `Annotated` pattern for Pydantic `Field()` configuration:

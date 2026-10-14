@@ -1,7 +1,8 @@
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from textwrap import dedent
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 import typer
 import zerv
@@ -15,7 +16,7 @@ from bake import (
     console,
     spawn_env,
 )
-from bakelib import GitHubActionsTools, PythonLibSpace, params
+from bakelib import FnoxSpace, GitHubActionsTools, PythonLibSpace, params
 from scripts.locked_pins import (
     PYPROJECT_PATH,
     UV_LOCK_PATH,
@@ -29,10 +30,15 @@ from scripts.locked_pins import (
 logger = logging.getLogger(__name__)
 
 
-class MyBakebook(GitHubActionsTools, PythonLibSpace):
+class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
     bake_log: str = DEFAULT_BAKE_LOG
     bake_log_verbosity: params.BakeLogVerbosityField = 3
     bake_log_pretty: bool = DEFAULT_BAKE_LOG_PRETTY
+
+    #: Chicken-and-egg credentials for fnox's own providers (see FnoxSpace).
+    fnox_bootstrap_secrets: ClassVar[Mapping[str, str]] = {
+        "FNOX_BWS_ACCESS_TOKEN": "Bitwarden access token",
+    }
 
     def test(self, durations: params.DurationsOption = None) -> None:
         self._test(tests_paths="tests/unit/", parallel=True, durations=durations)

@@ -66,25 +66,37 @@ def retry_load_module_with_uv_sync(
 
     sync_args = ["--frozen"]
 
-    if is_standalone_bakefile(target_dir_path):
-        # Standalone bakefile: use --script flag
-        run_uv_sync(
-            bakefile_path=target_dir_path,
-            cmd=sync_args,
-            dry_run=dry_run,
+    try:
+        if is_standalone_bakefile(target_dir_path):
+            # Standalone bakefile: use --script flag
+            run_uv_sync(
+                bakefile_path=target_dir_path,
+                cmd=sync_args,
+                dry_run=dry_run,
+            )
+        else:
+            # Project-level: use uv sync directly
+            sync_args.extend(["--all-groups", "--all-extras"])
+            run_uv(
+                ("sync", *sync_args),
+                cwd=parent_dir,
+                capture_output=True,
+                stream=True,
+                check=True,
+                echo=True,
+                dry_run=dry_run,
+            )
+    except Exception as sync_error:
+        # Without this, the failure (typer.Exit from check=True) escapes from
+        # inside the caller's `except ImportError` handler as a raw traceback.
+        # `from None` keeps console output one clean line; details go to DEBUG.
+        logger.debug("uv sync failed during bakebook load", exc_info=sync_error)
+        error_message = (
+            f"Failed to import bakefile: {error}.\n"
+            f"Auto 'uv sync' failed. Install the missing dependency "
+            f"in your project environment, then retry. (run `bake -vvv <command>` for details)"
         )
-    else:
-        # Project-level: use uv sync directly
-        sync_args.extend(["--all-groups", "--all-extras"])
-        run_uv(
-            ("sync", *sync_args),
-            cwd=parent_dir,
-            capture_output=True,
-            stream=True,
-            check=True,
-            echo=True,
-            dry_run=dry_run,
-        )
+        raise BakebookError(error_message) from None
 
     try:
         loader.exec_module(module)

@@ -53,7 +53,7 @@ from .reinvocation import CliModule, _reinvoke_with_detected_python
 if TYPE_CHECKING:
     from bake.bakebook.bakebook import Bakebook
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -114,10 +114,20 @@ class BakefileObject:
             raise SystemExit(1) from e
         except BakebookError as e:
             if allow_missing:
+                # e.g. `bake --help` with a broken bakefile: stay quiet on
+                # console (help must work), keep the cause for -vvv
+                logger.debug("Bakebook load failed", exc_info=e)
                 return
             exc_to_show = e.__cause__ if e.__cause__ else e
 
-            if exc_to_show.__class__ in {ValidationError, BakebookError}:
+            # ImportError/ModuleNotFoundError: common, self-explanatory
+            # (missing dependency even after sync) — one line beats a traceback
+            if exc_to_show.__class__ in {
+                ValidationError,
+                BakebookError,
+                ImportError,
+                ModuleNotFoundError,
+            }:
                 console.err.print(
                     f"[bold red]{exc_to_show.__class__.__name__}:[/bold red]", end=" "
                 )
@@ -131,11 +141,11 @@ class BakefileObject:
                 )
             raise SystemExit(1) from e
 
-    def warn_if_no_bakebook(self, color_echo: bool):
+    def warn_if_no_bakebook(self):
         if self.bakebook is None:
-            _ = color_echo  # Color handled by console module
             console.warning(f"Bakebook `{self.bakebook_name}` not found in `{self.file_name}`")
-            console.echo(f"Searched in: {self.chdir.resolve()}\n")
+            console.echo(f"Searched in: {self.chdir.resolve()}")
+            console.echo("Run `bake -vvv <command>` for details if the bakefile failed to load.\n")
 
     def setup_logging(self):
         bake_settings._bake_logging_setup = False

@@ -50,16 +50,16 @@ locked = [
   "loguru==0.7.3",
   "orjson==3.13.0",
   "pydantic-settings==2.15.0",
-  "pydantic==2.14.0",
+  "pydantic==2.14.1",
   "python-dotenv==1.2.4",
   "pyyaml==6.0.3",
   "rich==15.0.0",
-  "ruff==0.16.10",
+  "ruff==0.17.0",
   "tomli==2.5.0; python_version < '3.11'",
-  "ty==0.0.85",
+  "ty==0.0.87",
   "typer==0.27.3",
   "typing-extensions==4.16.0",
-  "uv==0.12.24"
+  "uv==0.13.0"
 ]
 lib = [
   "keyring>=25.7.0",
@@ -96,7 +96,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.12.0,<0.13.0"]
+requires = ["uv_build>=0.13.0,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.deptry]
@@ -109,6 +109,7 @@ pydantic = ["pydantic", "pydantic_core"]
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 pythonpath = ["."]
+faulthandler_timeout = 120
 
 [tool.ruff]
 line-length = 100

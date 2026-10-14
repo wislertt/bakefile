@@ -34,7 +34,13 @@ class SecretUtils(Bakebook, Generic[T]):
             self._vault = self._cache_registry_cls(namespace=self.get_secret_namespace())
             for fetch_fn in self.get_secret_fetch_fns():
                 self._vault.insert_cache(fetch_fn.key, fetch_fn=fetch_fn)
+            self._setup_vault(self._vault)
         return self._vault
+
+    def _setup_vault(self, vault: RefreshableCacheRegistry[T]) -> None:
+        # intentionally empty: the default vault is fully wired by the
+        # registry above; subclasses override this to insert extra caches
+        pass
 
     def get_group_kwargs(self) -> dict[str, GroupKwargs]:
         group_kwargs = super().get_group_kwargs()
@@ -47,15 +53,14 @@ class SecretUtils(Bakebook, Generic[T]):
         help="List all tracked secret keys with cache status",
     )
     def secret_list(self) -> None:
-        if not self.vault().list_cache_keys():
+        entries = self.vault().list_entries()
+        if not entries:
             console.echo("No tracked secrets.")
             return
 
         console.echo(f"Tracked secrets (namespace: {self.vault().namespace}):")
-        for key in sorted(self.vault().list_cache_keys()):
-            status = (
-                "[green]cached[/green]" if self.vault().has_value(key) else "[dim]not cached[/dim]"
-            )
+        for key, cached in entries:
+            status = "[green]cached[/green]" if cached else "[dim]not cached[/dim]"
             console.echo(f"  {key}: {status}")
 
     def get_secret(self, key: str) -> T:
