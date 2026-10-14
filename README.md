@@ -10,7 +10,7 @@
 [![status](https://img.shields.io/pypi/status/bakefile)](https://pypi.python.org/pypi/bakefile)
 [![license](https://img.shields.io/pypi/l/bakefile)](https://pypi.python.org/pypi/bakefile)
 [![downloads](https://static.pepy.tech/personalized-badge/bakefile?period=total&units=international_system&left_color=grey&right_color=blue&left_text=pypi%20downloads)](https://pepy.tech/projects/bakefile)
-[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue?logo=python)](https://github.com/wislertt/bakefile/)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue?logo=python)](https://github.com/wislertt/bakefile/)
 
 <p align="center">
   <picture>
