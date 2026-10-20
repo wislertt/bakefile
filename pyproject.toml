@@ -50,7 +50,7 @@ locked = [
   "beautysh==6.4.3",
   "loguru==0.7.3",
   "orjson==3.13.0",
-  "pydantic-settings==2.15.0",
+  "pydantic-settings==2.16.1",
   "pydantic==2.14.1",
   "python-dotenv==1.2.4",
   "pyyaml==6.0.3",
