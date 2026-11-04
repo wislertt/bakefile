@@ -489,11 +489,11 @@ class TestFormatShellValueUnit:
             ),
             # datetime - becomes ISO datetime string (Z for UTC)
             (
-                datetime.datetime(2024, 1, 15, 10, 30, 45, tzinfo=datetime.timezone.utc),
+                datetime.datetime(2024, 1, 15, 10, 30, 45, tzinfo=datetime.UTC),
                 datetime.datetime,
                 "2024-01-15T10:30:45Z",
                 lambda x: datetime.datetime.strptime(x, "%Y-%m-%dT%H:%M:%SZ").replace(
-                    tzinfo=datetime.timezone.utc
+                    tzinfo=datetime.UTC
                 ),
             ),
             # date - becomes ISO date string
@@ -692,11 +692,11 @@ class TestFormatDotEnvValueUnit:
             ),
             # datetime - becomes ISO datetime string (Z for UTC, quoted in dotenv)
             (
-                datetime.datetime(2024, 1, 15, 10, 30, 45, tzinfo=datetime.timezone.utc),
+                datetime.datetime(2024, 1, 15, 10, 30, 45, tzinfo=datetime.UTC),
                 datetime.datetime,
                 '"2024-01-15T10:30:45Z"',
                 lambda x: datetime.datetime.strptime(x, "%Y-%m-%dT%H:%M:%SZ").replace(
-                    tzinfo=datetime.timezone.utc
+                    tzinfo=datetime.UTC
                 ),
             ),
             # date - becomes ISO date string (quoted in dotenv)

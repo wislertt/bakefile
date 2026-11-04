@@ -3,7 +3,7 @@ import logging
 import sys
 from contextvars import ContextVar
 from datetime import tzinfo
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, TextIO, cast
 
 import orjson
@@ -42,7 +42,7 @@ UNPARSABLE_LINE = "unparsable_line"
 LogType = dict[str, Any]
 
 
-class LogKey(LogKeyMixin, str, Enum):
+class LogKey(LogKeyMixin, StrEnum):
     TIMESTAMP = "timestamp"
     LEVEL = "level"
     MESSAGE = "message"

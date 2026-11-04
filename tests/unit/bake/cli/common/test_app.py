@@ -1,14 +1,11 @@
-import sys
-from importlib import reload
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import typer
 
 from bake import Context
 from bake._typer_compat import BadParameter
-from bake.cli.common import app as app_module
 from bake.cli.common.app import (
     BakefileApp,
     call_app_with_chdir,
@@ -106,22 +103,6 @@ class TestChdir:
             assert Path.cwd() == tmp_path
             raise ValueError("test error")
         assert Path.cwd() == original
-
-    def test_custom_chdir_fallback_on_python_310(self, tmp_path: Path) -> None:
-        """Custom chdir fallback should work on Python < 3.11."""
-        # Mock sys.version_info to simulate Python 3.10
-        with patch.object(sys, "version_info", (3, 10, 0)):
-            # Reload the module to trigger the conditional import
-            reload(app_module)
-            from bake.cli.common.app import chdir as custom_chdir
-
-            original = Path.cwd()
-            with custom_chdir(tmp_path):
-                assert Path.cwd() == tmp_path
-            assert Path.cwd() == original
-
-        # Reload again to restore normal behavior
-        reload(app_module)
 
 
 class TestCallAppWithChdir:

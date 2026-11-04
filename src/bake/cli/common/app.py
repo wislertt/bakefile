@@ -1,7 +1,4 @@
-import os
-import sys
-from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import chdir
 from pathlib import Path
 from typing import Any
 
@@ -28,21 +25,6 @@ Docs search via MCP: {DOCS_URL}/mcp"""
 
 class BakefileApp(typer.Typer):
     bakefile_object: BakefileObject
-
-
-if sys.version_info >= (3, 11):
-    from contextlib import chdir
-else:
-
-    @contextmanager
-    def chdir(path: Path) -> Generator[None, None, None]:
-        """Change directory context manager for Python < 3.11 compatibility."""
-        original = Path.cwd()
-        try:
-            os.chdir(path)
-            yield
-        finally:
-            os.chdir(original)
 
 
 def call_app_with_chdir(

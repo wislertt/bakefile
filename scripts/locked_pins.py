@@ -1,14 +1,9 @@
 import re
-import sys
+import tomllib
 from pathlib import Path
 
 import tomlkit
 from packaging.version import Version
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 PYPROJECT_PATH = Path("pyproject.toml")
 UV_LOCK_PATH = Path("uv.lock")

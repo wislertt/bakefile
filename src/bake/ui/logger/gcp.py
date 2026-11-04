@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from .utils import JsonSink, LogKey, LogKeyMixin, LogType
@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from loguru import Record
 
 
-class GCPLogKey(LogKeyMixin, str, Enum):
+class GCPLogKey(LogKeyMixin, StrEnum):
     TIME = "time"
     SEVERITY = "severity"
 

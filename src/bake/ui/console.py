@@ -1,7 +1,7 @@
 import sys
 import textwrap
 from contextlib import contextmanager
-from typing import Any, Literal
+from typing import Any, Literal, NotRequired
 
 import rich
 import rich.style
@@ -10,7 +10,7 @@ from rich.console import JustifyMethod, OverflowMethod
 from rich.emoji import Emoji
 from rich.rule import Rule
 from rich.text import Text
-from typing_extensions import NotRequired, TypedDict, Unpack
+from typing_extensions import TypedDict, Unpack
 
 from bake.ui.style import BLUE, BOLD_BLUE, BOLD_GREEN
 from bake.utils.settings import bake_settings

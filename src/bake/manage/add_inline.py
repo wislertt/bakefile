@@ -1,6 +1,6 @@
 import logging
 import re
-import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -8,11 +8,6 @@ from bake.ui import console, run_uv
 from bake.utils.exceptions import BakebookError
 
 logger = logging.getLogger(__name__)
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 
 def add_inline_metadata(bakefile_path: Path) -> None:

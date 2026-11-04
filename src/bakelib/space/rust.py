@@ -1,7 +1,7 @@
 import re
 import shutil
 import subprocess
-import sys
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -14,11 +14,6 @@ from bake import StrOrNoneCompletedProcess, console, style
 
 from .base import BaseSpace
 from .utils import check_rust_version_matches_stable
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 _RUSTUP_ERROR_66 = "os error 66"
 
