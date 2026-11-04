@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from contextvars import ContextVar
-from datetime import timezone
+from datetime import UTC
 from itertools import product
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -391,9 +391,7 @@ class TestSetupLoggingTimezone:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Test that setup_logging converts timestamps to UTC with pretty log."""
-        setup_logging(
-            level_per_module={"": logging.INFO}, timezone=timezone.utc, is_pretty_log=True
-        )
+        setup_logging(level_per_module={"": logging.INFO}, timezone=UTC, is_pretty_log=True)
 
         logging.getLogger("test").info("test message")
 

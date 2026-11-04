@@ -12,11 +12,11 @@ import types
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Any, Literal, overload
+from typing import IO, Any, Literal, NotRequired, overload
 
 import typer
 from rich.text import Text
-from typing_extensions import NotRequired, TypedDict, Unpack
+from typing_extensions import TypedDict, Unpack
 
 from bake.ui import console, style
 from bake.ui.logger.capsys import strip_ansi

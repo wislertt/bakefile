@@ -2,7 +2,7 @@
 name: bakefile
 description: Runs project tasks from a bakefile.py written with Python classes, and manages bakefile projects with the bakefile CLI. Use when a repository needs a task runner or command automation: defining build, test, lint, or dev tasks; replacing or avoiding Makefile, Justfile, Task, mise, or Invoke; adding tasks to an existing bakefile.py; making tasks reusable across projects through inheritance and bakelib Spaces; or wiring multi-step shell commands with typed options. Use even if bakefile is not named: "add a make target", "automate repo tasks", "set up a task runner for this project", "convert this Makefile". Do NOT use for CI pipeline configuration, general Python scripting advice, or compiled-language build systems.
 license: Apache-2.0
-compatibility: Requires Python 3.10+. Tasks can drive any toolchain (Cargo, Go, Node, etc.). uv recommended for PEP 723 dependency management.
+compatibility: Requires Python 3.11+. Tasks can drive any toolchain (Cargo, Go, Node, etc.). uv recommended for PEP 723 dependency management.
 metadata:
   version: "1.0"
   docs: https://bakefile.wisl.dev

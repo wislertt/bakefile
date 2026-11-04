@@ -17,7 +17,7 @@ never a deletion signal.
 import configparser
 import json
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, ClassVar
 
@@ -489,7 +489,7 @@ class DvcSpace(SecretUtils[str | None], BaseSpace):
             self._fetch(cloud)
             if cloud:
                 self._mirror_origin_branches()
-            args = _gc_args(days, depth, datetime.now(tz=timezone.utc).date(), cloud=cloud, dry=dry)
+            args = _gc_args(days, depth, datetime.now(tz=UTC).date(), cloud=cloud, dry=dry)
             env = self._dvc_env() if cloud else None
             scope = "remote" if cloud else "local cache"
             console.start(

@@ -1,6 +1,6 @@
 import logging
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -222,7 +222,7 @@ class TestJsonSink:
         import pathlib
         import threading
 
-        sink = JsonSink(timezone=timezone.utc)
+        sink = JsonSink(timezone=UTC)
 
         record = {
             "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
@@ -243,7 +243,7 @@ class TestJsonSink:
 
         # Bangkok is UTC+7, so 17:00 becomes 10:00 UTC
         assert result["timestamp"].hour == 10
-        assert result["timestamp"].tzinfo == timezone.utc
+        assert result["timestamp"].tzinfo == UTC
 
     def test_json_sink_json_formatter_no_timezone_conversion_when_none(self) -> None:
         """Test that JsonSink.json_formatter does not convert timezone when None."""
@@ -389,7 +389,7 @@ class TestPrettyLogFormatter:
         import pathlib
         import threading
 
-        formatter = PrettyLogFormatter(thread_local_context={}, timezone=timezone.utc)
+        formatter = PrettyLogFormatter(thread_local_context={}, timezone=UTC)
 
         record = {
             "time": datetime(2026, 4, 12, 17, 0, 0, tzinfo=ZoneInfo("Asia/Bangkok")),
@@ -409,7 +409,7 @@ class TestPrettyLogFormatter:
 
         # Bangkok is UTC+7, so 17:00 becomes 10:00 UTC
         assert record["time"].hour == 10
-        assert record["time"].tzinfo == timezone.utc
+        assert record["time"].tzinfo == UTC
 
     def test_pretty_log_formatter_no_timezone_conversion_when_none(self) -> None:
         """Test that PrettyLogFormatter does not convert timezone when None."""

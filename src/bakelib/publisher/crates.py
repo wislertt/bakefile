@@ -34,8 +34,10 @@ class CratesPublisher(Publisher):
         return ctx.run(command, stream=True, env=env, check=False, capture_output=True)
 
     def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+        # Whitespace-collapsed stderr keeps the match stable against line wrapping
+        stderr = " ".join(result.stderr.split())
         already_exists_msg = "already exists on crates.io"
-        return result.returncode != 0 and already_exists_msg in result.stderr
+        return result.returncode != 0 and already_exists_msg in stderr
 
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_messages = ["status 403 Forbidden", "status 401 Unauthorized"]

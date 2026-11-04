@@ -1,10 +1,9 @@
 import functools
 import sys
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Self
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
-from typing_extensions import Self
 
 EnvPriorityOrderType = tuple[str | frozenset[str], ...]
 
