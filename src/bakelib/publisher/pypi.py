@@ -34,8 +34,13 @@ class PyPIPublisher(Publisher):
         return ctx.run(command, stream=True, env=env, check=False, capture_output=True)
 
     def _is_already_exists_error(self, result: subprocess.CompletedProcess[str]) -> bool:
+        # Collapse whitespace before matching: uv wraps its error output at
+        # terminal width, which can split a message across lines
+        # (live: "400 File\n       already exists (...)").
+        stderr = " ".join(result.stderr.split())
+
         # Success case (returncode == 0)
-        if result.returncode == 0 and "already exists, skipping" in result.stderr:
+        if result.returncode == 0 and "already exists, skipping" in stderr:
             return True
 
         # Error cases (returncode != 0)
@@ -43,7 +48,7 @@ class PyPIPublisher(Publisher):
             "Local file and index file do not match",
             "File already exists",
         ]
-        return result.returncode != 0 and any(msg in result.stderr for msg in error_messages)
+        return result.returncode != 0 and any(msg in stderr for msg in error_messages)
 
     def _is_auth_failure(self, result: subprocess.CompletedProcess[str]) -> bool:
         auth_error_message = "403 Invalid or non-existent authentication information"
