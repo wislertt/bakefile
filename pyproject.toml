@@ -49,7 +49,7 @@ locked = [
   "loguru==0.7.3",
   "orjson==3.13.0",
   "pydantic-settings==2.16.2",
-  "pydantic==2.14.2",
+  "pydantic==2.14.3",
   "python-dotenv==1.2.4",
   "pyyaml==6.0.3",
   "rich==15.0.0",
