@@ -54,7 +54,7 @@ locked = [
   "pyyaml==6.0.3",
   "rich==15.0.0",
   "ruff==0.17.3",
-  "ty==0.0.96",
+  "ty==0.0.99",
   "typer==0.27.3",
   "typing-extensions==4.16.0",
   "uv==0.13.7"
