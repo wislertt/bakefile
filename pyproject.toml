@@ -46,7 +46,7 @@ dependencies = [
 # a pin, add a trailing `# hold` comment to its line; `bake update` skips it.
 locked = [
   "beautysh==6.4.3",
-  "loguru==0.7.3",
+  "loguru==0.8.0",
   "orjson==3.13.0",
   "pydantic-settings==2.16.2",
   "pydantic==2.14.2",
