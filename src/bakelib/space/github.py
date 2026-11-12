@@ -20,7 +20,7 @@ class GitHubActionsTools(GitHubActionsEnvVars, BaseSpace):
 
     def _actions_up(self):
         # Separate method for overriding - subclasses can customize the command
-        self.ctx.run("actions-up --yes --min-age 7")
+        self.ctx.run("actions-up --yes --min-age 3")
 
     def _update_project(self) -> None:
         super()._update_project()

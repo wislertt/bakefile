@@ -29,14 +29,14 @@ class CountedFetch(FetchFn[int]):
 class TestFetchFnAbstract:
     def test_base_cannot_be_instantiated(self):
         with pytest.raises(TypeError):
-            FetchFn(key="k")  # ty: ignore[call-non-callable]
+            FetchFn(key="k")  # ty: ignore[abstract-class-instantiation]
 
     def test_subclass_without_call_cannot_be_instantiated(self):
         class Bad(FetchFn[str]):
             pass
 
         with pytest.raises(TypeError):
-            Bad(key="k")  # ty: ignore[call-non-callable]
+            Bad(key="k")  # ty: ignore[abstract-class-instantiation]
 
 
 class TestSecretFetchDummy:

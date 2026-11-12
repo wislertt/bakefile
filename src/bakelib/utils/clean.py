@@ -61,8 +61,7 @@ def remove_git_clean_candidates(
 
 class CleanUtils(Bakebook):
     def _get_default_exclude_patterns(self) -> set[str]:
-        # TODO(2027-04-11): remove ".cache" (deprecated)
-        return {".env", ".cache", ".scratch", ".local", "*.local", "*.local.*"}
+        return {".env", ".scratch", ".local", "*.local", "*.local.*"}
 
     def _clean(
         self,
@@ -82,7 +81,7 @@ class CleanUtils(Bakebook):
         if default_excludes:
             exclude_patterns |= self._get_default_exclude_patterns()
 
-        console.err.print(f"Exclude pattens: {exclude_patterns}")
+        console.err.print(f"Exclude patterns: {exclude_patterns}")
 
         remove_git_clean_candidates(
             git_clean_dry_run_output=results.stdout,
