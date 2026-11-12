@@ -226,7 +226,7 @@ class BaseSubEnv(BaseEnv):
     def sub(self) -> int | None:
         return self._sub
 
-    def replace(  # ty: ignore[incompatible-method-override]
+    def replace(  # ty: ignore[incompatible-method-override]  # NOSONAR
         # intentionally shadows str.replace
         self,
         *,
