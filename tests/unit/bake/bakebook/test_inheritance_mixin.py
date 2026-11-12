@@ -190,11 +190,11 @@ class TestMixinBeforeSpaces:
             @command()
             def deploy(self) -> str:
                 # Attrs come from the mixin composed below; ty cannot see them.
-                return f"{self._registry}/{self.image}"  # ty: ignore[unresolved-attribute]
+                return f"{self._registry}/{self.image}"  # ty: ignore[missing-attribute]
 
             def scale(self) -> str:
                 # Attrs come from the mixin composed below; ty cannot see them.
-                return f"{len(self.replicas)}x {self.platform}"  # ty: ignore[unresolved-attribute]
+                return f"{len(self.replicas)}x {self.platform}"  # ty: ignore[missing-attribute]
 
         class Composed(DockerMixin, DeployBook):
             pass
@@ -214,11 +214,11 @@ class TestMixinBeforeSpaces:
         class NativeBook:
             def deploy(self) -> str:
                 # Attrs come from the mixin composed below; ty cannot see them.
-                return f"{self._registry}/{self.image}"  # ty: ignore[unresolved-attribute]
+                return f"{self._registry}/{self.image}"  # ty: ignore[missing-attribute]
 
             def scale(self) -> str:
                 # Attrs come from the mixin composed below; ty cannot see them.
-                return f"{len(self.replicas)}x {self.platform}"  # ty: ignore[unresolved-attribute]
+                return f"{len(self.replicas)}x {self.platform}"  # ty: ignore[missing-attribute]
 
         class NativeComposed(NativeMixin, NativeBook):
             pass
@@ -1977,7 +1977,7 @@ class TestGenericMixin:
             _knob: str = "base-default"
 
         class GenericOverrideMixin(BaseMixin, Generic[E]):
-            knob: E  # ty: ignore[invalid-attribute-override]
+            knob: E  # ty: ignore[incompatible-attribute-override]
             _knob: str = "override"
 
         class PlainMixin(BaseMixin):

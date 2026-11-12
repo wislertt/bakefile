@@ -386,7 +386,7 @@ class TestBaseEnvEdgeCases:
 
         # Setting NEW "_" attributes is allowed (only existing ones are protected)
         env._custom = "value"
-        assert env._custom == "value"  # ty: ignore[unresolved-attribute]
+        assert env._custom == "value"  # ty: ignore[missing-attribute]
 
     def test_mutation_reflected_in_flattened_envs(self):
         """ENV_PRIORITY_ORDER is frozen and cannot be mutated."""
@@ -594,7 +594,7 @@ class TestBaseSubEnvValidation:
 
         # Setting NEW "_" attributes is allowed (only existing ones are protected)
         env._custom = "value"  # This works because _custom doesn't exist yet
-        assert env._custom == "value"  # ty: ignore[unresolved-attribute]
+        assert env._custom == "value"  # ty: ignore[missing-attribute]
 
 
 class TestBaseSubEnvReplace:

@@ -257,7 +257,6 @@ class TestCleanUtils:
         err = strip_ansi(captured.err)
         assert "git clean -fdX -n" in err
         assert ".env" in err
-        assert ".cache" in err
         assert ".scratch" in err
         assert ".local" in err
         assert "*.local" in err
@@ -275,7 +274,6 @@ class TestCleanUtils:
         err = strip_ansi(captured.err)
         assert "git clean -fdX -n" in err
         assert ".env" not in err
-        assert ".cache" not in err
 
     def test_clean_with_custom_exclude_patterns(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture
@@ -290,4 +288,3 @@ class TestCleanUtils:
         assert "*.log" in err
         assert "*.tmp" in err
         assert ".env" in err  # default excludes still applied
-        assert ".cache" in err

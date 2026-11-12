@@ -718,7 +718,7 @@ class TestFormatDotEnvValueUnit:
                 datetime.timedelta(hours=2, seconds=90),
                 datetime.timedelta,
                 "PT2H1M30S",
-                lambda x: Timedelta(x).to_pytimedelta(),  # ty: ignore[unresolved-attribute]
+                lambda x: Timedelta(x).to_pytimedelta(),  # ty: ignore[missing-union-attribute]
             ),
             # Decimal - becomes float/int in JSON (quoted in dotenv for decimals with dots)
             (

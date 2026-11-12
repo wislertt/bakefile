@@ -131,7 +131,7 @@ class TestGetBakebookFromModule:
         import types
 
         module = types.ModuleType("test_module")
-        module.bakebook = Bakebook()  # ty: ignore[unresolved-attribute]
+        module.bakebook = Bakebook()  # ty: ignore[missing-attribute]
 
         result = get_bakebook_from_module(module, DEFAULT_BAKEBOOK_NAME, Path("test.py"))
         assert isinstance(result, Bakebook)
@@ -148,7 +148,7 @@ class TestGetBakebookFromModule:
         import types
 
         module = types.ModuleType("test_module")
-        module.bakebook = "not_a_typer_app"  # ty: ignore[unresolved-attribute]
+        module.bakebook = "not_a_typer_app"  # ty: ignore[missing-attribute]
 
         with pytest.raises(BakebookError):
             get_bakebook_from_module(module, DEFAULT_BAKEBOOK_NAME, Path("test.py"))
