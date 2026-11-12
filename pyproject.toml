@@ -57,7 +57,7 @@ locked = [
   "ty==0.0.101",
   "typer==0.29.1",
   "typing-extensions==4.16.0",
-  "uv==0.13.7"
+  "uv==0.13.8"
 ]
 lib = [
   "keyring>=25.7.0",
