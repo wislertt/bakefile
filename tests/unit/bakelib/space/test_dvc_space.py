@@ -6,7 +6,7 @@ import typer
 
 from bake import Context
 from bake.ui.logger import strip_ansi
-from bakelib.space.dvc import DvcSpace, MediaDvcSpace, _extras_for_url, _gc_args
+from bakelib.space.dvc import DvcSpace, MediaDvcSpace, _extras_for_url, _gc_args, _probe_url
 
 
 class DvcSpaceImpl(DvcSpace):
@@ -49,6 +49,24 @@ class TestExtrasForUrl:
     )
     def test_scheme_to_extras(self, url: str, expected: tuple[str, ...]) -> None:
         assert _extras_for_url(url) == expected
+
+
+class TestProbeUrl:
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("s3://bucket/some/prefix", "s3://bucket"),
+            ("s3://bucket/", "s3://bucket"),
+            ("s3://bucket", "s3://bucket"),
+            ("gs://bucket/path", "gs://bucket"),
+            ("azure://container/path", "azure://container"),
+            ("ssh://host/srv/dvc", "ssh://host/srv/dvc"),
+            ("https://host/dvc", "https://host/dvc"),
+            ("/local/path", "/local/path"),
+        ],
+    )
+    def test_probes_bucket_only_for_object_stores(self, url: str, expected: str) -> None:
+        assert _probe_url(url) == expected
 
 
 class TestGcArgs:
@@ -197,7 +215,7 @@ class TestDvcRemoteVerbs:
         with mock_ctx:
             space.dvc_ping()
         err = strip_ansi(capsys.readouterr().err)
-        assert "dvc ls-url s3://test-bucket/path" in err
+        assert "dvc ls-url s3://test-bucket\n" in err
         assert "reachable" in err
 
 
@@ -579,7 +597,7 @@ class TestAssertDvcRemoteFailure:
                 space._assert_dvc_remote()
         err = strip_ansi(capsys.readouterr().err)
         assert "unreachable" in err
-        assert "s3://test-bucket/path" in err
+        assert "(s3://test-bucket)" in err
 
 
 class TestLifecycleHooks:
@@ -626,7 +644,7 @@ class TestLifecycleHooks:
         with mock_ctx:
             space.assert_setup_dev(fast=1)
         err = strip_ansi(capsys.readouterr().err)
-        assert "dvc ls-url s3://test-bucket/path" in err
+        assert "dvc ls-url s3://test-bucket\n" in err
         assert "reachable" in err
 
 

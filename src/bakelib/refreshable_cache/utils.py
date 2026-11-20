@@ -10,6 +10,11 @@ class RefreshNeededError(Exception):
     """Raised when a cached value needs to be refreshed."""
 
 
+# raised by a fetch fn whose source gave no new value; refresh keeps the cached one
+class FetchDeclinedError(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class FetchFn(ABC, Generic[T]):
     """Abstract base for structured fetch functions.

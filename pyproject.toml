@@ -48,16 +48,16 @@ locked = [
   "beautysh==6.4.3",
   "loguru==0.8.0",
   "orjson==3.13.0",
-  "pydantic-settings==2.16.2",
-  "pydantic==2.14.3",
+  "pydantic-settings==2.16.3",
+  "pydantic==2.14.4",
   "python-dotenv==1.2.4",
   "pyyaml==6.0.3",
   "rich==15.0.0",
-  "ruff==0.17.4",
-  "ty==0.0.101",
-  "typer==0.29.1",
+  "ruff==0.17.6",
+  "ty==0.0.107",
+  "typer==0.29.2",
   "typing-extensions==4.16.0",
-  "uv==0.13.7"
+  "uv==0.13.9"
 ]
 lib = [
   "keyring>=25.7.0",

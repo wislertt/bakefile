@@ -54,6 +54,17 @@ def _extras_for_url(url: str) -> tuple[str, ...]:
     return (extras,) if needs_extra else ()
 
 
+_OBJECT_STORE_SCHEMES = frozenset({"s3", "gs", "azure", "oss"})
+
+
+def _probe_url(url: str) -> str:
+    # a bucket prefix does not exist until the first push; other schemes keep their path
+    scheme, _, rest = url.partition("://")
+    if scheme not in _OBJECT_STORE_SCHEMES:
+        return url
+    return f"{scheme}://{rest.split('/', 1)[0]}"
+
+
 def _styled_path(path: str) -> Text:
     """Path as rich Text, final component colored — Text skips rich's
     markup and number highlighter, which would mangle paths."""
@@ -339,20 +350,23 @@ class DvcSpace(SecretUtils[str | None], BaseSpace):
     def _assert_dvc_remote(self) -> None:
         """Round-trip the remote — setup fails fast on bad url or creds.
 
-        ``dvc ls-url`` is the cheapest guaranteed network touch — it
-        lists the storage url directly (``dvc ls`` targets a git repo,
-        not a remote); an empty remote lists empty and exits 0. Under a
-        bake dry run ``ctx.run`` echoes the probe and fakes rc 0."""
+        ``dvc ls-url`` is the cheapest guaranteed network touch (``dvc ls``
+        targets a git repo, not a remote). It lists ``_probe_url``: the
+        bucket root for object stores, whose path prefix does not exist
+        until the first push, and the url itself otherwise; an empty
+        bucket lists empty and exits 0. Under a bake dry run ``ctx.run``
+        echoes the probe and fakes rc 0."""
+        probe_url = _probe_url(self.dvc_remote_url)
         console.start(f"Probing dvc remote '{self.dvc_remote_name}'")
         result = self.ctx.run(
-            ["dvc", "ls-url", self.dvc_remote_url],
+            ["dvc", "ls-url", probe_url],
             env=self._dvc_env(),
             check=False,
         )
         if result.returncode != 0:
             console.error(
                 f"dvc remote '{self.dvc_remote_name}' unreachable "
-                f"({self.dvc_remote_url}) — check the url and creds "
+                f"({probe_url}) — check the url and creds "
                 "(bake secret set …)"
             )
             raise typer.Exit(1)

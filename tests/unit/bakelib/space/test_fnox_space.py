@@ -212,6 +212,12 @@ def _seed_store(value: str = "tok-value-123") -> None:
     cache.set(value)
 
 
+def _patch_prompt(monkeypatch: pytest.MonkeyPatch, answer: str) -> None:
+    monkeypatch.setattr("bakelib.space.fnox.can_prompt", lambda: True)
+    monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: True)
+    monkeypatch.setattr("bakelib.refreshable_cache.fnox.typer.prompt", lambda *_a, **_k: answer)
+
+
 def _demo_space() -> FnoxSpace[str | None]:
     class Demo(FnoxSpace[str | None]):
         fnox_bootstrap_secrets: ClassVar[Mapping[str, str]] = {"FNOX_X_TOKEN": "Tok"}
@@ -233,7 +239,7 @@ class TestEnsureBootstrapSecretsBranches:
         def _no_prompt(*_a: object, **_k: object) -> str:
             raise AssertionError("must not prompt when value is cached")
 
-        monkeypatch.setattr("bakelib.space.fnox.typer.confirm", _no_prompt)
+        monkeypatch.setattr("bakelib.refreshable_cache.fnox.typer.prompt", _no_prompt)
         try:
             with context(chdir=tmp_path, dry_run=False):
                 _demo_space()._ensure_bootstrap_secrets()
@@ -255,7 +261,7 @@ class TestEnsureBootstrapSecretsBranches:
         err = strip_ansi(capsys.readouterr().err)
         assert "Would prompt for FNOX_X_TOKEN" in err
 
-    def test_declined_confirm_skips_secret(
+    def test_no_terminal_skips_secret(
         self,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
@@ -263,13 +269,30 @@ class TestEnsureBootstrapSecretsBranches:
     ) -> None:
         _require_real_bins()
         _patch_fnox_store(monkeypatch, tmp_path)
-        monkeypatch.setattr("bakelib.space.fnox.typer.confirm", lambda *_a, **_k: False)
+        monkeypatch.setattr("bakelib.space.fnox.can_prompt", lambda: False)
         space = _demo_space()
         with context(chdir=tmp_path, dry_run=False):
             space._ensure_bootstrap_secrets()
         err = strip_ansi(capsys.readouterr().err)
         assert "Skipped FNOX_X_TOKEN" in err
         assert "will fail auth until it is set" in err
+
+    def test_empty_paste_skips_secret(
+        self,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        _require_real_bins()
+        _patch_fnox_store(monkeypatch, tmp_path)
+        monkeypatch.delenv("FNOX_X_TOKEN", raising=False)
+        _patch_prompt(monkeypatch, "")
+        space = _demo_space()
+        with context(chdir=tmp_path, dry_run=False):
+            space._ensure_bootstrap_secrets()
+        assert not space.vault().has_value("FNOX_X_TOKEN")
+        assert "FNOX_X_TOKEN" not in os.environ
+        assert "Skipped FNOX_X_TOKEN" in strip_ansi(capsys.readouterr().err)
 
 
 class TestAssertBootstrapSecrets:
@@ -372,11 +395,37 @@ class TestBootstrapSecrets:
     ) -> None:
         _require_real_bins()
         _patch_fnox_store(monkeypatch, tmp_path)
-        monkeypatch.setattr("bakelib.space.fnox.typer.confirm", lambda *_a, **_k: True)
-        monkeypatch.setattr("bakelib.space.fnox.typer.prompt", lambda *_a, **_k: "pasted-value")
+        _patch_prompt(monkeypatch, "pasted-value")
         space = _demo_space()
         with context(chdir=tmp_path, dry_run=False):
             space._ensure_bootstrap_secrets()
         assert space.vault().has_value("FNOX_X_TOKEN")
         err = strip_ansi(capsys.readouterr().err)
+        assert "Tok will be stored age-encrypted as FNOX_X_TOKEN" in err
         assert "FNOX_X_TOKEN: cached" in err
+
+    def test_ensure_exports_freshly_stored_secret(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _require_real_bins()
+        _patch_fnox_store(monkeypatch, tmp_path)
+        monkeypatch.delenv("FNOX_X_TOKEN", raising=False)
+        _patch_prompt(monkeypatch, "pasted-value")
+        space = _demo_space()
+        try:
+            with context(chdir=tmp_path, dry_run=False):
+                space._ensure_bootstrap_secrets()
+            assert os.environ["FNOX_X_TOKEN"] == "pasted-value"
+        finally:
+            os.environ.pop("FNOX_X_TOKEN", None)
+
+    def test_ensure_keeps_env_over_freshly_stored_secret(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _require_real_bins()
+        _patch_fnox_store(monkeypatch, tmp_path)
+        monkeypatch.setenv("FNOX_X_TOKEN", "from-env")
+        _patch_prompt(monkeypatch, "pasted-value")
+        with context(chdir=tmp_path, dry_run=False):
+            _demo_space()._ensure_bootstrap_secrets()
+        assert os.environ["FNOX_X_TOKEN"] == "from-env"
