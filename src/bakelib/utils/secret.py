@@ -4,6 +4,7 @@ import typer
 
 from bake import Bakebook, GroupKwargs, command, console
 from bakelib.refreshable_cache import (
+    FetchDeclinedError,
     FetchFn,
     RefreshableCacheRegistry,
     SecretUtilsKeyringCacheRegistry,
@@ -88,7 +89,10 @@ class SecretUtils(Bakebook, Generic[T]):
         key: Annotated[str, typer.Argument(help="Secret key")],
     ) -> None:
         self._require_tracked_key(key)
-        value = self.get_secret(key)
+        try:
+            value = self.get_secret(key)
+        except FetchDeclinedError:
+            value = None
         if value is None:
             console.error(f"Secret '{key}' not found.")
             raise typer.Exit(1)
@@ -125,11 +129,15 @@ class SecretUtils(Bakebook, Generic[T]):
         self,
         key: Annotated[str | None, typer.Argument(help="Secret key")] = None,
     ) -> None:
-        if key is None:
-            self.vault().refresh_all()
-            console.success("All tracked secrets refreshed.")
-            return
+        try:
+            if key is None:
+                self.vault().refresh_all()
+                console.success("All tracked secrets refreshed.")
+                return
 
-        self._require_tracked_key(key)
-        self.refresh_secret(key)
-        console.success(f"Secret '{key}' refreshed.")
+            self._require_tracked_key(key)
+            self.refresh_secret(key)
+            console.success(f"Secret '{key}' refreshed.")
+        except FetchDeclinedError as e:
+            console.error(f"Secret '{e}' not set: no value given and none stored.")
+            raise typer.Exit(1) from e

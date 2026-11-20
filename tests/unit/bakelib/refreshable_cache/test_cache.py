@@ -3,6 +3,7 @@ import contextlib
 import logging
 import sys
 import time
+from dataclasses import dataclass
 
 import keyring
 import pytest
@@ -17,6 +18,7 @@ from bake.ui.logger import (
 )
 from bakelib.refreshable_cache import (
     ChainedCache,
+    FetchDeclinedError,
     FetchFn,
     KeyringCache,
     MemoryCache,
@@ -510,6 +512,55 @@ class TestMemoryCacheSpecific:
         cache2 = MemoryCache(KEY_PERSIST, fetch_value)
         assert cache2.get() == "persistent"
         assert fetch_count == 1  # No re-fetch, same storage
+
+
+class TestRefresh:
+    def test_refresh_replaces_cached_value(self):
+        values = iter(["v1", "v2"])
+
+        def fetch_value() -> str:
+            return next(values)
+
+        cache = MemoryCache("refresh-replaces", fetch_value)
+        assert cache.get() == "v1"
+        assert cache.refresh() == "v2"
+        assert cache.get() == "v2"
+
+    def test_failed_fetch_keeps_cached_value(self):
+        calls: list[int] = []
+
+        def fetch_value() -> str:
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError("source down")
+            return "kept"
+
+        cache = MemoryCache("refresh-failed-fetch", fetch_value)
+        assert cache.get() == "kept"
+        with pytest.raises(RuntimeError, match="source down"):
+            cache.refresh()
+        assert cache.get() == "kept"
+
+    def test_declined_fetch_keeps_cached_value(self):
+        cache = MemoryCache(
+            "refresh-declined", _DecliningFetch(key="refresh-declined"), cached_type=str
+        )
+        cache.set("stored")
+        assert cache.refresh() == "stored"
+        assert cache.get() == "stored"
+
+    def test_declined_fetch_without_cached_value_raises(self):
+        cache = MemoryCache(
+            "refresh-declined-empty", _DecliningFetch(key="refresh-declined-empty"), cached_type=str
+        )
+        with pytest.raises(FetchDeclinedError):
+            cache.refresh()
+
+
+@dataclass(frozen=True)
+class _DecliningFetch(FetchFn[str]):
+    def __call__(self) -> str:
+        raise FetchDeclinedError(self.key)
 
 
 class TestKeyringCacheSpecificMore:

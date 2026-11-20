@@ -3,17 +3,15 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Any, ClassVar, TypeVar, cast
 
-import typer
-
 from bake import command
 from bake._params import fast_option
 from bake.ui import console
-from bakelib.refreshable_cache.fnox import DEFAULT_AGE_KEY_FILE, BootstrapFetchFn
+from bakelib.refreshable_cache.fnox import DEFAULT_AGE_KEY_FILE, BootstrapFetchFn, can_prompt
 from bakelib.refreshable_cache.registry import (
     RefreshableCacheRegistry,
     SecretUtilsFnoxCacheRegistry,
 )
-from bakelib.refreshable_cache.utils import FetchFn
+from bakelib.refreshable_cache.utils import FetchDeclinedError, FetchFn
 from bakelib.space.base import BaseSpace
 from bakelib.utils.secret import SecretUtils
 
@@ -47,10 +45,14 @@ class FnoxSpace(SecretUtils[T], BaseSpace):
         )
 
     def _setup_vault(self, vault: RefreshableCacheRegistry[T]) -> None:
-        # fnox reads provider credentials from env only; env (CI/user shell) wins
         for name in self.fnox_bootstrap_secrets:
-            if not os.environ.get(name) and vault.has_value(name):
-                os.environ[name] = cast("str", vault.get(name))
+            if vault.has_value(name):
+                self._export_bootstrap_secret(name, cast("str", vault.get(name)))
+
+    def _export_bootstrap_secret(self, name: str, value: str) -> None:
+        # fnox reads provider credentials from env only; env (CI/user shell) wins
+        if not os.environ.get(name):
+            os.environ[name] = value
 
     def _get_mise_tools(self) -> set[str]:
         return {*super()._get_mise_tools(), "age", "fnox"}
@@ -114,17 +116,24 @@ class FnoxSpace(SecretUtils[T], BaseSpace):
             if self.ctx.dry_run:
                 console.info(f"Would prompt for {name} (dry run)")
                 continue
-            if not typer.confirm(
-                f"Set {label} now (stored age-encrypted as {name})?", default=False
-            ):
-                console.info(
-                    f"Skipped {name} — provider-backed fetches will fail auth until it is set "
-                    "(rerun `bake setup-fnox`)"
-                )
+            if not can_prompt():
+                self._report_skipped_bootstrap_secret(name)
                 continue
-            token = typer.prompt(f"Paste your {label}", hide_input=True)
-            self.set_secret(name, token)
+            console.info(f"{label} will be stored age-encrypted as {name}")
+            try:
+                token = cast("str", vault.get(name))
+            except FetchDeclinedError:
+                self._report_skipped_bootstrap_secret(name)
+                continue
+            # the vault exported only what was stored when it was built
+            self._export_bootstrap_secret(name, token)
             console.success(f"{name}: cached")
+
+    def _report_skipped_bootstrap_secret(self, name: str) -> None:
+        console.info(
+            f"Skipped {name} — provider-backed fetches will fail auth until it is set "
+            "(rerun `bake setup-fnox`)"
+        )
 
     def _assert_bootstrap_secrets(self) -> None:
         # read-only check, safe under dry-run

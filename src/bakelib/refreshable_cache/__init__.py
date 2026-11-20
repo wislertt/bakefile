@@ -15,6 +15,7 @@ from bakelib.refreshable_cache.registry import (
 )
 from bakelib.refreshable_cache.utils import (
     CallableFetchFn,
+    FetchDeclinedError,
     FetchFn,
     NullFetchFn,
     RefreshNeededError,
@@ -25,6 +26,7 @@ __all__ = [
     "CallableFetchFn",
     "ChainedCache",
     "ChainedCacheKwargs",
+    "FetchDeclinedError",
     "FetchFn",
     "FnoxCache",
     "FnoxFetchFn",

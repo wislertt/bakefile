@@ -12,7 +12,7 @@ from pydantic import BaseModel, TypeAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 from typing_extensions import TypedDict
 
-from bakelib.refreshable_cache.utils import FetchFn, RefreshNeededError
+from bakelib.refreshable_cache.utils import FetchDeclinedError, FetchFn, RefreshNeededError
 
 if TYPE_CHECKING:
     from tenacity.stop import StopBaseT
@@ -129,9 +129,18 @@ class RefreshableCache(ABC, Generic[CachedT]):
         return value
 
     def refresh(self) -> CachedT:
-        """Force refresh: clear cache and fetch fresh value."""
+        """Force refresh: fetch fresh value, then replace the cached one."""
+        # fetch before delete: a failed fetch keeps the cached value
+        try:
+            value = self._fetch_fn()
+        except FetchDeclinedError:
+            cached = self._get_entry()
+            if cached is None:
+                raise
+            return cached.value
         self.delete()
-        return self._fetch()
+        self.set(value)
+        return value
 
     def catch_refresh(self, func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)

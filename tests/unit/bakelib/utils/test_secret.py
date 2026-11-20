@@ -4,7 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from bake.ui.logger import strip_ansi
-from bakelib.refreshable_cache import FetchFn, NullFetchFn
+from bakelib.refreshable_cache import FetchDeclinedError, FetchFn, NullFetchFn
 from bakelib.utils.secret import SECRET_GROUP, SecretUtils
 
 runner = CliRunner()
@@ -230,6 +230,42 @@ class TestSecretRefresh:
         assert result.exit_code == 1
         assert "not tracked" in output
         assert "Traceback" not in output
+
+
+@dataclass(frozen=True)
+class _DecliningFetch(FetchFn[str | None]):
+    def __call__(self) -> str | None:
+        raise FetchDeclinedError(self.key)
+
+
+class _DecliningSecretUtils(SecretUtils[str | None]):
+    def get_secret_namespace(self) -> str:
+        return "test-secret-declining"
+
+    def get_secret_fetch_fns(self) -> tuple[FetchFn[str | None], ...]:
+        return (_DecliningFetch(KEY_1),)
+
+
+class TestDecliningSource:
+    def test_refresh_keeps_stored_value(self) -> None:
+        bakebook = _DecliningSecretUtils()
+        bakebook.set_secret(KEY_1, "kept")
+        try:
+            result = runner.invoke(bakebook._app, ["secret", "refresh", KEY_1])
+            assert result.exit_code == 0
+            assert bakebook.get_secret(KEY_1) == "kept"
+        finally:
+            bakebook.del_secret(KEY_1)
+
+    @pytest.mark.parametrize("args", [["get", KEY_1], ["refresh", KEY_1], ["refresh"]])
+    def test_nothing_stored_exits_cleanly(self, args: list[str]) -> None:
+        bakebook = _DecliningSecretUtils()
+        bakebook.del_secret(KEY_1)
+        result = runner.invoke(bakebook._app, ["secret", *args])
+        output = strip_ansi(result.output)
+        assert result.exit_code == 1
+        assert "Traceback" not in output
+        assert not isinstance(result.exception, FetchDeclinedError)
 
 
 class TestCatchRefresh:

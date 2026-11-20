@@ -8,7 +8,9 @@ import pytest
 import typer
 
 from bake.ui.logger import strip_ansi
-from bakelib.refreshable_cache import FnoxFetchFn
+from bakelib.refreshable_cache import FetchDeclinedError, FnoxFetchFn
+from bakelib.refreshable_cache.fnox import BootstrapFetchFn, can_prompt
+from bakelib.refreshable_cache.registry import RefreshableCacheRegistry
 
 
 def _real_bin(name: str) -> str | None:
@@ -134,14 +136,58 @@ def test_missing_binary_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 class TestBootstrapFetchFn:
-    def test_missing_store_exits_with_hint(self, capsys: pytest.CaptureFixture) -> None:
-        from bakelib.refreshable_cache.fnox import BootstrapFetchFn
-
-        with pytest.raises(typer.Exit):
+    def test_declines_with_hint_without_terminal(
+        self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: False)
+        with pytest.raises(FetchDeclinedError):
             BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")()
-        err = capsys.readouterr().err
-        assert "FNOX_X_TOKEN is not stored" in err
+        err = strip_ansi(capsys.readouterr().err)
+        assert "FNOX_X_TOKEN needs a terminal" in err
         assert "bake setup-fnox" in err
+
+    def test_refresh_without_terminal_keeps_stored_value_and_continues(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: False)
+        registry = RefreshableCacheRegistry[str](
+            namespace="test-bootstrap-refresh", cached_type=str
+        )
+        registry.insert_cache(
+            "FNOX_X_TOKEN", fetch_fn=BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")
+        )
+        registry.insert_cache("OTHER", fetch_fn=lambda: "fresh")
+        registry.set("FNOX_X_TOKEN", "stored")
+        registry.set("OTHER", "old")
+        try:
+            registry.refresh_all()
+            assert registry.get("FNOX_X_TOKEN") == "stored"
+            assert registry.get("OTHER") == "fresh"
+        finally:
+            registry.delete_all()
+
+    def test_prompts_on_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: True)
+        monkeypatch.setattr(
+            "bakelib.refreshable_cache.fnox.typer.prompt", lambda *_a, **_k: "pasted"
+        )
+        assert BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")() == "pasted"
+
+    def test_empty_input_declines(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: True)
+        monkeypatch.setattr("bakelib.refreshable_cache.fnox.typer.prompt", lambda *_a, **_k: "")
+        with pytest.raises(FetchDeclinedError):
+            BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")()
+
+
+@pytest.mark.parametrize("is_tty", [True, False])
+def test_can_prompt_follows_stdin_tty(monkeypatch: pytest.MonkeyPatch, is_tty: bool) -> None:
+    class _Stdin:
+        def isatty(self) -> bool:
+            return is_tty
+
+    monkeypatch.setattr("sys.stdin", _Stdin())
+    assert can_prompt() is is_tty
 
 
 class TestAuthFailedHint:
