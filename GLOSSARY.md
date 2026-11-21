@@ -28,7 +28,7 @@ The command that manages `bakefile.py` files and their environments (init, lint,
 _Avoid_: `bakefile` (bare)
 
 **bakelib**:
-The optional library of prebuilt Spaces and utilities, installed with the `lib` extra.
+The optional library of prebuilt Spaces and utilities, installed with the `lib` extra. An extension built on `bake`; `bake` never imports it.
 
 ## Python environments
 
