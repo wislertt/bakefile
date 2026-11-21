@@ -1,6 +1,6 @@
 # Branding generators
 
-Tooling that generates the brand assets (cookie mark, wordmark, lockup, favicons, OG card). Design decisions — colors, tagline, constants — live in [`BRAND.md`](./BRAND.md). Outputs are committed to `docs/img/brand/`. Regenerate only when a design constant changes, then copy the files over.
+Tooling that generates the brand assets (cookie mark, wordmark, lockup, favicons, OG card). Design decisions — colors, tagline, constants — live in [`BRAND.md`](./BRAND.md). Outputs are committed to `docs/site/img/brand/`. Regenerate only when a design constant changes, then copy the files over.
 
 ## Files
 
@@ -27,7 +27,7 @@ DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib \
 DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib \
   uv run --with cairosvg --with pillow --with fonttools python3 gen_og.py
 cp .cache/bakefile-*.svg .cache/favicon* .cache/apple-touch-icon.png \
-  .cache/og-card-*.png ../../docs/img/brand/
+  .cache/og-card-*.png ../../docs/site/img/brand/
 ```
 
 Generated files land in `.cache/` (gitignored). Dependency chain: lockup imports wordmark parts, wordmark imports `chip_blob` from the cookie generator, lockup reads the generated cookie mark, `gen_og.py` reads the generated lockups. Run in the order above.

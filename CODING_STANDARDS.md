@@ -38,5 +38,5 @@ Read the matching file when working in that area:
 
 - Bakebook class, commands, env vars, context: `src/bake/bakebook/README.md`
 - `console` output helpers and colors: `src/bake/ui/README.md`
-- Verbosity and logging config (user-facing: `docs/usage/logging.mdx`): `src/bake/ui/logger/README.md`
+- Verbosity and logging config (user-facing: `docs/site/usage/logging.mdx`): `src/bake/ui/logger/README.md`
 - GitHub Actions caching: `CONTRIBUTING.md`

@@ -14,8 +14,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/img/brand/bakefile-lockup-dark.svg">
-    <img src="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/img/brand/bakefile-lockup.svg" width="360" alt="bakefile logo">
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/site/img/brand/bakefile-lockup-dark.svg">
+    <img src="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/site/img/brand/bakefile-lockup.svg" width="360" alt="bakefile logo">
   </picture>
 </p>
 
@@ -26,7 +26,7 @@ An OOP task runner. Write tasks once, reuse everywhere. Like a Makefile, but reu
 Documentation: **[bakefile.wisl.dev](https://bakefile.wisl.dev)**
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/img/preview/demo-app/bakefile-preview.gif" width="720" alt="Define tasks as Python methods, list them, and run them with bake">
+  <img src="https://cdn.jsdelivr.net/gh/wislertt/bakefile@main/docs/site/img/preview/demo-app/bakefile-preview.gif" width="720" alt="Define tasks as Python methods, list them, and run them with bake">
 </p>
 
 ## Why bakefile?
@@ -117,4 +117,4 @@ Wisaroot Lertthaweedech – [wisl.dev](https://wisl.dev)
 
 Licensed under the Apache License 2.0. See [LICENSE](/LICENSE) for the full text.
 
-The wordmark in `docs/img/brand/` uses outlined paths from [Shantell Sans](https://fonts.google.com/specimen/Shantell+Sans), licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/).
+The wordmark in `docs/site/img/brand/` uses outlined paths from [Shantell Sans](https://fonts.google.com/specimen/Shantell+Sans), licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/).
