@@ -11,7 +11,6 @@ from bake._params import (
 from bakelib.space.params import (
     DeployVersionOption,
     DurationsOption,
-    LintSlowOption,
     PublishTokenOption,
     PublishVersionOption,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "DurationsOption",
     "FastBoolOption",
     "FastOption",
-    "LintSlowOption",
     "PublishTokenOption",
     "PublishVersionOption",
     "SlowOption",

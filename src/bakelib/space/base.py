@@ -11,11 +11,10 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console
-from bake._params import fast_option
+from bake._params import fast_option, slow_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
-from .params import LintSlowOption
 from .utils import (
     install_mise_tools,
     orjson_default,
@@ -173,7 +172,10 @@ class BaseSpace(CleanUtils, Bakebook):
         self.ctx.run("bakefile lint")
 
     @command(help="Run linters and formatters")
-    def lint(self, slow: LintSlowOption = 0) -> None:
+    def lint(
+        self,
+        slow: Annotated[int, slow_option(help="Add slow steps: -s runs every check")] = 0,
+    ) -> None:
         self._lint_fast()
         if slow >= 1:
             self._lint_slow()
@@ -370,7 +372,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
         if fast < 2:
             console.start("Linting")
-            self.lint(slow=1)
+            self.lint(slow=1)  # top lint level: raise it when lint gains a level
         if fast < 1:
             console.start("Testing")
             self.test()
