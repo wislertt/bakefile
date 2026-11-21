@@ -19,13 +19,7 @@ Update `pyproject.toml`:
 
 ```toml
 [dependency-groups]
-dev = [
-  "deptry>=0.24.0",
-  "pre-commit>=4.5.1",
-  "pytest-cov>=7.0.0",
-  "pytest>=9.0.2",
-  "toml-sort>=0.24.3"
-]
+dev = ["deptry>=0.24.0", "pre-commit>=4.5.1", "pytest-cov>=7.0.0", "pytest>=9.0.2", "toml-sort>=0.24.3"]
 
 [tool.deptry.package_module_name_map]
 bakefile = ["bake", "bakelib"]

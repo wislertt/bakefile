@@ -221,8 +221,8 @@ class BaseSpace(CleanUtils, Bakebook):
 
     def _get_mise_tools(self) -> set[str]:
         return {
-            "npm:oxfmt",
             "bun",
+            "npm:oxfmt",
             "pipx:bakefile[extras=locked]",
             "pipx:toml-sort",
             "pipx:zerv-version",
