@@ -135,6 +135,7 @@ exclude = ["docs", "scripts"]
 [tool.uv.build-backend]
 module-name = ["bake", "bakelib"]
 module-root = "src"
+wheel-exclude = ["**/README.md"]
 
 [[tool.uv.index]]
 name = "test-pypi"

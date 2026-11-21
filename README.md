@@ -106,7 +106,7 @@ The project uses [uv](https://github.com/astral-sh/uv) for dependency management
 
 ## Contributing
 
-Contributions are welcome. See [CLAUDE.md](/.claude/CLAUDE.md) for development guidelines, including project structure, testing conventions, and the development workflow.
+Contributions are welcome. See [CONTRIBUTING.md](/CONTRIBUTING.md) for development guidelines, including project structure, testing conventions, and the development workflow.
 
 ## Author
 

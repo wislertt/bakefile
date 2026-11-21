@@ -53,7 +53,6 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
         super()._update_project()
         self._update_locked_pins()
         self._update_examples()
-        self._update_hooks()
 
     def _update_locked_pins(self) -> None:
         original_text = PYPROJECT_PATH.read_text()
@@ -117,11 +116,6 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
             show_count=True,
             show_summary=False,
         ).run()
-
-    def _update_hooks(self) -> None:
-        hooks_dir = Path(".claude/hooks")
-        console.start(f"Updating {hooks_dir}")
-        self.ctx.run("bun update", cwd=hooks_dir)
 
     @command()
     def uvx_install_bake_local(
