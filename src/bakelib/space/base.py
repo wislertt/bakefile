@@ -173,9 +173,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
     @command(help="Run linters and formatters")
     def lint(self) -> None:
-        self.ctx.run(
-            'bunx prettier@latest --write "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"'
-        )
+        self.ctx.run('oxfmt "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"')
         for mise_toml in (Path(".mise.toml"), Path("mise.toml")):
             if not mise_toml.exists():
                 continue
@@ -223,6 +221,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
     def _get_mise_tools(self) -> set[str]:
         return {
+            "npm:oxfmt",
             "bun",
             "pipx:bakefile[extras=locked]",
             "pipx:toml-sort",

@@ -51,7 +51,7 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     stderr = strip_ansi(result.stderr).strip()
 
     # Verify lint runs successfully
-    assert "prettier" in stderr and "ruff" in stderr
+    assert "oxfmt" in stderr and "ruff" in stderr
 
     assert ".venv" in stdout and "src/python_package/__init__.py" in stdout
 

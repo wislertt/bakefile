@@ -38,7 +38,7 @@ bakebook = PythonSpace()
 
 Available commands:
 
-- `bake lint` - Run prettier, toml-sort, ruff format, ruff check, ty, deptry
+- `bake lint` - Run oxfmt, toml-sort, ruff format, ruff check, ty, deptry
 - `bake test` - Run pytest with coverage on `tests/unit/`
 - `bake test-integration` - Run integration tests from `tests/integration/`
 - `bake test-all` - Run all tests
@@ -67,7 +67,7 @@ bakebook = MySpace()
 
 `BaseSpace` provides these tasks (override as needed):
 
-- `lint()` - Run prettier
+- `lint()` - Run oxfmt
 - `clean()` / `clean_all()` - Clean gitignored files
 - `setup_dev()` - Setup development environment
 - `tools()` - List development tools
