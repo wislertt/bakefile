@@ -188,3 +188,17 @@ For complex multi-session tasks, use `.dev/active/` with three-file structure:
 **Naming:** `.dev/active/[xx-task-name]/` where `xx` is incremental (01, 02, ...) and `task-name` is a concise kebab-case name.
 
 Use `/dev-docs` command to create these automatically.
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown under `.tracker/` (committed), never `.scratch/`; GitHub Issues on `wislertt/bakefile` only when I ask for it. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. See `docs/agents/domain.md`.
