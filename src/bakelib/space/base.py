@@ -11,7 +11,7 @@ import typer
 import zerv
 
 from bake import Bakebook, command, console
-from bake._params import fast_option
+from bake._params import fast_option, slow_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
@@ -172,10 +172,16 @@ class BaseSpace(CleanUtils, Bakebook):
         self.ctx.run("bakefile lint")
 
     @command(help="Run linters and formatters")
-    def lint(self) -> None:
-        self.ctx.run(
-            'bunx prettier@latest --write "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"'
-        )
+    def lint(
+        self,
+        slow: Annotated[int, slow_option(help="Add slow steps: -s runs every check")] = 0,
+    ) -> None:
+        self._lint_fast()
+        if slow >= 1:
+            self._lint_slow()
+
+    def _lint_fast(self) -> None:
+        self.ctx.run('oxfmt "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"')
         for mise_toml in (Path(".mise.toml"), Path("mise.toml")):
             if not mise_toml.exists():
                 continue
@@ -184,6 +190,10 @@ class BaseSpace(CleanUtils, Bakebook):
             )
         if self.ctx.obj.is_standalone_bakefile:
             self._lint_standalone_bakefile()
+
+    def _lint_slow(self) -> None:
+        # Hook for subclasses: the base has no slow checks, so `lint -s` adds nothing here
+        pass
 
     @command(help="Run unit tests")
     def test(self) -> None:
@@ -224,6 +234,7 @@ class BaseSpace(CleanUtils, Bakebook):
     def _get_mise_tools(self) -> set[str]:
         return {
             "bun",
+            "npm:oxfmt",
             "pipx:bakefile[extras=locked]",
             "pipx:toml-sort",
             "pipx:zerv-version",
@@ -362,7 +373,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
         if fast < 2:
             console.start("Linting")
-            self.lint()
+            self.lint(slow=1)  # top lint level: raise it when lint gains a level
         if fast < 1:
             console.start("Testing")
             self.test()

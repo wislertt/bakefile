@@ -17,6 +17,7 @@ uv add bakefile[lib]
 
 Update `pyproject.toml`:
 
+<!-- prettier-ignore -->
 ```toml
 [dependency-groups]
 dev = [

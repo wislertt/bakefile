@@ -97,7 +97,8 @@ bake assert-setup-dev # Verify the setup is correct
 
 bake test             # Unit tests (fast)
 bake test-integration # Integration tests (slow, real subprocess)
-bake lint             # prettier, toml-sort, ruff format, ruff check, ty, deptry
+bake lint             # oxfmt, toml-sort, ruff format, ruff check, ty, deptry
+bake lint --slow      # adds the locked-pins guard (CI runs this)
 ```
 
 `bake setup-dev` only supports macOS. On other platforms, run `bake --dry-run setup-dev` to see the commands and follow platform-specific alternatives.
@@ -106,7 +107,7 @@ The project uses [uv](https://github.com/astral-sh/uv) for dependency management
 
 ## Contributing
 
-Contributions are welcome. See [CLAUDE.md](/.claude/CLAUDE.md) for development guidelines, including project structure, testing conventions, and the development workflow.
+Contributions are welcome. See [CONTRIBUTING.md](/CONTRIBUTING.md) for development guidelines, including project structure, testing conventions, and the development workflow.
 
 ## Author
 

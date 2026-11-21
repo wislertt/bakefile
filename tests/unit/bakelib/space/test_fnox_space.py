@@ -173,7 +173,7 @@ class TestAssertSetupDev:
         class Demo(FnoxSpace[str | None]):
             fnox_bootstrap_secrets: ClassVar[Mapping[str, str]] = {"FNOX_X_TOKEN": "Tok"}
 
-            def lint(self) -> None:
+            def _lint_fast(self) -> None:
                 raise AssertionError("fast=2 must skip lint")
 
             def test(self) -> None:
@@ -214,7 +214,7 @@ def _seed_store(value: str = "tok-value-123") -> None:
 
 def _patch_prompt(monkeypatch: pytest.MonkeyPatch, answer: str) -> None:
     monkeypatch.setattr("bakelib.space.fnox.can_prompt", lambda: True)
-    monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: True)
+    monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: True)
     monkeypatch.setattr("bakelib.refreshable_cache.fnox.typer.prompt", lambda *_a, **_k: answer)
 
 

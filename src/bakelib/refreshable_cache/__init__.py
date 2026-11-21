@@ -19,6 +19,7 @@ from bakelib.refreshable_cache.utils import (
     FetchFn,
     NullFetchFn,
     RefreshNeededError,
+    UserInputFetchFn,
 )
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "RefreshableCacheRegistry",
     "SecretUtilsFnoxCacheRegistry",
     "SecretUtilsKeyringCacheRegistry",
+    "UserInputFetchFn",
     "run_fnox",
 ]

@@ -147,12 +147,14 @@ class RustSpace(BaseSpace):
         run_rustup_update(self.ctx.run)
         self.ctx.run("rustup install stable")
 
-    def lint(self) -> None:
-        super().lint()
+    def _lint_fast(self) -> None:
+        super()._lint_fast()
 
         self.ctx.run("cargo sort")
-        self.ctx.run("cargo +nightly check --tests")
         self.ctx.run("cargo +nightly fmt -- --check || (cargo +nightly fmt && exit 1)")
+
+    def _lint_slow(self) -> None:
+        super()._lint_slow()
         self.ctx.run("cargo +nightly clippy --all-targets --all-features -- -D warnings")
 
     def _update_project(self) -> None:

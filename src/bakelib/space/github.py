@@ -14,8 +14,8 @@ class GitHubActionsTools(GitHubActionsEnvVars, BaseSpace):
         tools["actions-up"] = None
         return tools
 
-    def lint(self) -> None:
-        super().lint()
+    def _lint_fast(self) -> None:
+        super()._lint_fast()
         self.ctx.run("actionlint")
 
     def _actions_up(self):

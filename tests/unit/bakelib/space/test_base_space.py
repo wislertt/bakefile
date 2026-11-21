@@ -441,7 +441,7 @@ class TestAssertSetupDev:
                 suppress(typer.Exit),
             ):
                 base_space.assert_setup_dev(fast=0)
-                mock_lint.assert_called_once()
+                mock_lint.assert_called_once_with(slow=1)
                 mock_test.assert_called_once()
 
     def test_assert_setup_dev_with_fast_2_skips_test_and_lint(self, mock_ctx: Context) -> None:
@@ -520,7 +520,24 @@ class TestSetupDev:
         mock_tools.assert_called_once()
 
 
+class SlowStepSpace(MinimalTestSpace):
+    def _lint_slow(self) -> None:
+        super()._lint_slow()
+        self.ctx.run("slow-step")
+
+
 class TestLint:
+    @pytest.mark.parametrize(("slow", "runs_slow"), [(0, False), (1, True), (3, True)])
+    def test_lint_runs_slow_steps_only_with_slow(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture, slow: int, runs_slow: bool
+    ) -> None:
+        space = SlowStepSpace()
+        with mock_ctx:
+            space.lint(slow=slow)
+        err = strip_ansi(capsys.readouterr().err)
+        assert "oxfmt" in err
+        assert ("slow-step" in err) is runs_slow
+
     def test_lint_runs_bakefile_lint_when_standalone(self, mock_ctx: Context) -> None:
         base_space = MinimalTestSpace()
         mock_ctx.dry_run = True

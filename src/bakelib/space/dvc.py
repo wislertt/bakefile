@@ -211,8 +211,8 @@ class DvcSpace(SecretUtils[str | None], BaseSpace):
         # bakelib installs only the pre-commit stage
         self.ctx.run("pre-commit install --hook-type pre-push")
 
-    def lint(self) -> None:
-        super().lint()
+    def _lint_fast(self) -> None:
+        super()._lint_fast()
         self.dvc_check()  # exit 1 only for un-backed dirs — safe to block on
 
     @command(
