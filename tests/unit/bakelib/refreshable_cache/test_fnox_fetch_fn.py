@@ -9,8 +9,9 @@ import typer
 
 from bake.ui.logger import strip_ansi
 from bakelib.refreshable_cache import FetchDeclinedError, FnoxFetchFn
-from bakelib.refreshable_cache.fnox import BootstrapFetchFn, can_prompt
+from bakelib.refreshable_cache.fnox import BootstrapFetchFn
 from bakelib.refreshable_cache.registry import RefreshableCacheRegistry
+from bakelib.refreshable_cache.utils import UserInputFetchFn, can_prompt
 
 
 def _real_bin(name: str) -> str | None:
@@ -139,7 +140,7 @@ class TestBootstrapFetchFn:
     def test_declines_with_hint_without_terminal(
         self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: False)
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: False)
         with pytest.raises(FetchDeclinedError):
             BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")()
         err = strip_ansi(capsys.readouterr().err)
@@ -149,7 +150,7 @@ class TestBootstrapFetchFn:
     def test_refresh_without_terminal_keeps_stored_value_and_continues(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: False)
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: False)
         registry = RefreshableCacheRegistry[str](
             namespace="test-bootstrap-refresh", cached_type=str
         )
@@ -167,17 +168,55 @@ class TestBootstrapFetchFn:
             registry.delete_all()
 
     def test_prompts_on_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: True)
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: True)
         monkeypatch.setattr(
-            "bakelib.refreshable_cache.fnox.typer.prompt", lambda *_a, **_k: "pasted"
+            "bakelib.refreshable_cache.utils.typer.prompt", lambda *_a, **_k: "pasted"
         )
         assert BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")() == "pasted"
 
     def test_empty_input_declines(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("bakelib.refreshable_cache.fnox.can_prompt", lambda: True)
-        monkeypatch.setattr("bakelib.refreshable_cache.fnox.typer.prompt", lambda *_a, **_k: "")
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: True)
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.typer.prompt", lambda *_a, **_k: "")
         with pytest.raises(FetchDeclinedError):
             BootstrapFetchFn(key="FNOX_X_TOKEN", label="Tok")()
+
+
+class TestUserInputFetchFn:
+    def test_no_terminal_declines_with_neutral_hint(
+        self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: False)
+        with pytest.raises(FetchDeclinedError):
+            UserInputFetchFn(key="DB_PASSWORD")()
+        err = strip_ansi(capsys.readouterr().err)
+        assert "DB_PASSWORD needs a terminal to prompt for DB_PASSWORD" in err
+        assert "bake setup-fnox" not in err
+
+    def test_label_defaults_to_key_in_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        prompts: list[str] = []
+
+        def fake_prompt(text: str, **_k: object) -> str:
+            prompts.append(text)
+            return "v"
+
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: True)
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.typer.prompt", fake_prompt)
+        assert UserInputFetchFn(key="DB_PASSWORD")() == "v"
+        assert UserInputFetchFn(key="DB_PASSWORD", label="DB pw")() == "v"
+        assert prompts == [
+            "Paste your DB_PASSWORD (empty to skip)",
+            "Paste your DB pw (empty to skip)",
+        ]
+
+    def test_empty_input_declines(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.can_prompt", lambda: True)
+        monkeypatch.setattr("bakelib.refreshable_cache.utils.typer.prompt", lambda *_a, **_k: "")
+        with pytest.raises(FetchDeclinedError):
+            UserInputFetchFn(key="DB_PASSWORD")()
+
+    def test_bootstrap_is_a_user_input_fetch_fn(self) -> None:
+        assert issubclass(BootstrapFetchFn, UserInputFetchFn)
+        assert BootstrapFetchFn(key="K").label == "bootstrap secret"
 
 
 @pytest.mark.parametrize("is_tty", [True, False])

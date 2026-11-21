@@ -1,7 +1,12 @@
+import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar, cast
+
+import typer
+
+from bake.ui import console
 
 T = TypeVar("T")
 
@@ -64,3 +69,38 @@ class CallableFetchFn(FetchFn[T]):
 
     def __call__(self) -> T:
         return self.fetch()
+
+
+def can_prompt() -> bool:
+    return sys.stdin.isatty()
+
+
+@dataclass(frozen=True)
+class UserInputFetchFn(FetchFn[str]):
+    """FetchFn whose source is the user typing the value (hidden input).
+
+    Empty input or no terminal declines, so refresh keeps the stored value.
+    ``label`` defaults to the ``key``.
+    """
+
+    label: str | None = None
+
+    def _no_terminal_hint(self) -> str:
+        return "run this command in an interactive terminal to set it"
+
+    def __call__(self) -> str:
+        label = self.label or self.key
+        if not can_prompt():
+            console.warning(
+                f"{self.key} needs a terminal to prompt for {label}; {self._no_terminal_hint()}"
+            )
+            raise FetchDeclinedError(self.key)
+        value = typer.prompt(
+            f"Paste your {label} (empty to skip)",
+            default="",
+            show_default=False,
+            hide_input=True,
+        )
+        if not value:
+            raise FetchDeclinedError(self.key)
+        return value

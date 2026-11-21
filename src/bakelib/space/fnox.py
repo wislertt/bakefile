@@ -6,12 +6,12 @@ from typing import Annotated, Any, ClassVar, TypeVar, cast
 from bake import command
 from bake._params import fast_option
 from bake.ui import console
-from bakelib.refreshable_cache.fnox import DEFAULT_AGE_KEY_FILE, BootstrapFetchFn, can_prompt
+from bakelib.refreshable_cache.fnox import DEFAULT_AGE_KEY_FILE, BootstrapFetchFn
 from bakelib.refreshable_cache.registry import (
     RefreshableCacheRegistry,
     SecretUtilsFnoxCacheRegistry,
 )
-from bakelib.refreshable_cache.utils import FetchDeclinedError, FetchFn
+from bakelib.refreshable_cache.utils import FetchDeclinedError, FetchFn, can_prompt
 from bakelib.space.base import BaseSpace
 from bakelib.utils.secret import SecretUtils
 

@@ -4,7 +4,6 @@ import re
 import shutil
 import stat
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -14,7 +13,7 @@ import typer
 from bake.ui import console
 from bake.ui.run import run
 from bakelib.refreshable_cache.cache import CachedT, CacheEntry, RefreshableCache
-from bakelib.refreshable_cache.utils import FetchDeclinedError, FetchFn
+from bakelib.refreshable_cache.utils import FetchFn, UserInputFetchFn
 
 logger = logging.getLogger(__name__)
 
@@ -65,34 +64,14 @@ def run_fnox(cmd: list[str] | tuple[str, ...]) -> subprocess.CompletedProcess[st
 
 
 @dataclass(frozen=True)
-class BootstrapFetchFn(FetchFn[str]):
+class BootstrapFetchFn(UserInputFetchFn):
     """Chicken-and-egg provider credential: the provider needs this very
-    credential, so the user is the ONLY source. Fetching prompts on a
-    terminal; empty input or no terminal declines, so refresh keeps the
-    stored value."""
+    credential, so the user is the ONLY source."""
 
-    label: str = "bootstrap secret"
+    label: str | None = "bootstrap secret"
 
-    def __call__(self) -> str:
-        if not can_prompt():
-            console.warning(
-                f"{self.key} needs a terminal to prompt for {self.label}; "
-                "run `bake setup-fnox` interactively to set it"
-            )
-            raise FetchDeclinedError(self.key)
-        token = typer.prompt(
-            f"Paste your {self.label} (empty to skip)",
-            default="",
-            show_default=False,
-            hide_input=True,
-        )
-        if not token:
-            raise FetchDeclinedError(self.key)
-        return token
-
-
-def can_prompt() -> bool:
-    return sys.stdin.isatty()
+    def _no_terminal_hint(self) -> str:
+        return "run `bake setup-fnox` interactively to set it"
 
 
 def _auth_failed_hint(stderr: str) -> str | None:
