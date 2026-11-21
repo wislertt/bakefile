@@ -15,6 +15,7 @@ from bake._params import fast_option
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.utils import CleanUtils
 
+from .params import LintSlowOption
 from .utils import (
     install_mise_tools,
     orjson_default,
@@ -172,7 +173,12 @@ class BaseSpace(CleanUtils, Bakebook):
         self.ctx.run("bakefile lint")
 
     @command(help="Run linters and formatters")
-    def lint(self) -> None:
+    def lint(self, slow: LintSlowOption = 0) -> None:
+        self._lint_fast()
+        if slow >= 1:
+            self._lint_slow()
+
+    def _lint_fast(self) -> None:
         self.ctx.run('oxfmt "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"')
         for mise_toml in (Path(".mise.toml"), Path("mise.toml")):
             if not mise_toml.exists():
@@ -182,6 +188,9 @@ class BaseSpace(CleanUtils, Bakebook):
             )
         if self.ctx.obj.is_standalone_bakefile:
             self._lint_standalone_bakefile()
+
+    def _lint_slow(self) -> None:
+        pass
 
     @command(help="Run unit tests")
     def test(self) -> None:
@@ -361,7 +370,7 @@ class BaseSpace(CleanUtils, Bakebook):
 
         if fast < 2:
             console.start("Linting")
-            self.lint()
+            self.lint(slow=1)
         if fast < 1:
             console.start("Testing")
             self.test()

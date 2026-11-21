@@ -98,6 +98,7 @@ bake assert-setup-dev # Verify the setup is correct
 bake test             # Unit tests (fast)
 bake test-integration # Integration tests (slow, real subprocess)
 bake lint             # oxfmt, toml-sort, ruff format, ruff check, ty, deptry
+bake lint --slow      # adds the locked-pins guard (CI runs this)
 ```
 
 `bake setup-dev` only supports macOS. On other platforms, run `bake --dry-run setup-dev` to see the commands and follow platform-specific alternatives.

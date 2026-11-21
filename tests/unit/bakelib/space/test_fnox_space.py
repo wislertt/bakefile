@@ -173,7 +173,7 @@ class TestAssertSetupDev:
         class Demo(FnoxSpace[str | None]):
             fnox_bootstrap_secrets: ClassVar[Mapping[str, str]] = {"FNOX_X_TOKEN": "Tok"}
 
-            def lint(self) -> None:
+            def _lint_fast(self) -> None:
                 raise AssertionError("fast=2 must skip lint")
 
             def test(self) -> None:

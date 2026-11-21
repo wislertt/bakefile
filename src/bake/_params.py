@@ -19,11 +19,20 @@ def fast_bool_option(help: str = "Skip heavy operations"):
 
 FastBoolOption = Annotated[bool, fast_bool_option()]
 
+
+def slow_option(help: str = "Add slow steps (repeat to add more)"):
+    return typer.Option("--slow", "-s", count=True, help=help)
+
+
+SlowOption = Annotated[int, slow_option()]
+
 __all__ = [
     "BakeLogVerbosityField",
     "FastBoolOption",
     "FastOption",
+    "SlowOption",
     "VerboseBoolOption",
     "fast_bool_option",
     "fast_option",
+    "slow_option",
 ]

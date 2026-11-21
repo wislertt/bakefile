@@ -79,8 +79,8 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
         PYPROJECT_PATH.write_text(new_text)
         console.success(f"Updated {PYPROJECT_PATH}")
 
-    def lint(self) -> None:
-        super().lint()
+    def _lint_slow(self) -> None:
+        super()._lint_slow()
         self._guard_locked_pins()
 
     def _guard_locked_pins(self) -> None:

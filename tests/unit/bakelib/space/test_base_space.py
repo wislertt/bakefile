@@ -441,7 +441,7 @@ class TestAssertSetupDev:
                 suppress(typer.Exit),
             ):
                 base_space.assert_setup_dev(fast=0)
-                mock_lint.assert_called_once()
+                mock_lint.assert_called_once_with(slow=1)
                 mock_test.assert_called_once()
 
     def test_assert_setup_dev_with_fast_2_skips_test_and_lint(self, mock_ctx: Context) -> None:

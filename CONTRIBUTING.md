@@ -5,7 +5,7 @@
 - Coding standards, including test conventions: [CODING_STANDARDS.md](./CODING_STANDARDS.md).
 - Architecture and load flow: [docs/reference/architecture.md](./docs/reference/architecture.md).
 - Vocabulary: [GLOSSARY.md](./GLOSSARY.md). Decisions and their reasons: [docs/adr/](./docs/adr/).
-- Run `bake lint` and `bake test` before committing. `bake test-integration` runs the slow tests. Targeted runs: `uv run pytest <path>::<test> -v`.
+- Run `bake lint` and `bake test` before committing. `bake lint --slow` adds the locked-pins guard, which CI runs. `bake test-integration` runs the slow tests. Targeted runs: `uv run pytest <path>::<test> -v`.
 - Before writing tests, read [tests/README.md](./tests/README.md).
 
 ## CI caching

@@ -27,14 +27,24 @@ def test_rust_space_is_base_space() -> None:
 
 
 class TestRustSpace:
-    def test_lint_runs_all_commands(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
+    def test_lint_skips_clippy_by_default(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
         space = RustSpace()
         with mock_ctx:
             space.lint()
         captured = capsys.readouterr()
-        assert "cargo +nightly check --tests" in captured.err
+        assert "cargo sort" in captured.err
         assert "cargo +nightly fmt" in captured.err
-        assert "cargo +nightly clippy" in captured.err
+        assert "cargo +nightly clippy" not in captured.err
+
+    def test_lint_slow_adds_clippy(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
+        space = RustSpace()
+        with mock_ctx:
+            space.lint(slow=1)
+        captured = capsys.readouterr()
+        assert "cargo +nightly clippy --all-targets --all-features" in captured.err
+        assert "cargo +nightly check" not in captured.err
 
     def test_update_runs_rustup_and_cargo_update(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture

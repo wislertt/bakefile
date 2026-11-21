@@ -25,8 +25,8 @@ class PythonSpace(BaseSpace):
         tools[".venv/bin/python"] = {VENV_BIN}
         return tools
 
-    def lint(self) -> None:
-        super().lint()
+    def _lint_fast(self) -> None:
+        super()._lint_fast()
 
         self.ctx.run(
             "uv run toml-sort --sort-inline-arrays --in-place "
