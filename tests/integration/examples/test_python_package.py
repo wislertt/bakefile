@@ -53,7 +53,7 @@ def test_python_package(examples_python_package_dir: Path) -> None:
     # Verify lint runs successfully
     assert "oxfmt" in stderr and "ruff" in stderr
 
-    assert ".venv" in stdout and "src/python_package/__init__.py" in stdout
+    assert "Finished in" in stdout and "src/python_package/__init__.py" in stdout
 
     # assert tools
     assert "✅ [SUCCESS] bun" in stderr
