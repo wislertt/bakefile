@@ -16,7 +16,7 @@
 ## Working rules
 
 - Run targeted tests (`uv run pytest <path>::<test> -v`) during development. The full suite takes about 80 seconds; the developer runs `bake test` before committing.
-- No docstrings by default; the developer adds them (see CODING_STANDARDS.md, "Docstring Policy").
+- Write no docstrings, not even placeholders; the developer adds them where needed.
 - Do not commit automatically.
 - When working from a task list, do exactly the task named (e.g. "1.1") and stop for review.
 
