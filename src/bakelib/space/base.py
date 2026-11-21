@@ -192,6 +192,7 @@ class BaseSpace(CleanUtils, Bakebook):
             self._lint_standalone_bakefile()
 
     def _lint_slow(self) -> None:
+        # Hook for subclasses: the base has no slow checks, so `lint -s` adds nothing here
         pass
 
     @command(help="Run unit tests")
