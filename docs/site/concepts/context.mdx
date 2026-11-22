@@ -1,6 +1,6 @@
 ---
 title: Context
-description: ctx.run() executes CLI commands through subprocess. Control streaming, error handling, working directory, environment, timeout, and dry-run.
+description: ctx.run() executes CLI commands through subprocess. Control streaming, error handling, working directory, environment, timeout, and dry-run, and read the invocation directory.
 ---
 
 The `Bakebook` class provides a `.ctx` property for accessing CLI context. Tasks use it to run real commands:
@@ -83,3 +83,15 @@ def build(self) -> None:
     with self.ctx.override_dry_run(False):
         self.ctx.run("cargo build")  # runs even under bake -n
 ```
+
+## Invocation directory
+
+Commands run in the `bakefile.py`'s directory, even when `bake` found it by walking up from a subfolder or used the [Global `bakefile.py`](/usage/finding-bakefile#global-bakefile-py). `self.ctx.invocation_dir` is the directory you called `bake` from, for commands that should act there:
+
+```python
+@command()
+def tree(self) -> None:
+    self.ctx.run("tree -L 2", cwd=self.ctx.invocation_dir)
+```
+
+See [Finding bakefile.py](/usage/finding-bakefile#acting-on-the-invocation-directory) for a full global command.

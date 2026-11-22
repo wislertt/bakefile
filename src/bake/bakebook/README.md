@@ -140,12 +140,18 @@ class MyBakebook(Bakebook):
 
 ### Running Commands
 
+Without `-C`, `bake` walks up from the current directory to the nearest `bakefile.py`, else falls back to the Global `bakefile.py`; `-g` always uses the global one (ADR 0005, `docs/reference/architecture.md`). Commands run in the `bakefile.py`'s directory.
+
 ```bash
-# List all commands (shows help)
+# List all commands (shows help); -C means exactly this directory
 bake -C /path/to/project
 
 # Run a specific command
 bake -C /path/to/project build --prod
+
+# Use the Global bakefile.py, or another file in the global directory
+bake -g sync-dotfiles
+bake -g -f mac.py setup
 
 # With custom bakefile name
 bake -f custom_tasks.py test
@@ -246,7 +252,7 @@ bakebook = MyBakebook()
 **Key points:**
 
 - `self.ctx` is only available within command execution (raises `ContextNotAvailableError` otherwise)
-- Access context features: `ctx.run()`, `ctx.dry_run`, `ctx.verbosity`, `ctx.bakebook`
+- Access context features: `ctx.run()`, `ctx.dry_run`, `ctx.verbosity`, `ctx.bakebook`, `ctx.invocation_dir`
 - No need to pass `ctx: Context` as a parameter in your command functions
 
 **Context API:**
@@ -271,6 +277,9 @@ with self.ctx.override_dry_run(True):
 
 # Verbosity level
 self.ctx.verbosity  # 0=silent, 1=WARNING, 2=INFO, 3=DEBUG
+
+# Invocation directory: where `bake` was called from (commands run in the bakefile.py's directory)
+self.ctx.invocation_dir
 ```
 
 ---

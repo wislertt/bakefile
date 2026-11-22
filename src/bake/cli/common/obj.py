@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -12,8 +12,9 @@ from pydantic import ValidationError
 from rich.traceback import Traceback
 from typer.main import get_command_from_info
 
-from bake._typer_compat import MarkupMode, _expand_args
+from bake._typer_compat import BadParameter, MarkupMode, _expand_args
 from bake.bakebook.get import (
+    BakefileResolution,
     get_bakebook_from_target_dir_path,
     resolve_bakefile_path,
 )
@@ -43,6 +44,7 @@ from .params import (
     ChdirOption,
     DryRunOption,
     FileNameOption,
+    GlobalOption,
     IsChainCommandsOption,
     RemainingArgsArgument,
     VerbosityOption,
@@ -58,10 +60,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BakefileObject:
-    chdir: Path
+    chdir: Path | None
     file_name: str
     bakebook_name: str
+    use_global: bool = False
     bakefile_path: Path | None = None
+    resolution: BakefileResolution | None = None
+    invocation_dir: Path = field(default_factory=Path.cwd)
     bakebook: "Bakebook | None" = None
     bake_log_verbosity: int = DEFAULT_BAKE_LOG_VERBOSITY
     dry_run: bool = DEFAULT_DRY_RUN
@@ -84,9 +89,26 @@ class BakefileObject:
             return self.bakefile_path
 
         with contextlib.suppress(BakefileNotFoundError):
-            self.bakefile_path = resolve_bakefile_path(chdir=self.chdir, file_name=self.file_name)
+            self._resolve()
 
         return self.bakefile_path
+
+    def _resolve(self) -> Path:
+        self.resolution = resolve_bakefile_path(
+            chdir=self.chdir, file_name=self.file_name, use_global=self.use_global
+        )
+        self.bakefile_path = self.resolution.path
+        return self.bakefile_path
+
+    @property
+    def start_dir(self) -> Path:
+        return self.invocation_dir / (self.chdir or ".")
+
+    @property
+    def search_dir(self) -> Path:
+        if self.resolution is not None:
+            return self.resolution.searched[0]
+        return self.start_dir.resolve()
 
     def get_bakebook(self, allow_missing: bool, reinvoke_cli_module: CliModule | None = None):
         if self.bakebook is not None:
@@ -95,16 +117,17 @@ class BakefileObject:
         if reinvoke_cli_module is not None:
             # Check re-invocation with resolved bakefile path
             # If re-invocation happens, process is replaced and we don't return
-            _reinvoke_with_detected_python(self.bakefile_path, cli_module=reinvoke_cli_module)
+            _reinvoke_with_detected_python(
+                self.bakefile_path, cli_module=reinvoke_cli_module, cwd=self.invocation_dir
+            )
             # If returned above, we're in the correct Python
 
         try:
-            if self.bakefile_path is None:
-                self.bakefile_path = resolve_bakefile_path(
-                    chdir=self.chdir, file_name=self.file_name
-                )
+            bakefile_path = self.bakefile_path or self._resolve()
+            if self.resolution is not None and not self.resolution.found:
+                raise BakefileNotFoundError(self.resolution.not_found_message())
             self.bakebook = get_bakebook_from_target_dir_path(
-                target_dir_path=self.bakefile_path, bakebook_name=self.bakebook_name
+                target_dir_path=bakefile_path, bakebook_name=self.bakebook_name
             )
             self.setup_logging()
         except BakefileNotFoundError as e:
@@ -118,33 +141,35 @@ class BakefileObject:
                 # console (help must work), keep the cause for -vvv
                 logger.debug("Bakebook load failed", exc_info=e)
                 return
-            exc_to_show = e.__cause__ if e.__cause__ else e
-
-            # ImportError/ModuleNotFoundError: common, self-explanatory
-            # (missing dependency even after sync) — one line beats a traceback
-            if exc_to_show.__class__ in {
-                ValidationError,
-                BakebookError,
-                ImportError,
-                ModuleNotFoundError,
-            }:
-                console.err.print(
-                    f"[bold red]{exc_to_show.__class__.__name__}:[/bold red]", end=" "
-                )
-                console.err.print(exc_to_show)
-                console.err.print(f"Searched in: {self.chdir.resolve()}\n")
-            else:
-                console.err.print(
-                    Traceback.from_exception(
-                        type(exc_to_show), exc_to_show, exc_to_show.__traceback__
-                    )
-                )
+            self._print_bakebook_error(e)
             raise SystemExit(1) from e
+
+    def _print_bakebook_error(self, e: BakebookError) -> None:
+        exc_to_show = e.__cause__ if e.__cause__ else e
+
+        # ImportError/ModuleNotFoundError: common, self-explanatory
+        # (missing dependency even after sync) — one line beats a traceback
+        if exc_to_show.__class__ in {
+            ValidationError,
+            BakebookError,
+            ImportError,
+            ModuleNotFoundError,
+        }:
+            console.err.print(f"[bold red]{exc_to_show.__class__.__name__}:[/bold red]", end=" ")
+            console.err.print(exc_to_show)
+            console.err.print(f"Searched in: {self.search_dir}\n")
+        else:
+            console.err.print(
+                Traceback.from_exception(type(exc_to_show), exc_to_show, exc_to_show.__traceback__)
+            )
 
     def warn_if_no_bakebook(self):
         if self.bakebook is None:
             console.warning(f"Bakebook `{self.bakebook_name}` not found in `{self.file_name}`")
-            console.echo(f"Searched in: {self.chdir.resolve()}")
+            if self.resolution is not None and not self.resolution.found:
+                console.echo(self.resolution.not_found_message(), markup=False, highlight=False)
+            else:
+                console.echo(f"Searched in: {self.search_dir}")
             console.echo("Run `bake -vvv <command>` for details if the bakefile failed to load.\n")
 
     def setup_logging(self):
@@ -218,6 +243,7 @@ def _get_bakefile_object(
     chdir: ChdirOption = DEFAULT_CHDIR,
     file_name: FileNameOption = DEFAULT_FILE_NAME,
     bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
+    use_global: GlobalOption = False,
     is_chain_commands: IsChainCommandsOption = DEFAULT_IS_CHAIN_COMMAND,
     remaining_args: RemainingArgsArgument = None,
     bake_log_verbosity: VerbosityOption = None,
@@ -226,6 +252,9 @@ def _get_bakefile_object(
     bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,
 ) -> BakefileObject:
     _ = ctx
+
+    if use_global and chdir is not None:
+        raise BadParameter("-g/--global cannot be used with -C/--chdir")
 
     effective_bake_log = bake_log if bake_log is not None else get_default_bake_log(file_name)
 
@@ -242,6 +271,7 @@ def _get_bakefile_object(
         chdir=chdir,
         file_name=file_name,
         bakebook_name=bakebook_name,
+        use_global=use_global,
         bake_log_verbosity=effective_bake_log_verbosity,
         dry_run=dry_run,
         bake_log=effective_bake_log,

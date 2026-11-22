@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import typer
+from rich.markup import escape
 
 from bake.cli.common.app import (
     AGENT_DOCS_EPILOG,
@@ -23,6 +24,7 @@ from bake.cli.common.params import (
     ChdirOption,
     DryRunOption,
     FileNameOption,
+    GlobalOption,
     IsChainCommandsOption,
     VerbosityOption,
 )
@@ -47,6 +49,7 @@ def bake_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
         _chdir: ChdirOption = DEFAULT_CHDIR,
         _file_name: FileNameOption = DEFAULT_FILE_NAME,
         _bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
+        _use_global: GlobalOption = False,
         _version: BakeVersionOption = False,
         _is_chain_commands: IsChainCommandsOption = DEFAULT_IS_CHAIN_COMMAND,
         _bake_log: BakeLogOption = DEFAULT_BAKE_LOG,
@@ -98,8 +101,15 @@ def main():
 
     bakefile_obj.warn_if_no_bakebook()
 
+    help_text = f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it."
+    if bakefile_obj.bakebook is not None and bakefile_obj.bakefile_path is not None:
+        using = f"Using: {escape(str(bakefile_obj.bakefile_path))}"
+        if bakefile_obj.resolution is not None and bakefile_obj.resolution.is_global:
+            using += " (global)"
+        help_text += "\n\n" + style.dim(using)
+
     bake_app = typer.Typer(
-        help=f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it.",
+        help=help_text,
         epilog=AGENT_DOCS_EPILOG,
         add_completion=add_completion,
         rich_markup_mode=rich_markup_mode,

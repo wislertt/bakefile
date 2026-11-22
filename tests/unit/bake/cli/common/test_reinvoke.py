@@ -21,7 +21,8 @@ def subprocess_mock(monkeypatch: pytest.MonkeyPatch):
     """Mock subprocess.run to capture calls and prevent actual execution."""
     calls = []
 
-    def fake_run(args, env=None):
+    def fake_run(args, env=None, cwd=None):
+        _ = cwd
         calls.append(SubprocessCall(args=args, env=env or {}))
         return type("CompletedProcess", (), {"returncode": 0})()
 
@@ -99,8 +100,8 @@ def test_reinvoke_keyboard_interrupt_exits_cleanly(
     importlib.reload(settings)
     importlib.reload(reinvocation)
 
-    def fake_run_raises_keyboard_interrupt(args, env=None):
-        _ = args, env
+    def fake_run_raises_keyboard_interrupt(args, env=None, cwd=None):
+        _ = args, env, cwd
         raise KeyboardInterrupt()
 
     with (
@@ -122,8 +123,8 @@ def test_reinvoke_failed_child_with_broken_env_prints_hint(
     importlib.reload(settings)
     importlib.reload(reinvocation)
 
-    def fake_run_fails(args, env=None):
-        _ = args, env
+    def fake_run_fails(args, env=None, cwd=None):
+        _ = args, env, cwd
         return type("CompletedProcess", (), {"returncode": 1})()
 
     with (
@@ -133,13 +134,15 @@ def test_reinvoke_failed_child_with_broken_env_prints_hint(
         patch("bake.cli.common.reinvocation.subprocess.run", fake_run_fails),
         pytest.raises(SystemExit) as exc_info,
     ):
-        _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
+        _reinvoke_with_detected_python(
+            Path("/home/me/.config/bake/bakefile.py"), cli_module="bake.cli.bake"
+        )
 
     assert exc_info.value.code == 1
     err = strip_ansi(capsys.readouterr().err)
     # str(Path(...)): output renders via Path str(), separator differs on Windows
     assert str(Path("/venv/bin/python")) in err
-    assert "uv sync" in err
+    assert f"uv sync --script {Path('/home/me/.config/bake/bakefile.py')}" in err
 
 
 def test_reinvoke_failed_child_with_healthy_env_no_hint(
@@ -151,8 +154,8 @@ def test_reinvoke_failed_child_with_healthy_env_no_hint(
     importlib.reload(settings)
     importlib.reload(reinvocation)
 
-    def fake_run_fails(args, env=None):
-        _ = args, env
+    def fake_run_fails(args, env=None, cwd=None):
+        _ = args, env, cwd
         return type("CompletedProcess", (), {"returncode": 1})()
 
     with (

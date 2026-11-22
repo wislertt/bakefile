@@ -71,6 +71,8 @@ def test_reinvoke_with_detected_python(subprocess_mock, monkeypatch):
     - Test CLI behavior in isolated environments
     - Example: Testing Python reinvocation with UV project
 
+If a re-invoked script environment runs old code, uv reused a stale build of the local package: run `uv cache clean bakefile`.
+
 **When to write integration tests:**
 
 - Testing real subprocess behavior
@@ -185,6 +187,7 @@ Available in `tests/conftest.py`:
 - `examples_simple_dir` - Path to examples/simple/
 - `isolate_virtual_env` - Isolate from virtual environment
 - `prevent_reinvocation` - Prevent bake from reinvoking
+- `isolate_global_config_dir` (autouse) - Point `BAKE_CONFIG_DIR` and `XDG_CONFIG_HOME` (env vars and the already-loaded `bake_settings` fields) at an empty temp directory
 
 ## Guidelines
 

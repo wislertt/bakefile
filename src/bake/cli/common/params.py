@@ -29,7 +29,7 @@ def verbosity_callback(
 # Bakefile CLI Parameters
 # ==========================================================
 ChdirOption = Annotated[
-    Path,
+    Path | None,
     typer.Option(
         "-C",
         "--chdir",
@@ -44,6 +44,10 @@ FileNameOption = Annotated[
         help="Name of bakefile.py",
         callback=validate_file_name,
     ),
+]
+GlobalOption = Annotated[
+    bool,
+    typer.Option("-g", "--global", help="Use the Global bakefile.py"),
 ]
 BakebookNameOption = Annotated[
     str, typer.Option("--book-name", "-b", help="Name of bakebook object to retrieve")

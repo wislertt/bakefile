@@ -12,6 +12,14 @@ _Avoid_: using "the bakefile" for the file, "bakefile project"
 The user's task definition file, the Python equivalent of a Makefile. Always written with the extension.
 _Avoid_: `bakefile` (bare), Makefile
 
+**Global `bakefile.py`**:
+The `bakefile.py` in the user's global bake directory, holding commands meant to be usable from any directory.
+_Avoid_: global bake, global config, user bakefile
+
+**Invocation directory**:
+The directory the user ran `bake` or `bakefile` from, as opposed to the directory of the `bakefile.py` the commands run in.
+_Avoid_: cwd, user working dir
+
 **Bakebook**:
 A class that holds commands and variables, so tasks can be composed, inherited and reused. A `bakefile.py` exposes one.
 _Avoid_: recipe, task class, bake book

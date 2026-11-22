@@ -1,4 +1,5 @@
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -97,3 +98,86 @@ def test_reinvocation_self_heals_corrupted_script_env(
     result = run_bake()
     assert result.returncode == 0
     assert "is broken" not in strip_ansi(result.stderr)
+
+
+def test_reinvocation_keeps_invocation_dir_from_subfolder(
+    empty_project_folder: Path,
+    isolate_virtual_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = isolate_virtual_env
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    bakefile_path = empty_project_folder / "bakefile.py"
+    bakefile_path.write_text(
+        bakefile_path.read_text()
+        + textwrap.dedent("""
+
+            from pathlib import Path
+
+            from bake import Context
+
+
+            @bakebook.command()
+            def identity(ctx: Context) -> None:
+                print(f"cwd={Path.cwd()}")
+                print(f"invocation_dir={ctx.invocation_dir}")
+        """)
+    )
+    nested = empty_project_folder / "a" / "b"
+    nested.mkdir(parents=True)
+
+    result = run(
+        [sys.executable, "-m", "bake.cli.bake", "-vvv", "identity"],
+        cwd=nested,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    logs = parse_pretty_log(result.stderr)
+    assert has_messages_in_logs(logs, ["Re-invoking with detected Python:"])
+    out = strip_ansi(result.stdout)
+    assert f"cwd={empty_project_folder.resolve()}" in out
+    assert f"invocation_dir={nested.resolve()}" in out
+
+
+def test_reinvocation_runs_global_bakefile_from_unrelated_dir(
+    empty_project_folder: Path,
+    isolate_virtual_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    _ = isolate_virtual_env
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    monkeypatch.setenv("BAKE_CONFIG_DIR", str(empty_project_folder))
+    bakefile_path = empty_project_folder / "bakefile.py"
+    bakefile_path.write_text(
+        bakefile_path.read_text()
+        + textwrap.dedent("""
+
+            from pathlib import Path
+
+            from bake import Context
+
+
+            @bakebook.command()
+            def identity(ctx: Context) -> None:
+                print(f"file={__file__}")
+                print(f"cwd={Path.cwd()}")
+                print(f"invocation_dir={ctx.invocation_dir}")
+        """)
+    )
+    unrelated = tmp_path_factory.mktemp("unrelated")
+
+    result = run(
+        [sys.executable, "-m", "bake.cli.bake", "-vvv", "-g", "identity"],
+        cwd=unrelated,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    logs = parse_pretty_log(result.stderr)
+    assert has_messages_in_logs(logs, ["Re-invoking with detected Python:"])
+    out = strip_ansi(result.stdout)
+    assert f"file={bakefile_path.resolve()}" in out
+    assert f"cwd={empty_project_folder.resolve()}" in out
+    assert f"invocation_dir={unrelated.resolve()}" in out

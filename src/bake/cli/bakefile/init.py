@@ -2,9 +2,7 @@ from typing import Annotated
 
 import typer
 
-from bake.bakebook.get import (
-    resolve_bakefile_path,
-)
+from bake.bakebook.get import get_global_dir_path, resolve_bakefile_path
 from bake.cli.common.context import Context
 from bake.cli.common.params import ForceOption
 from bake.manage.add_inline import add_inline_metadata
@@ -21,13 +19,20 @@ def init(
         bool, typer.Option("--inline", "-i", help="Create bakefile with PEP 723 inline metadata")
     ] = False,
 ) -> None:
-    """Create a new bakefile.py in the current directory."""
+    """Create a new bakefile.py in the current directory, or the Global bakefile.py with -g."""
 
     if ctx.obj.bakebook is not None and not force:
         console.error("Bakebook already loaded. Use --force to override.")
         raise typer.Exit(code=1)
 
-    ctx.obj.bakefile_path = resolve_bakefile_path(chdir=ctx.obj.chdir, file_name=ctx.obj.file_name)
+    if ctx.obj.use_global:
+        global_dir_path = get_global_dir_path()
+        global_dir_path.mkdir(parents=True, exist_ok=True)
+        ctx.obj.bakefile_path = global_dir_path / ctx.obj.file_name
+    else:
+        ctx.obj.bakefile_path = resolve_bakefile_path(
+            chdir=ctx.obj.start_dir, file_name=ctx.obj.file_name
+        ).path
 
     if ctx.obj.bakefile_path.exists() and not force:
         console.error(f"File already exists at {ctx.obj.bakefile_path}. Use --force to overwrite.")

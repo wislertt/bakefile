@@ -7,6 +7,9 @@ import pytest
 
 from bake.ui import run, run_uv
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
+
+# Module-level so a test reloading bake.utils.settings cannot detach it from the object src reads
+from bake.utils.settings import bake_settings
 from tests.utils.cli import RunCli
 
 # Path to the complex vars bakebook file
@@ -164,6 +167,30 @@ def reset_cwd():
     original = Path.cwd()
     yield
     os.chdir(original)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def no_stray_parent_bakefile(tmp_path_factory: pytest.TempPathFactory) -> None:
+    base = tmp_path_factory.getbasetemp().resolve()
+    stray = [p / DEFAULT_FILE_NAME for p in base.parents if (p / DEFAULT_FILE_NAME).is_file()]
+    if stray:
+        pytest.exit(
+            f"Walk-up from test temp folders would find {stray[0]}. "
+            "Remove it or set --basetemp outside that tree.",
+            returncode=1,
+        )
+
+
+@pytest.fixture(autouse=True, scope="function")
+def isolate_global_config_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    config_dir = tmp_path_factory.mktemp("global-config")
+    monkeypatch.setenv("BAKE_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir))
+    monkeypatch.setattr(bake_settings, "bake_config_dir", config_dir)
+    monkeypatch.setattr(bake_settings, "xdg_config_home", config_dir)
+    return config_dir
 
 
 @pytest.fixture(autouse=True, scope="function")

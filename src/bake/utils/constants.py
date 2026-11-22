@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # Default value
-DEFAULT_CHDIR = Path(".")
+DEFAULT_CHDIR: Path | None = None
 DEFAULT_FILE_NAME = "bakefile.py"
 DEFAULT_FILE_NAME_BASE = DEFAULT_FILE_NAME.replace(".py", "")
 DEFAULT_BAKEBOOK_NAME = "bakebook"

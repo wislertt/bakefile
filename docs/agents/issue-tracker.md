@@ -11,7 +11,7 @@ Specs and tickets live as markdown files in `.tracker/`, committed to git. Use G
 - Tickets are one file per ticket at `.tracker/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`, never a single combined file
 - State is a `Status:` line near the top of each ticket: a triage role (see `triage-labels.md`) while open, `resolved` when done
 - Comments and history append under a `## Comments` heading
-- Commit spec and ticket files to `main` on their own (`docs:` commit) before any implementation worktree starts, so workers see them. Status changes ride along with each implementation PR.
+- Commit spec and ticket files on the branch implementation starts from, so workers see them. For multi-ticket features, use an integration branch: workers branch from it and merge back, status changes ride along with each merge, and the integration branch lands on `main` as one squash merge.
 - When every ticket of a feature is `resolved`, delete `.tracker/<feature-slug>/`. Git history is the archive.
 
 ### When a skill says "publish to the issue tracker"

@@ -4,15 +4,17 @@ import sys
 import types
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from importlib.abc import Loader
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from bake.manage.find_python import is_standalone_bakefile
 from bake.manage.run_uv import run_uv_sync
 from bake.ui import console, style
 from bake.ui.run import run_uv
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
+from bake.utils.settings import bake_settings
 
 if TYPE_CHECKING:
     from bake.bakebook.bakebook import Bakebook
@@ -47,11 +49,100 @@ def get_target_dir_path(chdir: Path, create_if_not_exist: bool) -> Path:
     return chdir.resolve()
 
 
-def resolve_bakefile_path(chdir: Path, file_name: str) -> Path:
-    target_dir_path = get_target_dir_path(chdir=chdir, create_if_not_exist=False)
-    bakefile_path = target_dir_path / file_name
-    logger.debug(f"Resolve bakefile path: {bakefile_path}", extra={"bakefile_path": bakefile_path})
-    return bakefile_path
+ResolvedBy = Literal["exact", "walk_up", "global", "global_fallback"]
+
+
+@dataclass(frozen=True)
+class BakefileResolution:
+    path: Path
+    resolved_by: ResolvedBy
+    searched: tuple[Path, ...]
+    found: bool
+    global_path: Path
+
+    @property
+    def is_global(self) -> bool:
+        return self.resolved_by in ("global", "global_fallback")
+
+    def not_found_message(self) -> str:
+        file_name = self.path.name
+        if self.resolved_by == "global":
+            return (
+                f"Global {file_name} not found: {self.path}\nRun `bakefile -g init` to create it."
+            )
+        if self.resolved_by == "exact":
+            searched = f"Searched in: {self.searched[0]}"
+        else:
+            searched = f"Searched in: {self.searched[0]} and parent directories"
+        global_state = "exists" if self.global_path.is_file() else "not found"
+        return f"{file_name} not found.\n{searched}\nGlobal: {self.global_path} ({global_state})"
+
+
+def get_global_dir_path() -> Path:
+    return bake_settings.global_bake_dir.resolve()
+
+
+def resolve_bakefile_path(
+    chdir: Path | None, file_name: str, use_global: bool = False
+) -> BakefileResolution:
+    global_path = get_global_dir_path() / file_name
+    if use_global:
+        resolution = BakefileResolution(
+            path=global_path,
+            resolved_by="global",
+            searched=(global_path.parent,),
+            found=global_path.is_file(),
+            global_path=global_path,
+        )
+    elif chdir is not None:
+        target_dir_path = get_target_dir_path(chdir=chdir, create_if_not_exist=False)
+        bakefile_path = target_dir_path / file_name
+        resolution = BakefileResolution(
+            path=bakefile_path,
+            resolved_by="exact",
+            searched=(target_dir_path,),
+            found=bakefile_path.is_file(),
+            global_path=global_path,
+        )
+    else:
+        resolution = _walk_up(start=Path.cwd().resolve(), global_path=global_path)
+
+    logger.debug(
+        f"Resolve bakefile path: {resolution.path} ({resolution.resolved_by})",
+        extra={"bakefile_path": resolution.path, "resolved_by": resolution.resolved_by},
+    )
+    return resolution
+
+
+def _walk_up(start: Path, global_path: Path) -> BakefileResolution:
+    file_name = global_path.name
+    searched: list[Path] = []
+    for directory in (start, *start.parents):
+        searched.append(directory)
+        candidate = directory / file_name
+        if candidate.is_file():
+            return BakefileResolution(
+                path=candidate,
+                resolved_by="walk_up",
+                searched=tuple(searched),
+                found=True,
+                global_path=global_path,
+            )
+    if global_path.is_file():
+        return BakefileResolution(
+            path=global_path,
+            resolved_by="global_fallback",
+            searched=(*searched, global_path.parent),
+            found=True,
+            global_path=global_path,
+        )
+    return BakefileResolution(
+        path=start / file_name,
+        resolved_by="walk_up",
+        searched=tuple(searched),
+        found=False,
+        global_path=global_path,
+    )
 
 
 def retry_load_module_with_uv_sync(
