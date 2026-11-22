@@ -20,6 +20,7 @@ Start with the prefactor: path resolution returns a result (chosen path, how it 
 - [ ] `bakefile init` creates in the current directory (or `-C`) even when a parent has a `bakefile.py`
 - [ ] Chained commands (`bake a b c`) all run against the one resolved file
 - [ ] `bake --help` shows the path of the loaded `bakefile.py`
+- [ ] `bakefile` subcommands other than `init` print `Using: <absolute path>` to stderr before running (not for `--help`, not when no file is found, not again in a re-invoked child)
 - [ ] `ctx.invocation_dir` is the directory `bake` was called from, captured before the directory change, and stays correct after re-invocation under the `bakefile.py`'s Python
 - [ ] Tests go through `run_cli` with a temp tree and an identity command that prints book identity, working directory and `ctx.invocation_dir`
 - [ ] `GLOSSARY.md` terms used: Invocation directory

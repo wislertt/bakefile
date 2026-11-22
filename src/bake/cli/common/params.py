@@ -29,7 +29,7 @@ def verbosity_callback(
 # Bakefile CLI Parameters
 # ==========================================================
 ChdirOption = Annotated[
-    Path,
+    Path | None,
     typer.Option(
         "-C",
         "--chdir",

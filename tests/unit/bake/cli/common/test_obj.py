@@ -5,6 +5,7 @@ import pytest
 import typer
 
 from bake import Bakebook
+from bake.bakebook.get import BakefileResolution
 from bake.cli.common.app import rich_markup_mode
 from bake.cli.common.context import Context
 from bake.cli.common.obj import (
@@ -17,6 +18,10 @@ from bake.cli.common.obj import (
 )
 from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
 from bake.utils.exceptions import BakebookError
+
+
+def _exact(path: Path) -> BakefileResolution:
+    return BakefileResolution(path=path, resolved_by="exact", searched=(path.parent,), found=True)
 
 
 class TestBakefileObject:
@@ -49,7 +54,7 @@ class TestBakefileObject:
         mock_resolve: MagicMock,
         tmp_path: Path,
     ) -> None:
-        mock_resolve.return_value = tmp_path / DEFAULT_FILE_NAME
+        mock_resolve.return_value = _exact(tmp_path / DEFAULT_FILE_NAME)
         mock_bakebook = Bakebook()
         mock_get_bakebook.return_value = mock_bakebook
 
@@ -131,7 +136,7 @@ class TestGetBakefileObject:
 
         result = get_bakefile_object(rich_markup_mode=rich_markup_mode)
         assert isinstance(result, BakefileObject)
-        assert result.chdir == Path(".")
+        assert result.chdir is None
         assert result.file_name == DEFAULT_FILE_NAME
         assert result.bakebook_name == DEFAULT_BAKEBOOK_NAME
         assert result.dry_run is False
@@ -262,7 +267,7 @@ class TestBakefileObjectGetBakebookErrors:
     ) -> None:
         from pydantic import ValidationError
 
-        mock_resolve.return_value = tmp_path / DEFAULT_FILE_NAME
+        mock_resolve.return_value = _exact(tmp_path / DEFAULT_FILE_NAME)
         validation_error = ValidationError.from_exception_data("test", [])
         bakebook_error = BakebookError("Invalid")
         bakebook_error.__cause__ = validation_error
@@ -290,7 +295,7 @@ class TestBakefileObjectGetBakebookErrors:
         mock_resolve: MagicMock,
         tmp_path: Path,
     ) -> None:
-        mock_resolve.return_value = tmp_path / DEFAULT_FILE_NAME
+        mock_resolve.return_value = _exact(tmp_path / DEFAULT_FILE_NAME)
         generic_error = ValueError("Something went wrong")
         bakebook_error = BakebookError("Failed")
         bakebook_error.__cause__ = generic_error
@@ -330,7 +335,7 @@ class TestBakefileObjectGetBakebookErrors:
     def test_get_bakebook_with_allow_missing_true_returns_early(
         self, mock_get_bakebook: MagicMock, mock_resolve: MagicMock, tmp_path: Path
     ) -> None:
-        mock_resolve.return_value = tmp_path / DEFAULT_FILE_NAME
+        mock_resolve.return_value = _exact(tmp_path / DEFAULT_FILE_NAME)
         mock_get_bakebook.side_effect = BakebookError("Error")
 
         obj = BakefileObject(

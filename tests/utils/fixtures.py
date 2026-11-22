@@ -167,6 +167,16 @@ def reset_cwd():
 
 
 @pytest.fixture(autouse=True, scope="function")
+def isolate_global_config_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    config_dir = tmp_path_factory.mktemp("global-config")
+    monkeypatch.setenv("BAKE_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir))
+    return config_dir
+
+
+@pytest.fixture(autouse=True, scope="function")
 def disable_colors():
     from bake.utils import ENV_NO_COLOR
 

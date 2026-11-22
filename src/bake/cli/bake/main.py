@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import typer
+from rich.markup import escape
 
 from bake.cli.common.app import (
     AGENT_DOCS_EPILOG,
@@ -98,8 +99,12 @@ def main():
 
     bakefile_obj.warn_if_no_bakebook()
 
+    help_text = f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it."
+    if bakefile_obj.bakebook is not None and bakefile_obj.bakefile_path is not None:
+        help_text += "\n\n" + style.dim(f"Using: {escape(str(bakefile_obj.bakefile_path))}")
+
     bake_app = typer.Typer(
-        help=f"Run tasks from bakefile.py. Use {style.code('bakefile')} to manage it.",
+        help=help_text,
         epilog=AGENT_DOCS_EPILOG,
         add_completion=add_completion,
         rich_markup_mode=rich_markup_mode,

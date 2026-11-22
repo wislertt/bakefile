@@ -21,7 +21,8 @@ def subprocess_mock(monkeypatch: pytest.MonkeyPatch):
     """Mock subprocess.run to capture calls and prevent actual execution."""
     calls = []
 
-    def fake_run(args, env=None):
+    def fake_run(args, env=None, cwd=None):
+        _ = cwd
         calls.append(SubprocessCall(args=args, env=env or {}))
         return type("CompletedProcess", (), {"returncode": 0})()
 
@@ -99,8 +100,8 @@ def test_reinvoke_keyboard_interrupt_exits_cleanly(
     importlib.reload(settings)
     importlib.reload(reinvocation)
 
-    def fake_run_raises_keyboard_interrupt(args, env=None):
-        _ = args, env
+    def fake_run_raises_keyboard_interrupt(args, env=None, cwd=None):
+        _ = args, env, cwd
         raise KeyboardInterrupt()
 
     with (
@@ -122,8 +123,8 @@ def test_reinvoke_failed_child_with_broken_env_prints_hint(
     importlib.reload(settings)
     importlib.reload(reinvocation)
 
-    def fake_run_fails(args, env=None):
-        _ = args, env
+    def fake_run_fails(args, env=None, cwd=None):
+        _ = args, env, cwd
         return type("CompletedProcess", (), {"returncode": 1})()
 
     with (
@@ -151,8 +152,8 @@ def test_reinvoke_failed_child_with_healthy_env_no_hint(
     importlib.reload(settings)
     importlib.reload(reinvocation)
 
-    def fake_run_fails(args, env=None):
-        _ = args, env
+    def fake_run_fails(args, env=None, cwd=None):
+        _ = args, env, cwd
         return type("CompletedProcess", (), {"returncode": 1})()
 
     with (

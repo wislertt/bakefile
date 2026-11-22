@@ -71,7 +71,7 @@ Status: ready-for-agent
 - **Invocation directory**: captured before any `chdir`, stored on the `BakefileObject`, and exposed as `ctx.invocation_dir`. Re-invocation needs no change, because the child inherits the same argv and current directory and resolves identically.
 - **Not-found message** replaces `Searched in: <dir>` with the start directory "and parent directories" (or the exact `-C` directory) and a `Global:` line showing the global path and whether it exists. The line is always shown.
 - **`bake -g` with no global file**: error that names the global path and suggests `bakefile -g init`.
-- **Fallback visibility**: the `bake --help` output shows the loaded `bakefile.py` path and marks it as global when it is. A debug log line records which resolution step matched. No notice on normal runs.
+- **Fallback visibility**: the `bake --help` output shows the loaded `bakefile.py` path as `Using: <absolute path>` and marks it as global when it is. A debug log line records which resolution step matched. `bake` prints no notice on normal runs. `bakefile` subcommands other than `init` print `Using: <absolute path>` to stderr before running, on success and failure alike, because they act on the file itself (lock, add, add-inline, lint) and walk-up may have picked a parent's file.
 - **`bakefile` CLI**: all subcommands use the same resolution, except `init`, which always targets the current directory (or `-C`), and with `-g` the global directory, creating it if missing.
 - **Hints with file paths** (for example the broken-environment hint after re-invocation) print the resolved absolute `bakefile.py` path instead of a bare `bakefile.py`.
 - **Glossary**: uses **Global `bakefile.py`** and **Invocation directory** as defined in `GLOSSARY.md`.

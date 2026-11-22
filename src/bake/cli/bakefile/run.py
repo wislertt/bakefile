@@ -42,7 +42,7 @@ def run(ctx: Context) -> None:
     logger.debug(f"Using bakefile Python: {python_path}")
 
     first_arg = ctx.args[0]
-    first_arg_path = Path(first_arg)
+    first_arg_path = ctx.obj.start_dir / first_arg
 
     if first_arg_path.is_file():
         script_path = first_arg_path.resolve()
