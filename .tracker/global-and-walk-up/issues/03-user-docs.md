@@ -22,3 +22,4 @@ Spec: `.tracker/global-and-walk-up/spec.md`. Decision: `docs/adr/0005-one-bakefi
 - Updated README, `cli/bake.mdx`, `cli/bakefile.mdx`, `concepts/context.mdx`, `troubleshooting/{index,file-name-errors,bakebook-not-found}.mdx`, `skill.md`, `src/bake/bakebook/README.md`. `docs/reference/architecture.md` was already current from 01 and 02.
 - Added the `uv cache clean bakefile` note from 02's handoff to `tests/README.md`.
 - The repo has no changelog file; the behaviour-change note lives on the docs page's Upgrading section and goes in the squash-merge message (last box stays open until the merge).
+- PR review fixes: `bakefile -g <subcommand>` with no global file now gives the same error as `bake -g` (closes 02's known gap); a relative `XDG_CONFIG_HOME` is ignored per the XDG spec.

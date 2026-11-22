@@ -458,6 +458,22 @@ class TestGlobalFallback:
         assert captured.exit_code == 0, captured.err
         assert _parse(captured.out)["book"] == "home"
 
+    def test_relative_xdg_config_home_is_ignored(
+        self, tree: Path, run_cli: RunCli, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_identity_bakefile(tree / "home" / ".config" / "bake" / "bakefile.py", "home")
+        _write_identity_bakefile(tree / "xdg" / "bake" / "bakefile.py", "xdg")
+        monkeypatch.setenv("HOME", str(tree / "home"))
+        monkeypatch.setenv("USERPROFILE", str(tree / "home"))
+        monkeypatch.setattr(bake_settings, "bake_config_dir", None)
+        monkeypatch.setattr(bake_settings, "xdg_config_home", Path("xdg"))
+        os.chdir(tree)
+
+        captured = run_cli(command=CMD_BAKE, dir_path=None, args=["identity"])
+
+        assert captured.exit_code == 0, captured.err
+        assert _parse(captured.out)["book"] == "home"
+
 
 class TestBakefileCliGlobal:
     def test_global_lock_acts_on_global_bakefile(
@@ -470,6 +486,17 @@ class TestBakefileCliGlobal:
 
         assert captured.exit_code == 0, captured.err
         assert "uv lock --script bakefile.py" in captured.err
+
+    def test_global_lock_without_global_file_suggests_init(
+        self, tree: Path, run_cli: RunCli, isolate_global_config_dir: Path
+    ) -> None:
+        os.chdir(tree / "project")
+
+        captured = run_cli(command=CMD_BAKEFILE, dir_path=None, args=["-g", "-n", "lock"])
+
+        assert captured.exit_code == 1
+        assert str(isolate_global_config_dir.resolve() / "bakefile.py") in captured.err
+        assert "bakefile -g init" in captured.err
 
     def test_lock_falls_back_to_global_bakefile(
         self, tree: Path, global_dir: Path, run_cli: RunCli, monkeypatch: pytest.MonkeyPatch

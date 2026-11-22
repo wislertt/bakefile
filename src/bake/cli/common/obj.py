@@ -141,28 +141,27 @@ class BakefileObject:
                 # console (help must work), keep the cause for -vvv
                 logger.debug("Bakebook load failed", exc_info=e)
                 return
-            exc_to_show = e.__cause__ if e.__cause__ else e
-
-            # ImportError/ModuleNotFoundError: common, self-explanatory
-            # (missing dependency even after sync) — one line beats a traceback
-            if exc_to_show.__class__ in {
-                ValidationError,
-                BakebookError,
-                ImportError,
-                ModuleNotFoundError,
-            }:
-                console.err.print(
-                    f"[bold red]{exc_to_show.__class__.__name__}:[/bold red]", end=" "
-                )
-                console.err.print(exc_to_show)
-                console.err.print(f"Searched in: {self.search_dir}\n")
-            else:
-                console.err.print(
-                    Traceback.from_exception(
-                        type(exc_to_show), exc_to_show, exc_to_show.__traceback__
-                    )
-                )
+            self._print_bakebook_error(e)
             raise SystemExit(1) from e
+
+    def _print_bakebook_error(self, e: BakebookError) -> None:
+        exc_to_show = e.__cause__ if e.__cause__ else e
+
+        # ImportError/ModuleNotFoundError: common, self-explanatory
+        # (missing dependency even after sync) — one line beats a traceback
+        if exc_to_show.__class__ in {
+            ValidationError,
+            BakebookError,
+            ImportError,
+            ModuleNotFoundError,
+        }:
+            console.err.print(f"[bold red]{exc_to_show.__class__.__name__}:[/bold red]", end=" ")
+            console.err.print(exc_to_show)
+            console.err.print(f"Searched in: {self.search_dir}\n")
+        else:
+            console.err.print(
+                Traceback.from_exception(type(exc_to_show), exc_to_show, exc_to_show.__traceback__)
+            )
 
     def warn_if_no_bakebook(self):
         if self.bakebook is None:

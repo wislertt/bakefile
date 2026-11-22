@@ -62,7 +62,8 @@ class BakeSettings(BaseSettings):
     def global_bake_dir(self) -> Path:
         if self.bake_config_dir is not None:
             return self.bake_config_dir.expanduser()
-        if self.xdg_config_home is not None:
+        # The XDG Base Directory spec says to ignore relative paths
+        if self.xdg_config_home is not None and self.xdg_config_home.expanduser().is_absolute():
             return self.xdg_config_home.expanduser() / "bake"
         return Path.home() / ".config" / "bake"
 

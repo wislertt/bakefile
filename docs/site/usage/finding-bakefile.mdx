@@ -55,7 +55,7 @@ A Global `bakefile.py` holds commands that belong to no project, such as syncing
 | else `XDG_CONFIG_HOME` set  | `$XDG_CONFIG_HOME/bake`    |
 | otherwise                   | `~/.config/bake`           |
 
-The same rule applies on every platform, including macOS (not `~/Library`).
+A relative `XDG_CONFIG_HOME` is ignored, as the XDG spec requires. The same rule applies on every platform, including macOS (not `~/Library`).
 
 ### Create it
 
@@ -89,7 +89,7 @@ bake -g sync-dotfiles
 bake -g -f mac.py setup    # ~/.config/bake/mac.py
 ```
 
-`-g` together with `-C` is a usage error. `bake -g` with no Global `bakefile.py` names the expected path and suggests `bakefile -g init`. `bakefile -g` subcommands only report `Bakefile not found at <path>`.
+`-g` together with `-C` is a usage error. `bake -g` and `bakefile -g` subcommands with no Global `bakefile.py` name the expected path and suggest `bakefile -g init`.
 
 ### Manage it
 

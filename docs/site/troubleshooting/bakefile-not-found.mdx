@@ -24,7 +24,7 @@ Global bakefile.py not found: /Users/me/.config/bake/bakefile.py
 Run `bakefile -g init` to create it.
 ```
 
-`bake -g` always uses the global directory, which you have not set up yet. `bakefile -g lock`, `add` and `sync` report the same case as `Bakefile not found at <path>`, with the same fix. Run `bakefile -g init`, or symlink a dotfiles repo there (`ln -s ~/dotfiles ~/.config/bake`). If you set `BAKE_CONFIG_DIR` or `XDG_CONFIG_HOME`, the path in the message reflects it.
+`-g` always uses the global directory, which you have not set up yet. `bake -g` and `bakefile -g` subcommands (other than `init`) give this error. Run `bakefile -g init`, or symlink a dotfiles repo there (`ln -s ~/dotfiles ~/.config/bake`). If you set `BAKE_CONFIG_DIR` or `XDG_CONFIG_HOME`, the path in the message reflects it.
 
 ## Unexpected commands, or the wrong file runs
 
