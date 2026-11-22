@@ -40,6 +40,10 @@ class Context(typer.Context):
             self.obj.dry_run = original
 
     @property
+    def invocation_dir(self) -> Path:
+        return self.obj.invocation_dir
+
+    @property
     def verbosity(self) -> int:
         return self.obj.bake_log_verbosity
 

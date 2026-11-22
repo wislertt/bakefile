@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 CliModule = Literal["bake.cli.bake", "bake.cli.bakefile"]
 
 
-def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: CliModule) -> None:
+def _reinvoke_with_detected_python(
+    bakefile_path: Path | None, *, cli_module: CliModule, cwd: Path | None = None
+) -> None:
     """Re-invoke CLI with detected Python if needed.
 
     Checks if the current Python is the correct one for the bakefile.
@@ -68,6 +70,7 @@ def _reinvoke_with_detected_python(bakefile_path: Path | None, *, cli_module: Cl
         result = subprocess.run(
             [str(target_python), "-m", cli_module, *sys.argv[1:]],
             env=env,
+            cwd=cwd,
         )
     except KeyboardInterrupt as e:
         # User pressed Ctrl+C - exit cleanly with standard SIGINT exit code (128 + 2)

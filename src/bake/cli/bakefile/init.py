@@ -27,7 +27,9 @@ def init(
         console.error("Bakebook already loaded. Use --force to override.")
         raise typer.Exit(code=1)
 
-    ctx.obj.bakefile_path = resolve_bakefile_path(chdir=ctx.obj.chdir, file_name=ctx.obj.file_name)
+    ctx.obj.bakefile_path = resolve_bakefile_path(
+        chdir=ctx.obj.start_dir, file_name=ctx.obj.file_name
+    ).path
 
     if ctx.obj.bakefile_path.exists() and not force:
         console.error(f"File already exists at {ctx.obj.bakefile_path}. Use --force to overwrite.")

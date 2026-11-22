@@ -166,6 +166,28 @@ def reset_cwd():
     os.chdir(original)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def no_stray_parent_bakefile(tmp_path_factory: pytest.TempPathFactory) -> None:
+    base = tmp_path_factory.getbasetemp().resolve()
+    stray = [p / DEFAULT_FILE_NAME for p in base.parents if (p / DEFAULT_FILE_NAME).is_file()]
+    if stray:
+        pytest.exit(
+            f"Walk-up from test temp folders would find {stray[0]}. "
+            "Remove it or set --basetemp outside that tree.",
+            returncode=1,
+        )
+
+
+@pytest.fixture(autouse=True, scope="function")
+def isolate_global_config_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    config_dir = tmp_path_factory.mktemp("global-config")
+    monkeypatch.setenv("BAKE_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir))
+    return config_dir
+
+
 @pytest.fixture(autouse=True, scope="function")
 def disable_colors():
     from bake.utils import ENV_NO_COLOR

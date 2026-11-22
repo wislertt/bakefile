@@ -52,11 +52,11 @@ class TestResolveBakefilePath:
         file_path.write_text("print('test')")
 
         result = resolve_bakefile_path(tmp_path, "test.py")
-        assert result == file_path.resolve()
+        assert result.path == file_path.resolve()
 
     def test_resolve_bakefile_path_not_found(self, tmp_path: Path) -> None:
         file_name = "nonexistent.py"
-        bakefile_path = resolve_bakefile_path(tmp_path, file_name)
+        bakefile_path = resolve_bakefile_path(tmp_path, file_name).path
         assert bakefile_path == tmp_path / file_name
 
 

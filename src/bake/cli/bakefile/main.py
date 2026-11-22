@@ -9,7 +9,7 @@ from bake.cli.common.app import (
     show_help_if_no_command,
 )
 from bake.cli.common.context import Context
-from bake.cli.common.obj import BakefileObject, get_bakefile_object
+from bake.cli.common.obj import BakefileObject, get_args, get_bakefile_object
 from bake.cli.common.params import (
     BakebookNameOption,
     BakefileVersionOption,
@@ -20,7 +20,7 @@ from bake.cli.common.params import (
     FileNameOption,
     VerbosityOption,
 )
-from bake.ui import style
+from bake.ui import console, style
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
     DEFAULT_BAKE_LOG_PRETTY,
@@ -30,6 +30,7 @@ from bake.utils.constants import (
     DEFAULT_DRY_RUN,
     DEFAULT_FILE_NAME,
 )
+from bake.utils.settings import bake_settings
 
 from . import uv
 from .add_inline import add_inline
@@ -57,8 +58,27 @@ def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
     ):
         ctx.obj = obj
         show_help_if_no_command(ctx)
+        _print_using_bakefile(obj, ctx.invoked_subcommand)
 
     return bakefile_app_callback
+
+
+def _print_using_bakefile(obj: BakefileObject, subcommand: str | None) -> None:
+    if subcommand in (None, init.__name__) or "--help" in get_args():
+        return
+    # The parent process already printed it before re-invoking
+    if bake_settings.bake_reinvoked:
+        return
+    if obj.resolution is None or not obj.resolution.found:
+        return
+    console.echo(
+        f"Using: {obj.resolution.path}",
+        stderr=True,
+        soft_wrap=True,
+        markup=False,
+        highlight=False,
+        style="dim",
+    )
 
 
 def main():

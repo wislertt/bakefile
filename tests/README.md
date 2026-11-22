@@ -185,6 +185,7 @@ Available in `tests/conftest.py`:
 - `examples_simple_dir` - Path to examples/simple/
 - `isolate_virtual_env` - Isolate from virtual environment
 - `prevent_reinvocation` - Prevent bake from reinvoking
+- `isolate_global_config_dir` (autouse) - Point `BAKE_CONFIG_DIR` and `XDG_CONFIG_HOME` at an empty temp directory
 
 ## Guidelines
 

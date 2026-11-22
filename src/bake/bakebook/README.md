@@ -246,7 +246,7 @@ bakebook = MyBakebook()
 **Key points:**
 
 - `self.ctx` is only available within command execution (raises `ContextNotAvailableError` otherwise)
-- Access context features: `ctx.run()`, `ctx.dry_run`, `ctx.verbosity`, `ctx.bakebook`
+- Access context features: `ctx.run()`, `ctx.dry_run`, `ctx.verbosity`, `ctx.bakebook`, `ctx.invocation_dir`
 - No need to pass `ctx: Context` as a parameter in your command functions
 
 **Context API:**
@@ -271,6 +271,9 @@ with self.ctx.override_dry_run(True):
 
 # Verbosity level
 self.ctx.verbosity  # 0=silent, 1=WARNING, 2=INFO, 3=DEBUG
+
+# Invocation directory: where `bake` was called from (commands run in the bakefile.py's directory)
+self.ctx.invocation_dir
 ```
 
 ---
