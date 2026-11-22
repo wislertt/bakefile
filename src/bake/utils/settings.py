@@ -3,6 +3,7 @@ import os
 import sys
 from contextvars import ContextVar
 from datetime import tzinfo
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field, PrivateAttr
@@ -53,7 +54,18 @@ class BakeSettings(BaseSettings):
     no_color: bool = False
     platform: PlatformType = Field(default_factory=_detect_platform)
     bake_reinvoked: bool = Field(default=False, alias=ENV__BAKE_REINVOKED)
+    bake_config_dir: Path | None = None
+    xdg_config_home: Path | None = None
     _bake_logging_setup: bool = PrivateAttr(default=False)
+
+    @property
+    def global_bake_dir(self) -> Path:
+        if self.bake_config_dir is not None:
+            return self.bake_config_dir.expanduser()
+        # The XDG Base Directory spec says to ignore relative paths
+        if self.xdg_config_home is not None and self.xdg_config_home.expanduser().is_absolute():
+            return self.xdg_config_home.expanduser() / "bake"
+        return Path.home() / ".config" / "bake"
 
     def colors_enabled(self) -> bool:
         # Permission gate for color output: False is absolute; True only

@@ -1,5 +1,7 @@
 from collections.abc import Callable
 
+import typer
+
 from bake.cli.common.app import (
     AGENT_DOCS_EPILOG,
     BakefileApp,
@@ -18,6 +20,7 @@ from bake.cli.common.params import (
     ChdirOption,
     DryRunOption,
     FileNameOption,
+    GlobalOption,
     VerbosityOption,
 )
 from bake.ui import console, style
@@ -50,6 +53,7 @@ def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
         _chdir: ChdirOption = DEFAULT_CHDIR,
         _file_name: FileNameOption = DEFAULT_FILE_NAME,
         _bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
+        _use_global: GlobalOption = False,
         _version: BakefileVersionOption = False,
         _bake_log: BakeLogOption = DEFAULT_BAKE_LOG,
         _bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,
@@ -58,13 +62,27 @@ def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
     ):
         ctx.obj = obj
         show_help_if_no_command(ctx)
+        _exit_if_global_bakefile_missing(obj, ctx.invoked_subcommand)
         _print_using_bakefile(obj, ctx.invoked_subcommand)
 
     return bakefile_app_callback
 
 
+def _acts_on_bakefile(subcommand: str | None) -> bool:
+    return subcommand not in (None, init.__name__) and "--help" not in get_args()
+
+
+def _exit_if_global_bakefile_missing(obj: BakefileObject, subcommand: str | None) -> None:
+    if not _acts_on_bakefile(subcommand):
+        return
+    if obj.resolution is None or obj.resolution.resolved_by != "global" or obj.resolution.found:
+        return
+    console.error(obj.resolution.not_found_message())
+    raise typer.Exit(code=1)
+
+
 def _print_using_bakefile(obj: BakefileObject, subcommand: str | None) -> None:
-    if subcommand in (None, init.__name__) or "--help" in get_args():
+    if not _acts_on_bakefile(subcommand):
         return
     # The parent process already printed it before re-invoking
     if bake_settings.bake_reinvoked:

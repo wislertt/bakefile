@@ -1,7 +1,7 @@
 ---
 title: "BakebookError: No 'bakebook' found"
 sidebarTitle: Bakebook not found
-description: bake cannot find a bakebook variable. Name the variable bakebook, select one with -b, or point bake at the right directory with -C or file with -f.
+description: bake cannot find a bakebook variable. Name the variable bakebook, select one with -b, or point bake at the right file with -C, -f, or -g.
 ---
 
 `bake` looks for a variable named `bakebook` (the default) and did not find one.
@@ -19,14 +19,17 @@ Select it with `-b`:
 bake -b my_bakebook build
 ```
 
-## Running from another directory
+## bake loaded a different file
 
-Change it with `-C`, or pick another file with `-f`:
+`bake` uses the nearest `bakefile.py` walking up from the current directory, else the Global `bakefile.py`. The path in the error is the file it loaded. If that is not the one you meant, pick a directory with `-C`, another file name with `-f`, or the Global `bakefile.py` with `-g`:
 
 ```bash
 bake -C /path/to/project build
 bake -f tasks.py build
+bake -g build
 ```
+
+See [Finding bakefile.py](/usage/finding-bakefile).
 
 ## The file does not define a bakebook
 

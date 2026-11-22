@@ -21,7 +21,13 @@ from bake.utils.exceptions import BakebookError
 
 
 def _exact(path: Path) -> BakefileResolution:
-    return BakefileResolution(path=path, resolved_by="exact", searched=(path.parent,), found=True)
+    return BakefileResolution(
+        path=path,
+        resolved_by="exact",
+        searched=(path.parent,),
+        found=True,
+        global_path=Path("/global") / path.name,
+    )
 
 
 class TestBakefileObject:

@@ -134,13 +134,15 @@ def test_reinvoke_failed_child_with_broken_env_prints_hint(
         patch("bake.cli.common.reinvocation.subprocess.run", fake_run_fails),
         pytest.raises(SystemExit) as exc_info,
     ):
-        _reinvoke_with_detected_python(Path("bakefile.py"), cli_module="bake.cli.bake")
+        _reinvoke_with_detected_python(
+            Path("/home/me/.config/bake/bakefile.py"), cli_module="bake.cli.bake"
+        )
 
     assert exc_info.value.code == 1
     err = strip_ansi(capsys.readouterr().err)
     # str(Path(...)): output renders via Path str(), separator differs on Windows
     assert str(Path("/venv/bin/python")) in err
-    assert "uv sync" in err
+    assert f"uv sync --script {Path('/home/me/.config/bake/bakefile.py')}" in err
 
 
 def test_reinvoke_failed_child_with_healthy_env_no_hint(
