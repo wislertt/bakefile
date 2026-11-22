@@ -7,6 +7,7 @@
 - Vocabulary: [GLOSSARY.md](./GLOSSARY.md). Decisions and their reasons: [docs/adr/](./docs/adr/).
 - Run `bake lint` and `bake test` before committing. `bake lint --slow` adds the locked-pins guard, which CI runs. `bake test-integration` runs the slow tests. Targeted runs: `uv run pytest <path>::<test> -v`.
 - Before writing tests, read [tests/README.md](./tests/README.md).
+- Dependency bumps, with any small code changes they need, can go in any PR. Give a bump its own PR only when it needs large code changes.
 
 ## CI caching
 
