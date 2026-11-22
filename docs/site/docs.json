@@ -116,7 +116,7 @@
             },
             {
                 "group": "Usage",
-                "pages": ["usage/logging", "usage/settings"]
+                "pages": ["usage/finding-bakefile", "usage/logging", "usage/settings"]
             },
             {
                 "group": "CLI Reference",
@@ -135,6 +135,7 @@
                 "pages": [
                     "troubleshooting/index",
                     "troubleshooting/command-not-found",
+                    "troubleshooting/bakefile-not-found",
                     "troubleshooting/bakebook-not-found",
                     "troubleshooting/wrong-bakebook-type",
                     "troubleshooting/file-name-errors",

@@ -71,6 +71,10 @@ bakebook = MyBakebook()
 bake build
 ```
 
+`bake` finds the nearest `bakefile.py` walking up from the current directory, so `bake build` works from any subfolder of the project. Commands always run in the `bakefile.py`'s directory.
+
+For commands you want everywhere (dotfiles, personal utilities), create a Global `bakefile.py` in `~/.config/bake/` with `bakefile -g init`, or symlink a dotfiles repo there. `bake <command>` falls back to it outside any project, and `bake -g <command>` uses it from anywhere. See [Finding bakefile.py](https://bakefile.wisl.dev/usage/finding-bakefile).
+
 Generate a bakefile with `bakefile init`, or start from the [simple example](https://bakefile.wisl.dev/examples/simple). Full walkthrough in the [quickstart](https://bakefile.wisl.dev/getting-started/quickstart).
 
 ## Documentation
@@ -79,7 +83,7 @@ Full documentation lives at [bakefile.wisl.dev](https://bakefile.wisl.dev):
 
 - [Why bakefile](https://bakefile.wisl.dev/getting-started/why-bakefile) - comparison with Make, Just, Task, mise, and Invoke
 - [Concepts](https://bakefile.wisl.dev/concepts/bakebook) - Bakebook, commands, context, PEP 723
-- [Usage](https://bakefile.wisl.dev/usage/logging) - logging, settings
+- [Usage](https://bakefile.wisl.dev/usage/finding-bakefile) - finding bakefile.py and the Global bakefile.py, logging, settings
 - [CLI reference](https://bakefile.wisl.dev/cli/bake) - `bake` and `bakefile`
 - [bakelib](https://bakefile.wisl.dev/bakelib/spaces) - Spaces, environments, cache, secrets
 - [Examples](https://bakefile.wisl.dev/examples/simple) and [troubleshooting](https://bakefile.wisl.dev/troubleshooting)

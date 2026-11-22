@@ -1,18 +1,21 @@
 ---
 title: bakefile CLI
-description: Manage bakefile.py. Init, add-inline, lint, uv-based sync and lock, venv, run, env, and export.
+description: Manage bakefile.py, including the Global bakefile.py with -g. Init, add-inline, lint, uv-based sync and lock, venv, run, env, and export.
 ---
 
-The `bakefile` command (short: `bf`) manages your `bakefile.py`:
+The `bakefile` command (short: `bf`) manages your `bakefile.py`. Subcommands find it the same way as `bake`: the nearest `bakefile.py` in the current directory or its parents, else the Global `bakefile.py` (see [Finding bakefile.py](/usage/finding-bakefile)). When a file is found, all except `init` print `Using: <path>` to stderr first, so you can see which file they act on.
+
+Shared options: `-C <dir>` (only that directory), `-f <name>` (file name), and `-g` / `--global` (the Global `bakefile.py`, for example `bakefile -g lock`).
 
 ## init
 
-Create a new `bakefile.py`:
+Create a new `bakefile.py` in the current directory (or `-C`). `init` never walks up:
 
 ```bash
 bakefile init           # Basic bakefile
 bakefile init -i        # With PEP 723 inline metadata (--inline)
 bakefile init --force   # Force overwrite existing bakefile
+bakefile -g init        # Global bakefile.py, creating the global directory if missing
 ```
 
 See [PEP 723 Support](/concepts/pep723).

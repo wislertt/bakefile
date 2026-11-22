@@ -1,0 +1,37 @@
+---
+title: "bakefile.py not found, or the wrong one runs"
+sidebarTitle: bakefile.py not found
+description: bake found no bakefile.py walking up from the current directory and no Global bakefile.py, or it loaded a parent or global file you did not expect. Check the Using line in bake --help.
+---
+
+```
+bakefile.py not found.
+Searched in: /path/to/somewhere and parent directories
+Global: /Users/me/.config/bake/bakefile.py (not found)
+```
+
+`bake` walked up from the current directory to the filesystem root without finding `bakefile.py` (or the name given with `-f`), and there is no Global `bakefile.py` to fall back to. With `-C`, it says `Searched in: <dir>` only, because `-C` never walks up.
+
+- In a project, create one with `bakefile init`, or `cd` into the project.
+- For commands you want everywhere, create a Global `bakefile.py` with `bakefile -g init`.
+
+See [Finding bakefile.py](/usage/finding-bakefile) for the full resolution order.
+
+## Global bakefile.py not found
+
+```
+Global bakefile.py not found: /Users/me/.config/bake/bakefile.py
+Run `bakefile -g init` to create it.
+```
+
+`bake -g` always uses the global directory, which you have not set up yet. `bakefile -g lock`, `add` and `sync` report the same case as `Bakefile not found at <path>`, with the same fix. Run `bakefile -g init`, or symlink a dotfiles repo there (`ln -s ~/dotfiles ~/.config/bake`). If you set `BAKE_CONFIG_DIR` or `XDG_CONFIG_HOME`, the path in the message reflects it.
+
+## Unexpected commands, or the wrong file runs
+
+`bake --help` shows the loaded file on its `Using:` line, marked `(global)` for the Global `bakefile.py`. `bakefile` subcommands other than `init` print the same line to stderr.
+
+- **A parent project's commands appear.** The current folder has no `bakefile.py` of its own, so walk-up found a parent's. Add one here, or use `bake -C . <command>` to look only in this directory.
+- **Global commands appear inside a project.** Walk-up found nothing, so `bake` fell back to the Global `bakefile.py`. Check the project's `bakefile.py` exists and matches the `-f` name.
+- **A command exists in another file but not this one.** `bake` never looks for a missing command in a parent or global file. Use `-g` for global commands, or `-C <dir>` for another project.
+
+Run `bake -vvv --help` to see which resolution step matched.

@@ -1,0 +1,134 @@
+---
+title: Finding bakefile.py
+description: How bake picks a bakefile.py (walk-up from subfolders, -C, -f, and the Global bakefile.py fallback), where commands run, and how ctx.invocation_dir reaches the directory you called bake from.
+---
+
+`bake` and `bakefile` load exactly one `bakefile.py` per run. They never merge several files, and a command missing from the chosen file is an error, not a lookup in another file.
+
+## Resolution order
+
+1. With `-g`, the [Global `bakefile.py`](#global-bakefile-py).
+2. With `-C <dir>`, only `<dir>`. No walk-up and no fallback, so a typo in the path fails instead of loading another file.
+3. Otherwise, the nearest `bakefile.py` found by walking up from the current directory to the filesystem root.
+4. If walk-up finds nothing, the Global `bakefile.py`, if you have created one.
+
+`-f` changes only the file name, and every step looks for that name. `bake -f tools.py build` walks up looking for `tools.py`, then falls back to the global `tools.py`. `-f` still takes a name, never a path (see [file name errors](/troubleshooting/file-name-errors)).
+
+```bash
+cd my-project/src/app
+bake test                    # runs my-project/bakefile.py
+bake -C . test               # only my-project/src/app, errors if it has no bakefile.py
+bake -g sync-dotfiles        # always the Global bakefile.py
+```
+
+With nested projects, the nearest `bakefile.py` wins: from `monorepo/services/api/`, a `services/api/bakefile.py` is used over `monorepo/bakefile.py`. Walk-up crosses repository boundaries, so a git submodule without its own `bakefile.py` uses the outer repo's.
+
+`bake --help` shows which file was loaded, marked `(global)` when it is the Global `bakefile.py`:
+
+```
+ Using: /Users/me/.config/bake/bakefile.py (global)
+```
+
+When a file is found, `bakefile` subcommands other than `init` print the same `Using: <path>` line to stderr before running, since walk-up may have picked a parent's file. `-vvv` logs which step matched.
+
+When nothing is found, the error lists what was searched and where a Global `bakefile.py` would go:
+
+```
+bakefile.py not found.
+Searched in: /Users/me/scratch and parent directories
+Global: /Users/me/.config/bake/bakefile.py (not found)
+```
+
+## Commands run in the bakefile.py's directory
+
+Commands always run in the chosen `bakefile.py`'s directory, wherever you call `bake` from. Relative paths in your commands (`self.ctx.run("pytest tests")`, `Path("dist")`) behave the same from a subfolder as from the root. For the Global `bakefile.py`, that is the global directory, resolved through symlinks.
+
+## Global bakefile.py
+
+A Global `bakefile.py` holds commands that belong to no project, such as syncing dotfiles or personal utilities. It is opt-in: nothing exists until you create it, and without one, plain `bake` behaves as before (only the not-found message is new).
+
+### Location
+
+| Setting                     | Global directory           |
+| --------------------------- | -------------------------- |
+| `BAKE_CONFIG_DIR` set       | `$BAKE_CONFIG_DIR`         |
+| else `XDG_CONFIG_HOME` set  | `$XDG_CONFIG_HOME/bake`    |
+| otherwise                   | `~/.config/bake`           |
+
+The same rule applies on every platform, including macOS (not `~/Library`).
+
+### Create it
+
+```bash
+bakefile -g init        # creates the global directory and bakefile.py
+bakefile -g init -i     # with PEP 723 inline metadata
+```
+
+`bakefile init` without `-g` always creates in the current directory (or `-C`), never in a parent or the global directory.
+
+### Keep it in a dotfiles repo
+
+Symlink the repo to the global directory (instead of `bakefile -g init`; if `~/.config/bake` already exists, `ln -s` would create the link inside it). Commands run in the real repo directory, so its relative paths and `bakefile.py.lock` work:
+
+```bash
+ln -s ~/dotfiles ~/.config/bake
+bake -g --help          # lists the commands in ~/dotfiles/bakefile.py
+```
+
+### Run global commands
+
+Outside any project, plain `bake <command>` falls back to the Global `bakefile.py`. Inside a project with its own `bakefile.py`, use `-g`:
+
+```bash
+bake -g sync-dotfiles
+```
+
+`-g -f` picks another file in the global directory, so one repo can hold several global Bakebooks:
+
+```bash
+bake -g -f mac.py setup    # ~/.config/bake/mac.py
+```
+
+`-g` together with `-C` is a usage error. `bake -g` with no Global `bakefile.py` names the expected path and suggests `bakefile -g init`. `bakefile -g` subcommands only report `Bakefile not found at <path>`.
+
+### Manage it
+
+Every `bakefile` subcommand takes `-g`. For a Global `bakefile.py` with [PEP 723](/concepts/pep723) inline metadata:
+
+```bash
+bakefile -g add requests
+bakefile -g lock
+bakefile -g sync
+```
+
+## Acting on the Invocation directory
+
+Since commands run in the `bakefile.py`'s directory, a command that should act where you called `bake` from reads `self.ctx.invocation_dir`. It stays correct when `bake` re-runs itself under the `bakefile.py`'s Python. For example, a global command that cleans Python caches under the current directory:
+
+```python
+import shutil
+
+from bake import Bakebook, command, console
+
+
+class Dotfiles(Bakebook):
+    @command(help="Remove Python caches under the directory you ran bake from")
+    def clean_pycache(self) -> None:
+        for cache_dir in self.ctx.invocation_dir.rglob("__pycache__"):
+            console.echo(f"Removing {cache_dir}")
+            shutil.rmtree(cache_dir)
+
+
+bakebook = Dotfiles()
+```
+
+```bash
+cd ~/code/some-project
+bake clean-pycache      # or bake -g clean-pycache inside a project with its own bakefile.py
+```
+
+See [Context](/concepts/context#invocation-directory).
+
+## Upgrading
+
+Earlier versions only looked in the current directory (or `-C`). Now, running `bake` from a subfolder without its own `bakefile.py` runs the parent's commands instead of failing. Use `-C <dir>` when you want exactly one directory.

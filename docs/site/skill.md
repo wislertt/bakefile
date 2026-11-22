@@ -95,6 +95,7 @@ class MySpace(BaseSpace):
 - Tasks defined inside the class use `@command()`. Functions outside use `@bakebook.command()`. Mixing up when each applies is the most common authoring mistake.
 - Dependencies for `bakefile.py` itself go in PEP 723 inline script metadata (the `# /// script` block at the top), managed by `bakefile add`/`bakefile lock`/`bakefile sync`.
 - Do not run the file directly with `python bakefile.py`. Use `bake`.
+- `bake` uses the nearest `bakefile.py` walking up from the current directory, else the Global `bakefile.py` in `~/.config/bake/`, and runs tasks in that file's directory. `bake --help` shows the loaded file on its `Using:` line. `-C <dir>` uses exactly one directory, `-g` always uses the global one. Tasks read the directory `bake` was called from as `self.ctx.invocation_dir`.
 
 ## Machine-readable docs
 

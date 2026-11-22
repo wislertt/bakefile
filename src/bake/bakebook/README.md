@@ -140,12 +140,18 @@ class MyBakebook(Bakebook):
 
 ### Running Commands
 
+Without `-C`, `bake` walks up from the current directory to the nearest `bakefile.py`, else falls back to the Global `bakefile.py`; `-g` always uses the global one (ADR 0005, `docs/reference/architecture.md`). Commands run in the `bakefile.py`'s directory.
+
 ```bash
-# List all commands (shows help)
+# List all commands (shows help); -C means exactly this directory
 bake -C /path/to/project
 
 # Run a specific command
 bake -C /path/to/project build --prod
+
+# Use the Global bakefile.py, or another file in the global directory
+bake -g sync-dotfiles
+bake -g -f mac.py setup
 
 # With custom bakefile name
 bake -f custom_tasks.py test

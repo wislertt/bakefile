@@ -71,6 +71,8 @@ def test_reinvoke_with_detected_python(subprocess_mock, monkeypatch):
     - Test CLI behavior in isolated environments
     - Example: Testing Python reinvocation with UV project
 
+If a re-invoked script environment runs old code, uv reused a stale build of the local package: run `uv cache clean bakefile`.
+
 **When to write integration tests:**
 
 - Testing real subprocess behavior
