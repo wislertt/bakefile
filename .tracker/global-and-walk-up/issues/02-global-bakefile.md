@@ -1,6 +1,6 @@
 # 02: Global `bakefile.py`
 
-Status: ready-for-agent
+Status: resolved
 
 Blocked by: 01 (Walk-up and invocation directory)
 
@@ -29,3 +29,7 @@ Spec: `.tracker/global-and-walk-up/spec.md`. Decision: `docs/adr/0005-one-bakefi
 
 - Implemented on `feat/global-bakefile` (branched from `chore/docs-site`).
 - `call_app_with_chdir` skips the directory change when the `bakefile.py`'s directory does not exist, so `bakefile -g init` can run before the global directory exists.
+- Kept the `call_app_with_chdir` guard as is (decided in review): the directory can only be missing with `-g` before the global directory exists, and there it turns a `FileNotFoundError` traceback into a clean not-found error.
+- For ticket 03: the not-found message changed from `Directory not found: …` to `Searched in: <dir> and parent directories` plus a `Global: <path> (exists|not found)` line. User docs and the changelog should show the new text.
+- Known gap: `bakefile -g lock` (and other subcommands) with no global file print `Bakefile not found at <path>` without suggesting `bakefile -g init`, unlike `bake -g`.
+- If integration tests run old code in a re-invoked script environment, uv reused a stale build of the local package: run `uv cache clean bakefile`. Candidate for `CONTRIBUTING.md` or troubleshooting docs in ticket 03.
