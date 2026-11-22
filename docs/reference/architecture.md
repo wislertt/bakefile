@@ -42,6 +42,6 @@ Both CLIs carry parsed options in one `BakefileObject` instead of threading argu
 Rationale in `docs/adr/0002-two-dependency-channels.md`. Mechanics:
 
 - `scripts/locked_pins.py` guard (run by `bake lint --slow`) enforces: base set is a subset of locked set, every locked entry is exact `==`, pin >= floor, pin == `uv.lock` version, lock satisfies floors.
-- `bake update` (`DevUtils._update_locked_pins` in `bakefile.py`): `relax_locked_pins`, then `uv lock --upgrade`, then `rewrite_locked_pins`. A crash between relax and rewrite leaves non-exact pins; the guard fails lint and rerunning `bake update` heals it.
+- `bake update` (`DevUtils._update_locked_pins` in `bakefile.py`): `relax_locked_pins`, then `uv lock --upgrade`, then `rewrite_locked_pins`, then `uv lock` so `uv.lock` records the exact pins instead of the relaxed floors. A crash between relax and rewrite leaves non-exact pins; the guard fails lint and rerunning `bake update` heals it.
 - Hold a pin with a trailing `# hold` comment (regex `#\s*hold\b` on the rendered array, since tomlkit hides trailing comments). Release by deleting it and running `bake update`.
 - bakelib's default mise tool is `pipx:bakefile[extras=locked]`. Existing bare `pipx:bakefile` installs count as satisfied and never gain the extras; one manual `mise use 'pipx:bakefile[extras=locked]'` migrates.

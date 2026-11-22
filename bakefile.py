@@ -78,6 +78,8 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
             return
         PYPROJECT_PATH.write_text(new_text)
         console.success(f"Updated {PYPROJECT_PATH}")
+        # uv.lock recorded the relaxed floors; re-lock so it records the exact pins
+        self.ctx.run("uv lock")
 
     def _lint_slow(self) -> None:
         super()._lint_slow()
