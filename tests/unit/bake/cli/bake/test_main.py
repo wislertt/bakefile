@@ -115,8 +115,8 @@ class TestMain:
     ) -> None:
         captured = run_cli(command=CMD_BAKE, dir_path=no_bakefile_dir, args=["hello"])
         assert captured.exit_code == 1
-        # New warning format from warn_if_no_bakebook
-        assert "Directory not found:" in captured.err
+        assert f"Searched in: {no_bakefile_dir}\n" in captured.err
+        assert "Global: " in captured.err
 
     def test_main_chain_commands_success(
         self,

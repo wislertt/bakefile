@@ -18,6 +18,7 @@ from bake.cli.common.params import (
     ChdirOption,
     DryRunOption,
     FileNameOption,
+    GlobalOption,
     VerbosityOption,
 )
 from bake.ui import console, style
@@ -50,6 +51,7 @@ def bakefile_app_callback_with_obj(obj: BakefileObject) -> Callable[..., None]:
         _chdir: ChdirOption = DEFAULT_CHDIR,
         _file_name: FileNameOption = DEFAULT_FILE_NAME,
         _bakebook_name: BakebookNameOption = DEFAULT_BAKEBOOK_NAME,
+        _use_global: GlobalOption = False,
         _version: BakefileVersionOption = False,
         _bake_log: BakeLogOption = DEFAULT_BAKE_LOG,
         _bake_log_pretty: BakeLogPrettyOption = DEFAULT_BAKE_LOG_PRETTY,

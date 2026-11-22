@@ -7,6 +7,9 @@ import pytest
 
 from bake.ui import run, run_uv
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
+
+# Module-level so a test reloading bake.utils.settings cannot detach it from the object src reads
+from bake.utils.settings import bake_settings
 from tests.utils.cli import RunCli
 
 # Path to the complex vars bakebook file
@@ -185,6 +188,8 @@ def isolate_global_config_dir(
     config_dir = tmp_path_factory.mktemp("global-config")
     monkeypatch.setenv("BAKE_CONFIG_DIR", str(config_dir))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir))
+    monkeypatch.setattr(bake_settings, "bake_config_dir", config_dir)
+    monkeypatch.setattr(bake_settings, "xdg_config_home", config_dir)
     return config_dir
 
 

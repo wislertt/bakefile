@@ -14,6 +14,7 @@ from bake.manage.run_uv import run_uv_sync
 from bake.ui import console, style
 from bake.ui.run import run_uv
 from bake.utils.exceptions import BakebookError, BakefileNotFoundError
+from bake.utils.settings import bake_settings
 
 if TYPE_CHECKING:
     from bake.bakebook.bakebook import Bakebook
@@ -48,7 +49,7 @@ def get_target_dir_path(chdir: Path, create_if_not_exist: bool) -> Path:
     return chdir.resolve()
 
 
-ResolvedBy = Literal["exact", "walk_up"]
+ResolvedBy = Literal["exact", "walk_up", "global", "global_fallback"]
 
 
 @dataclass(frozen=True)
@@ -57,10 +58,43 @@ class BakefileResolution:
     resolved_by: ResolvedBy
     searched: tuple[Path, ...]
     found: bool
+    global_path: Path
+
+    @property
+    def is_global(self) -> bool:
+        return self.resolved_by in ("global", "global_fallback")
+
+    def not_found_message(self) -> str:
+        file_name = self.path.name
+        if self.resolved_by == "global":
+            return (
+                f"Global {file_name} not found: {self.path}\nRun `bakefile -g init` to create it."
+            )
+        if self.resolved_by == "exact":
+            searched = f"Searched in: {self.searched[0]}"
+        else:
+            searched = f"Searched in: {self.searched[0]} and parent directories"
+        global_state = "exists" if self.global_path.is_file() else "not found"
+        return f"{file_name} not found.\n{searched}\nGlobal: {self.global_path} ({global_state})"
 
 
-def resolve_bakefile_path(chdir: Path | None, file_name: str) -> BakefileResolution:
-    if chdir is not None:
+def get_global_dir_path() -> Path:
+    return bake_settings.global_bake_dir.resolve()
+
+
+def resolve_bakefile_path(
+    chdir: Path | None, file_name: str, use_global: bool = False
+) -> BakefileResolution:
+    global_path = get_global_dir_path() / file_name
+    if use_global:
+        resolution = BakefileResolution(
+            path=global_path,
+            resolved_by="global",
+            searched=(global_path.parent,),
+            found=global_path.is_file(),
+            global_path=global_path,
+        )
+    elif chdir is not None:
         target_dir_path = get_target_dir_path(chdir=chdir, create_if_not_exist=False)
         bakefile_path = target_dir_path / file_name
         resolution = BakefileResolution(
@@ -68,9 +102,10 @@ def resolve_bakefile_path(chdir: Path | None, file_name: str) -> BakefileResolut
             resolved_by="exact",
             searched=(target_dir_path,),
             found=bakefile_path.is_file(),
+            global_path=global_path,
         )
     else:
-        resolution = _walk_up(start=Path.cwd().resolve(), file_name=file_name)
+        resolution = _walk_up(start=Path.cwd().resolve(), global_path=global_path)
 
     logger.debug(
         f"Resolve bakefile path: {resolution.path} ({resolution.resolved_by})",
@@ -79,7 +114,8 @@ def resolve_bakefile_path(chdir: Path | None, file_name: str) -> BakefileResolut
     return resolution
 
 
-def _walk_up(start: Path, file_name: str) -> BakefileResolution:
+def _walk_up(start: Path, global_path: Path) -> BakefileResolution:
+    file_name = global_path.name
     searched: list[Path] = []
     for directory in (start, *start.parents):
         searched.append(directory)
@@ -90,9 +126,22 @@ def _walk_up(start: Path, file_name: str) -> BakefileResolution:
                 resolved_by="walk_up",
                 searched=tuple(searched),
                 found=True,
+                global_path=global_path,
             )
+    if global_path.is_file():
+        return BakefileResolution(
+            path=global_path,
+            resolved_by="global_fallback",
+            searched=(*searched, global_path.parent),
+            found=True,
+            global_path=global_path,
+        )
     return BakefileResolution(
-        path=start / file_name, resolved_by="walk_up", searched=tuple(searched), found=False
+        path=start / file_name,
+        resolved_by="walk_up",
+        searched=tuple(searched),
+        found=False,
+        global_path=global_path,
     )
 
 

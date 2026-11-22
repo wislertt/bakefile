@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal, NamedTuple
 
 from bake.ui import console, style
+from bake.utils.constants import DEFAULT_FILE_NAME
 from bake.utils.settings import ENV__BAKE_REINVOKED, bake_settings
 
 logger = logging.getLogger(__name__)
@@ -82,10 +83,11 @@ def _reinvoke_with_detected_python(
         from bake.manage.find_python import _can_import
 
         if not _can_import(target_python, cli_module):
+            script_path = bakefile_path or DEFAULT_FILE_NAME
             console.error(
                 f"Re-invoked CLI failed: the script environment at {target_python} is broken "
                 f"(cannot import {cli_module}).\n"
-                f"Run {style.code('uv sync --script bakefile.py')} or delete the environment "
+                f"Run {style.code(f'uv sync --script {script_path}')} or delete the environment "
                 f"directory and retry."
             )
     raise SystemExit(result.returncode)

@@ -33,7 +33,8 @@ def call_app_with_chdir(
     *args: Any,
     **kwargs: Any,
 ) -> None:
-    if bakefile_path is not None:
+    # `bakefile -g init` runs before the global directory exists
+    if bakefile_path is not None and bakefile_path.parent.is_dir():
         dir_path = bakefile_path.parent
         with chdir(dir_path):
             app(*args, **kwargs)

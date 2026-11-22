@@ -6,11 +6,11 @@ How `bake` and `bakefile` load and run. Not a review rule set; coding rules live
 
 `bake -C /path build --prod`:
 
-1. `get_bakefile_object()` parses the shared options (`-C`, `--file-name`, `--book-name`, `--dry-run`, verbosity) into a `BakefileObject`, and records the Invocation directory (`Path.cwd()`) before anything changes directory.
-2. `BakefileObject.get_bakebook()` resolves the path (`resolve_bakefile_path`, returning a `BakefileResolution`: the exact `-C` directory, else the nearest file walking up from the current directory, ADR 0005), imports the file (`load_module`), and extracts and validates a `Bakebook` instance (`bake/bakebook/get.py`). Resolution happens once per process; chained commands reuse it.
+1. `get_bakefile_object()` parses the shared options (`-C`, `-g`, `--file-name`, `--book-name`, `--dry-run`, verbosity) into a `BakefileObject`, and records the Invocation directory (`Path.cwd()`) before anything changes directory.
+2. `BakefileObject.get_bakebook()` resolves the path (`resolve_bakefile_path`, returning a `BakefileResolution`: with `-g` the Global `bakefile.py`, with `-C` that exact directory, else the nearest file walking up from the current directory, else the Global `bakefile.py` if it exists, ADR 0005), imports the file (`load_module`), and extracts and validates a `Bakebook` instance (`bake/bakebook/get.py`). Resolution happens once per process; chained commands reuse it. The global bake directory is `bake_settings.global_bake_dir`, resolved through symlinks so commands run in the real directory.
 3. The Bakebook's own Typer app runs `["build", "--prod"]` in the `bakefile.py`'s directory. Re-invocation under the `bakefile.py`'s Python runs the child from the Invocation directory, so it resolves the same file.
 
-`bakefile` (management CLI) follows the same flow but loads the Bakebook optionally and does not warn when none is found. Before any subcommand other than `init` runs, the app callback prints `Using: <absolute path>` to stderr when a `bakefile.py` was found, since walk-up may have picked a parent's file. It is skipped for `--help` and in a re-invoked child, which would print it twice.
+`bakefile` (management CLI) follows the same flow but loads the Bakebook optionally and does not warn when none is found. Before any subcommand other than `init` runs, the app callback prints `Using: <absolute path>` to stderr when a `bakefile.py` was found, since walk-up may have picked a parent's file. It is skipped for `--help` and in a re-invoked child, which would print it twice. `bakefile -g init` creates the global directory if it is missing.
 
 ## Why `BakefileObject`
 
