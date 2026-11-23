@@ -1,3 +1,4 @@
+import json
 import sys
 import textwrap
 from pathlib import Path
@@ -181,3 +182,66 @@ def test_reinvocation_runs_global_bakefile_from_unrelated_dir(
     assert f"file={bakefile_path.resolve()}" in out
     assert f"cwd={empty_project_folder.resolve()}" in out
     assert f"invocation_dir={unrelated.resolve()}" in out
+
+
+@pytest.mark.parametrize("use_global", [True, False], ids=["global", "subfolder"])
+def test_reinvocation_ignores_cwd_package_shadowing_bakefile_namespace_import(
+    empty_project_folder: Path,
+    isolate_virtual_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+    use_global: bool,
+) -> None:
+    _ = isolate_virtual_env
+    monkeypatch.delenv(ENV__BAKE_REINVOKED, raising=False)
+    bakefile_path = empty_project_folder / "bakefile.py"
+    # Namespace package (no __init__.py) beside the bakefile
+    namespace_dir = empty_project_folder / "src" / "python"
+    namespace_dir.mkdir(parents=True)
+    (namespace_dir / "x.py").write_text(
+        textwrap.dedent("""
+            import json
+            import sys
+
+            from bake import Bakebook, Context
+
+            bakebook = Bakebook()
+
+
+            @bakebook.command()
+            def identity(ctx: Context) -> None:
+                print(f"invocation_dir={ctx.invocation_dir}")
+                print(f"sys_path={json.dumps(sys.path)}")
+        """)
+    )
+    header, _ = bakefile_path.read_text().split("# ///\n", 1)
+    bakefile_path.write_text(header + "# ///\n\nfrom src.python.x import bakebook\n")
+
+    if use_global:
+        monkeypatch.setenv("BAKE_CONFIG_DIR", str(empty_project_folder))
+        cwd = tmp_path_factory.mktemp("unrelated")
+        args = ["-g", "identity"]
+    else:
+        cwd = empty_project_folder / "sub"
+        args = ["identity"]
+    # Regular package in cwd that would shadow the bakefile's namespace `src`
+    (cwd / "src").mkdir(parents=True)
+    (cwd / "src" / "__init__.py").write_text("")
+
+    result = run(
+        [sys.executable, "-m", "bake.cli.bake", "-vvv", *args],
+        cwd=cwd,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    logs = parse_pretty_log(result.stderr)
+    assert has_messages_in_logs(logs, ["Re-invoking with detected Python:"])
+    out = strip_ansi(result.stdout)
+    assert f"invocation_dir={cwd.resolve()}" in out
+    sys_path_line = next(line for line in out.splitlines() if line.startswith("sys_path="))
+    sys_path = json.loads(sys_path_line.removeprefix("sys_path="))
+    # "" means the process cwd, which is the bakefile dir by the time the command runs
+    assert "" not in sys_path
+    assert cwd.resolve() not in [Path(entry).resolve() for entry in sys_path]
