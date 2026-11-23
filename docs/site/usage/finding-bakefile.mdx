@@ -43,6 +43,8 @@ Global: /Users/me/.config/bake/bakefile.py (not found)
 
 Commands always run in the chosen `bakefile.py`'s directory, wherever you call `bake` from. Relative paths in your commands (`self.ctx.run("pytest tests")`, `Path("dist")`) behave the same from a subfolder as from the root. For the Global `bakefile.py`, that is the global directory, resolved through symlinks.
 
+Local imports in `bakefile.py` (`from src.tasks import ...`) resolve from the `bakefile.py`'s directory. The directory you called `bake` from is not on `sys.path`, so its packages cannot shadow the bakefile's own.
+
 ## Global bakefile.py
 
 A Global `bakefile.py` holds commands that belong to no project, such as syncing dotfiles or personal utilities. It is opt-in: nothing exists until you create it, and without one, plain `bake` behaves as before (only the not-found message is new).

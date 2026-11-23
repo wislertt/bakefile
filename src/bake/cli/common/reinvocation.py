@@ -69,7 +69,8 @@ def _reinvoke_with_detected_python(
     sys.stderr.flush()
     try:
         result = subprocess.run(
-            [str(target_python), "-m", cli_module, *sys.argv[1:]],
+            # -P: keep cwd off sys.path so its packages can't shadow the bakefile's imports
+            [str(target_python), "-P", "-m", cli_module, *sys.argv[1:]],
             env=env,
             cwd=cwd,
         )
