@@ -5,7 +5,7 @@ from bake.manage.find_python import _find_bakefile_python
 from bake.ui import run_uv
 from bake.utils.constants import DEFAULT_FILE_NAME
 
-_PEP723_MARKER = "# /// script"
+_PEP723_MARKER = b"# /// script"
 
 
 def _uv_environments_dir() -> Path | None:
@@ -17,7 +17,7 @@ def _uv_environments_dir() -> Path | None:
 
 def _standalone_bakefiles(root: Path) -> list[Path]:
     candidates = [root / DEFAULT_FILE_NAME, *root.glob(f"*/{DEFAULT_FILE_NAME}")]
-    return [p for p in candidates if p.is_file() and _PEP723_MARKER in p.read_text()]
+    return [p for p in candidates if p.is_file() and _PEP723_MARKER in p.read_bytes()]
 
 
 def remove_script_env(bakefile_path: Path, environments_dir: Path) -> None:
