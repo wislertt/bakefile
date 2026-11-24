@@ -21,7 +21,7 @@ How these helpers earn their keep across real repos: [bakefile in practice: the 
 - `RustSpace` - Rust lint, tool setup, and update (cargo sort and fmt; clippy with `bake lint -s`; rustup, cargo)
 - `PythonLibSpace` - `PythonSpace` plus `publish` (PyPI / TestPyPI)
 - `RustLibSpace` - `RustSpace` plus `publish` (crates.io)
-- `GitHubActionsTools` - GitHub Actions linting (actionlint) and updates
+- `GitHubActionsTools` - GitHub Actions linting (actionlint with shellcheck) and updates
 - `BaseServiceSpace` - build / deploy / destroy hooks to override
 - `SubmodulesUtils` - sync git submodules
 - `FnoxSpace` - age key setup for dev, fnox-backed secret cache ([Secrets](/bakelib/secrets))

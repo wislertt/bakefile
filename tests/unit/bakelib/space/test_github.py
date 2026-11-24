@@ -15,8 +15,9 @@ class TestGitHubActionsTools:
         tools = github_actions_tools._get_mise_tools()
         assert "actionlint" in tools
         assert "npm:actions-up" in tools
+        assert "shellcheck" in tools
 
-    def test_get_required_cli_tools_includes_actionlint_and_actions_up(
+    def test_get_required_cli_tools_includes_github_tools(
         self,
     ) -> None:
         github_actions_tools = GitHubActionsTools()
@@ -25,6 +26,7 @@ class TestGitHubActionsTools:
         assert "actions-up" in tools
         assert tools["actionlint"] is None
         assert tools["actions-up"] is None
+        assert tools["shellcheck"] is None
 
     def test_lint_runs_actionlint(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
         github_actions_tools = GitHubActionsTools()

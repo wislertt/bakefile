@@ -188,6 +188,7 @@ Available in `tests/conftest.py`:
 - `isolate_virtual_env` - Isolate from virtual environment
 - `prevent_reinvocation` - Prevent bake from reinvoking
 - `isolate_global_config_dir` (autouse) - Point `BAKE_CONFIG_DIR` and `XDG_CONFIG_HOME` (env vars and the already-loaded `bake_settings` fields) at an empty temp directory
+- `remove_test_script_envs` (autouse) - At teardown, delete the uv script environment of any standalone `bakefile.py` in the test's `tmp_path` (or one level below), so tests do not leak `environments-v2/bakefile-*` folders into the real uv cache
 
 ## Guidelines
 

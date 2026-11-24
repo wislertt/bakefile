@@ -11,6 +11,7 @@ from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
 # Module-level so a test reloading bake.utils.settings cannot detach it from the object src reads
 from bake.utils.settings import bake_settings
 from tests.utils.cli import RunCli
+from tests.utils.script_env import remove_script_envs_under
 
 # Path to the complex vars bakebook file
 COMPLEX_VARS_BAKEBOOK_PATH = Path(__file__).parent / "bakefiles" / "complex_vars.py"
@@ -88,6 +89,17 @@ def uv_project_folder_with_deps(
     """)
     bakefile_path.write_text(bakefile_path.read_text() + bakefile_content)
     return uv_project_folder_without_dep
+
+
+@pytest.fixture(autouse=True)
+def remove_test_script_envs(request: pytest.FixtureRequest):
+    # uv names script envs by script path, so each fresh tmp_path leaks one that is never reused
+    if "tmp_path" not in request.fixturenames:
+        yield
+        return
+    tmp_path: Path = request.getfixturevalue("tmp_path")
+    yield
+    remove_script_envs_under(tmp_path)
 
 
 @pytest.fixture(scope="session")

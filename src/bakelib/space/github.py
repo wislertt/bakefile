@@ -6,12 +6,14 @@ from bakelib.utils import GitHubActionsEnvVars
 
 class GitHubActionsTools(GitHubActionsEnvVars, BaseSpace):
     def _get_mise_tools(self) -> set[str]:
-        return super()._get_mise_tools() | {"actionlint", "npm:actions-up"}
+        return super()._get_mise_tools() | {"actionlint", "npm:actions-up", "shellcheck"}
 
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         tools = super()._get_required_cli_tools()
         tools["actionlint"] = None
         tools["actions-up"] = None
+        # actionlint silently skips run: scripts without shellcheck, unlike CI runners
+        tools["shellcheck"] = None
         return tools
 
     def _lint_fast(self) -> None:
