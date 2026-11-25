@@ -25,6 +25,7 @@ from bake.ui.logger import (
 from bake.utils import BakebookError
 from bake.utils.constants import CMD_BAKEFILE, CMD_INIT, DEFAULT_FILE_NAME
 from bake.utils.exceptions import PythonNotFoundError
+from bake.utils.settings import bake_settings
 from tests.utils.cli import RunCli
 from tests.utils.misc import xfail_on_local_failure
 
@@ -742,6 +743,28 @@ class TestFindPythonPathStandaloneEnvValidation:
             f"Script environment at {Path('/broken/env/bin/python')} is broken "
             "(cannot import bake.cli.bake). Re-syncing." in err
         )
+
+
+def test_find_python_path_counts_script_envs_in_the_envs_own_cache(
+    empty_project_folder: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(bake_settings, "bake_script_env_warn_limit", 2)
+    monkeypatch.setattr(bake_settings, "bake_reinvoked", False)
+    # Default lookup points elsewhere, as with cache-dir set in uv.toml
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "elsewhere"))
+    environments_dir = tmp_path / "real-cache" / "environments-v2"
+    (environments_dir / "bakefile-0000000000000001").mkdir(parents=True)
+    python = environments_dir / "bakefile-0000000000000000" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    with (
+        patch("bake.manage.find_python._find_bakefile_python", return_value=python),
+        patch("bake.manage.find_python._can_import", return_value=True),
+    ):
+        find_python_path(empty_project_folder / DEFAULT_FILE_NAME)
+    assert "uv has 2 bakefile-* script environments" in strip_ansi(capfd.readouterr().err)
 
 
 def test_find_python_project_venv_creation_fails(
