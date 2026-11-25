@@ -55,6 +55,8 @@ bakefile pip install            # = uv pip install --python <bakefile-python-pat
 
 Extra args pass through to `uv` (e.g. `bakefile sync --frozen`, `bakefile lock --no-build`).
 
+uv keeps one script environment per `bakefile.py` path, in its cache under `environments-v2/bakefile-<hash>`, and keeps it after that folder (a worktree, a clone) is deleted. When there are 100 or more, `bake` and `bakefile` warn on any run, with or without a `bakefile.py`, and suggests `uv cache prune`, which removes them all; bake recreates the ones still in use on their next run. Set `BAKE_SCRIPT_ENV_WARN_LIMIT` to change the limit, or to `0` to turn the warning off.
+
 ## venv
 
 Ensure a `.venv` exists in the repo root. For PEP 723 standalone bakefiles, symlinks `.venv` to the uv-managed environment. For standard Python projects (`pyproject.toml`), it just runs `uv sync`, so prefer `uv` directly there:

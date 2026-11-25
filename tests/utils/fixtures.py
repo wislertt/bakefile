@@ -205,6 +205,16 @@ def isolate_global_config_dir(
     return config_dir
 
 
+@pytest.fixture(autouse=True)
+def disable_script_env_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A dev machine's real uv cache may be over the limit, which would add output to any test
+    from bake.manage.script_envs import _Checked
+
+    monkeypatch.setenv("BAKE_SCRIPT_ENV_WARN_LIMIT", "0")
+    monkeypatch.setattr(bake_settings, "bake_script_env_warn_limit", 0)
+    monkeypatch.setattr(_Checked, "done", False)
+
+
 @pytest.fixture(autouse=True, scope="function")
 def disable_colors():
     from bake.utils import ENV_NO_COLOR

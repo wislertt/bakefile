@@ -4,7 +4,7 @@ import sys
 from contextvars import ContextVar
 from datetime import tzinfo
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -56,6 +56,7 @@ class BakeSettings(BaseSettings):
     bake_reinvoked: bool = Field(default=False, alias=ENV__BAKE_REINVOKED)
     bake_config_dir: Path | None = None
     xdg_config_home: Path | None = None
+    bake_script_env_warn_limit: Annotated[int, Field(ge=0)] = 100
     _bake_logging_setup: bool = PrivateAttr(default=False)
 
     @property

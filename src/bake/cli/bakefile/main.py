@@ -23,6 +23,7 @@ from bake.cli.common.params import (
     GlobalOption,
     VerbosityOption,
 )
+from bake.manage.script_envs import warn_if_many_script_envs
 from bake.ui import console, style
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
@@ -103,6 +104,7 @@ def main():
     bakefile_obj = get_bakefile_object(rich_markup_mode=rich_markup_mode)
     bakefile_obj.setup_logging()
     bakefile_obj.resolve_bakefile_path()
+    warn_if_many_script_envs(bakefile_obj.file_name)
 
     bakefile_app = BakefileApp(
         help=f"Manage bakefile.py. Use {style.code('bake')} to run tasks.",

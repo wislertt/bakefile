@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import sys
 from collections.abc import Callable
@@ -28,7 +29,9 @@ from bake.cli.common.params import (
     IsChainCommandsOption,
     VerbosityOption,
 )
+from bake.manage.script_envs import warn_if_many_script_envs
 from bake.ui import console, style
+from bake.utils import BakebookError
 from bake.utils.constants import (
     DEFAULT_BAKE_LOG,
     DEFAULT_BAKE_LOG_PRETTY,
@@ -89,10 +92,19 @@ def _run_chain_commands(
     return exit_code
 
 
+def _warn_if_many_script_envs(obj: BakefileObject) -> None:
+    # A standalone bakefile is checked once its env is found, against that env's real cache
+    with contextlib.suppress(BakebookError, OSError):
+        if obj.is_standalone_bakefile:
+            return
+    warn_if_many_script_envs(obj.file_name)
+
+
 def main():
     bakefile_obj = get_bakefile_object(rich_markup_mode=rich_markup_mode)
     bakefile_obj.setup_logging()
     bakefile_obj.resolve_bakefile_path()
+    _warn_if_many_script_envs(bakefile_obj)
 
     bakefile_obj.get_bakebook(
         allow_missing=is_bakebook_optional(remaining_args=bakefile_obj.remaining_args),

@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from bake.manage.add_inline import read_inline
+from bake.manage.script_envs import warn_if_many_script_envs
 from bake.ui import console, run_uv
 from bake.utils import BakebookError
 from bake.utils.exceptions import PythonNotFoundError
@@ -212,6 +213,14 @@ def _create_project_venv(project_root: Path) -> Path | None:
 
 
 def _resolve_standalone_python(bakefile_path: Path, cli_module: str) -> Path | None:
+    python_path = _find_or_create_standalone_python(bakefile_path, cli_module)
+    if python_path:
+        # environments-v*/<env>/bin/python: the real cache, even with cache-dir set in uv.toml
+        warn_if_many_script_envs(bakefile_path.name, cache_dir=python_path.parents[3])
+    return python_path
+
+
+def _find_or_create_standalone_python(bakefile_path: Path, cli_module: str) -> Path | None:
     # Step 1: Try to find existing bakefile-level Python, but only trust it if the
     # CLI module is importable. `uv python find --script` validates the interpreter,
     # not the installed packages, so a gutted env passes discovery.
