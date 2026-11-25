@@ -5,7 +5,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from bake import Bakebook, command, console
+from bake import Bakebook, GroupKwargs, command, console
 from bake.utils.exceptions import CommandConflictError
 from tests.unit.bake.bakebook.utils import assert_signature_matches_typer
 
@@ -471,3 +471,84 @@ class TestCommandWithAsync:
 
         bakebook = MyBakebook()
         assert "async-op" in bakebook._registered_commands
+
+
+class AliasedBakebook(Bakebook):
+    def get_group_kwargs(self) -> dict[str, GroupKwargs]:
+        return {"items": GroupKwargs(help="Manage items", aliases=("itx",))}
+
+    @command(name="list", group_name="items")
+    def _items_list(self) -> None:
+        console.echo("items list")
+
+
+class TestGroupAliases:
+    @pytest.mark.parametrize("name", ["items", "itx"])
+    def test_group_runs_under_its_name_and_alias(self, name: str) -> None:
+        result = runner.invoke(AliasedBakebook()._app, [name, "list"])
+
+        assert result.exit_code == 0, result.output
+        assert "items list" in result.output
+
+    def test_alias_is_hidden_from_help(self) -> None:
+        result = runner.invoke(AliasedBakebook()._app, ["--help"])
+
+        assert "items" in result.output
+        assert "itx" not in result.output
+
+    def test_command_named_like_an_existing_alias_raises_error(self) -> None:
+        class MyBakebook(AliasedBakebook):
+            @command(name="itx")
+            def _z_itx(self) -> None: ...
+
+        with pytest.raises(
+            CommandConflictError, match=r"Cannot register command 'itx'.*alias of group 'items'"
+        ):
+            MyBakebook()
+
+    def test_alias_named_like_an_existing_command_raises_error(self) -> None:
+        class MyBakebook(AliasedBakebook):
+            @command(name="itx")
+            def _a_itx(self) -> None: ...
+
+        with pytest.raises(
+            CommandConflictError,
+            match=r"Cannot add alias 'itx' to command group 'items'.*command.*already exists",
+        ):
+            MyBakebook()
+
+    def test_alias_named_like_an_existing_group_raises_error(self) -> None:
+        class MyBakebook(AliasedBakebook):
+            @command(name="list", group_name="itx")
+            def _a_it_list(self) -> None: ...
+
+        with pytest.raises(
+            CommandConflictError,
+            match=r"Cannot add alias 'itx' to command group 'items'.*group.*already exists",
+        ):
+            MyBakebook()
+
+    def test_group_named_like_an_existing_alias_raises_error(self) -> None:
+        class MyBakebook(AliasedBakebook):
+            @command(name="list", group_name="itx")
+            def _z_it_list(self) -> None: ...
+
+        with pytest.raises(
+            CommandConflictError,
+            match=r"Cannot create command group 'itx'.*alias of group 'items'",
+        ):
+            MyBakebook()
+
+    def test_two_groups_sharing_an_alias_raises_error(self) -> None:
+        class MyBakebook(AliasedBakebook):
+            def get_group_kwargs(self) -> dict[str, GroupKwargs]:
+                return {**super().get_group_kwargs(), "users": GroupKwargs(aliases=("itx",))}
+
+            @command(name="list", group_name="users")
+            def _z_users_list(self) -> None: ...
+
+        with pytest.raises(
+            CommandConflictError,
+            match=r"Cannot add alias 'itx' to command group 'users'.*alias of group 'items'",
+        ):
+            MyBakebook()

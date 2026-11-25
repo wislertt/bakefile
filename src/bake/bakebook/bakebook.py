@@ -87,10 +87,11 @@ class GroupKwargs:
     hidden: bool = False
     deprecated: bool = False
     rich_help_panel: str | None = None
+    aliases: tuple[str, ...] = ()
 
     def to_typer_kwargs(self) -> dict[str, Any]:
-        """Convert to dict for add_typer, excluding None values."""
-        return {k: v for k, v in vars(self).items() if v is not None}
+        """Convert to dict for add_typer, excluding custom fields and None values."""
+        return {k: v for k, v in vars(self).items() if v is not None and k != "aliases"}
 
 
 def _get_registered_command_names(app: typer.Typer) -> set[str]:
@@ -381,6 +382,7 @@ class Bakebook(BaseSettings):
 
     _app: typer.Typer = PrivateAttr(default_factory=typer.Typer)
     _command_groups: dict[str, CommandGroup] = PrivateAttr(default_factory=dict)
+    _group_aliases: dict[str, str] = PrivateAttr(default_factory=dict)
     __exclude_command_methods__: ClassVar[list[str]] = (
         # Method names to exclude from command registration.
         # Subclasses override this to prevent inherited methods from being
@@ -521,6 +523,11 @@ class Bakebook(BaseSettings):
                 f"Cannot register command '{cmd_name}': "
                 f"a command group with this name already exists"
             )
+        if cmd_name in self._group_aliases:
+            raise CommandConflictError(
+                f"Cannot register command '{cmd_name}': "
+                f"it is an alias of group '{self._group_aliases[cmd_name]}'"
+            )
         if cmd_name in self._registered_commands:
             raise CommandConflictError(
                 f"Cannot register command '{cmd_name}': a command with this name already exists"
@@ -535,12 +542,33 @@ class Bakebook(BaseSettings):
                 raise CommandConflictError(
                     f"Cannot create command group '{name}': a command with this name already exists"
                 )
+            if name in self._group_aliases:
+                raise CommandConflictError(
+                    f"Cannot create command group '{name}': "
+                    f"it is an alias of group '{self._group_aliases[name]}'"
+                )
             group_kwargs = self.get_group_kwargs().get(name, GroupKwargs())
+            for alias in group_kwargs.aliases:
+                self._check_group_alias(name, alias)
 
             app = typer.Typer()
             self._app.add_typer(app, name=name, **group_kwargs.to_typer_kwargs())
+            for alias in group_kwargs.aliases:
+                self._app.add_typer(app, name=alias, hidden=True)
+                self._group_aliases[alias] = name
             self._command_groups[name] = CommandGroup(app=app)
         return self._command_groups[name]
+
+    def _check_group_alias(self, name: str, alias: str) -> None:
+        prefix = f"Cannot add alias '{alias}' to command group '{name}'"
+        if alias in self._registered_commands:
+            raise CommandConflictError(f"{prefix}: a command with this name already exists")
+        if alias in self._command_groups or alias == name:
+            raise CommandConflictError(f"{prefix}: a command group with this name already exists")
+        if alias in self._group_aliases:
+            raise CommandConflictError(
+                f"{prefix}: it is already an alias of group '{self._group_aliases[alias]}'"
+            )
 
     def get_group_kwargs(self) -> dict[str, GroupKwargs]:
         """Override to configure command groups. Key is group name."""

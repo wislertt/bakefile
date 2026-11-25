@@ -64,7 +64,10 @@ def test_group_kwargs_fields_match_add_typer() -> None:
     add_typer_params = [p for p in add_typer_params if p not in ("self", "typer_instance", "name")]
 
     # Get GroupKwargs fields (excluding methods)
-    kwargs_fields = [f.name for f in GroupKwargs.__dataclass_fields__.values()]
+    # aliases is Bakebook-specific, added as hidden add_typer calls
+    kwargs_fields = [
+        f.name for f in GroupKwargs.__dataclass_fields__.values() if f.name != "aliases"
+    ]
 
     assert kwargs_fields == add_typer_params, (
         f"GroupKwargs fields mismatch:\n"
