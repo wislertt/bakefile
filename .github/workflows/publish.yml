@@ -1,3 +1,4 @@
+# managed by bakefile; edit only the parts marked "editable"
 name: publish-python-package
 
 on:
@@ -27,16 +28,17 @@ on:
 
 jobs:
     publish:
-        runs-on: ubuntu-latest
-
+        runs-on: ubuntu-latest # (editable)
         steps:
             - name: checkout
+              # (editable) pin
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: set-python-version
               run: echo "${{ inputs.python_version }}" > .python-version
 
             - name: setup-mise
+              # (editable) pin
               uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
 
             - name: install-dependencies
@@ -52,3 +54,7 @@ jobs:
                   bake publish \
                       --registry "${{ inputs.registry }}" \
                       --version "${{ inputs.version }}"
+
+            # (editable) more steps below
+
+    # (editable) more jobs below
