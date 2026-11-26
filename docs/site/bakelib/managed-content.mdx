@@ -1,0 +1,453 @@
+---
+title: Managed content
+description: Spaces keep shared config files identical across repos, while each repo keeps its own edits in editable blocks. Opt-in beta.
+---
+
+A Space can declare **managed files**: files it renders from a template that ships in its package, so every repo using that Space carries the same version. The repo edits only the **editable blocks** the template marks; bake owns the rest. `bake setup-dev` and `bake update` write managed files, `bake lint` reports **drift**, and `bake.lock` at the project root records which files bake wrote and which editable blocks the repo changed.
+
+## Turning it on
+
+Managed content is a beta and is off by default. Set `bake_manage_content` on your Bakebook in `bakefile.py`:
+
+```python
+from bakelib import PythonSpace, ZervGitHubActionsTools
+
+
+class MyBakebook(ZervGitHubActionsTools, PythonSpace):
+    bake_manage_content: bool = True
+
+
+bakebook = MyBakebook()
+```
+
+Or set the environment variable, which wins over the class default:
+
+```bash
+BAKE_MANAGE_CONTENT=true bake mc sync --dry-run
+```
+
+With the toggle off, nothing is written or checked, no `bake.lock` is created and `setup-dev`, `update` and `lint` print nothing about managed content. `bake mc sync` and `bake mc lock` exit nonzero with a hint on how to turn it on.
+
+## What each Space manages
+
+| Space                    | Managed file                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `BaseSpace` (all Spaces) | `oxfmt.config.ts` (the shared formatter style, with an editable `ignorePatterns` block), `.gitignore`                                     |
+| `GitHubActionsTools`     | `.github/renovate.json5`, `.github/workflows/security.yml` (trivy and gitleaks)                                                           |
+| `ZervGitHubActionsTools` | `.releaserc.mjs`, `.github/workflows/semantic-pull-request.yml`, `.github/workflows/ci.yml` and `.github/workflows/cd.yml` (zerv release) |
+
+In a managed workflow the `name`, `on`, job headers and steps are fixed. Each `runs-on` is an inline editable block, marked by a trailing `# (editable)`, and each pinned action is one too, marked by `# (editable) pin` on the line above its `uses:`, so a Renovate or `actions-up` pin bump and your own runner are kept. In the pre-commit, publish and semantic-pull-request workflows the job's steps end in an editable block for steps only your repo needs, under `# (editable) more steps below`. Each file ends with an editable block for jobs only your repo needs, under `# (editable) more jobs below`. In the security workflow the triggers, schedule included, are one editable block, and so is the workflow's `permissions:` key with its scopes (`contents: read` by default; empty the block to use the repo's default token permissions, or write `permissions: read-all`). The trivy inputs end in an editable block for more inputs, and the gitleaks-action `env` in one for more variables, such as `GITLEAKS_LICENSE`, which gitleaks-action needs in a repo an organization owns. It also marks three [template hooks](#template-hooks) for company Spaces: `trivy_inputs` (more trivy-action inputs), `gitleaks_env_vars` (more gitleaks-action env) and `extra_jobs` (jobs above the trailing block).
+
+The ci and cd workflows fix their triggers and permissions. Under `# (editable) versioning and release` sit the zerv versioning and release jobs; `# (editable) jobs` starts empty, for the jobs your repo runs on top, such as calls to the test, pre-commit and publish workflows. No Space fills it.
+
+`PythonSpace` and `PythonLibSpace` know nothing of GitHub Actions: they write no workflow. bakelib still ships Python workflow templates in `bakelib.space`'s `managed/` folder, for a later Space to write: `test.yml` (the OS matrix and Python versions are inline editable blocks), `pre-commit.yml` (runs the pre-commit hooks and `bake lint --slow`) and `publish.yml` (runs `bake publish` with the called version). A repo that wants them now declares them itself, as the bakefile repo's own `bakefile.py` does:
+
+```python
+from bakelib import PythonLibSpace, ZervGitHubActionsTools
+from bakelib.managed_content import ManagedFile
+
+
+class MyBakebook(ZervGitHubActionsTools, PythonLibSpace):
+    bake_manage_content: bool = True
+
+    def _get_managed_files(self) -> dict[str, ManagedFile]:
+        return {
+            **super()._get_managed_files(),
+            ".github/workflows/test.yml": ManagedFile("bakelib.space", "test.yml"),
+            ".github/workflows/pre-commit.yml": ManagedFile("bakelib.space", "pre-commit.yml"),
+            ".github/workflows/publish.yml": ManagedFile("bakelib.space", "publish.yml"),
+        }
+```
+
+They are then managed like any other file: locked in `bake.lock`, with the same editable blocks. An integration test job, if your repo has one, goes in the test workflow's trailing block.
+
+`RustSpace` adds no job to the security workflow, because a cargo audit job needs pinned actions and a pin bake renders would fight Renovate. Add it in the last block of `.github/workflows/security.yml`, indented as a job under `jobs`:
+
+```yaml
+    # (editable) more jobs below
+    cargo-audit:
+        name: cargo-audit
+        runs-on: ubuntu-latest
+        steps:
+            - name: checkout
+              uses: actions/checkout@<sha> # <version>
+
+            - name: setup-mise
+              uses: jdx/mise-action@<sha> # <version>
+
+            - name: run-cargo-audit
+              run: cargo audit
+```
+
+Every managed file starts with a header in its own comment syntax:
+
+```yaml
+# managed by bakefile; edit only the parts marked "editable"
+```
+
+Each editable block carries a visible `(editable)` comment, so you can see where you may edit: on the line above a block on its own lines, at the end of the line for an inline `runs-on`, and as `# (editable) pin` on the line above a pinned `uses:`.
+
+## Commands and exit codes
+
+| Command                  | What it does with managed content                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `bake setup-dev`         | Locks, then writes managed files at the start of `BaseSpace`'s project step, before it cleans      |
+| `bake update`            | Locks before any upgrade, then runs `bake mc sync --refresh` once tools and dependencies upgrade   |
+| `bake lint`              | Relocks, then fails on drift, before oxfmt or any other formatter runs                             |
+| `bake mc sync`           | Locks, then writes managed files                                                                   |
+| `bake mc sync --dry-run` | Shows what would be written or deleted, writes nothing                                             |
+| `bake mc sync --force`   | Overwrites files that no longer match their template (git diff shows what is dropped)              |
+| `bake mc sync --refresh` | Also fetches [values from the network](#values-from-the-network) again, from their latest upstream |
+| `bake mc lock`           | Rebuilds `bake.lock` from the files                                                                |
+
+`mc` is a short alias for the `managed-content` command group (`bake managed-content sync` works too).
+
+Exit codes: `0` clean, `1` drift (from `lint`: run `bake mc sync`), `2` error. An error leaves every file untouched: bake prints `nothing written` and writes nothing.
+
+`bake update` writes from a fresh `bake mc sync --refresh` process, so the files use the templates the upgrade just installed. It keeps your `--chdir`, `--global`, `--file-name` and `--book-name` options.
+
+Bake writes a file only when its content changes. A Windows checkout with CRLF line endings, a byte order mark or a missing final newline is not drift. Bake writes LF, no byte order mark and a final newline.
+
+The steps run in `BaseSpace`'s `_setup_project()`, `update()` and `_lint_fast()`. A `bakefile.py` that overrides one of them without calling `super()` skips that part.
+
+## `bake.lock`
+
+Commit `bake.lock`. It is TOML, sorted by path:
+
+```toml
+version = 1
+revision = 1
+
+[managed-content.".github/renovate.json5"]
+template = "bakelib.space:renovate.json5"
+hash = "sha256:<64 hex>"
+editable.rules = "    automerge: true,\n"
+```
+
+`template` names the template exactly as the code declares it: `<package>:<name>` for a template from a package, `repo:<path>` for [your own](#your-own-files). `hash` is the file's content as bake last locked or wrote it, and `editable.<name>` holds each editable block you changed from its template default. A block equal to its default is left out, so it follows the default when the template changes.
+
+The lock catches up on its own: every command that writes relocks first, and `bake lint` (so the pre-commit hook) relocks too. Renovate needs no config for it, and CI tolerates a stale lock. A conflicted, missing or hand-edited lock is fixed with `bake mc lock`. A lock that does not parse makes every other command exit 2 with that hint.
+
+## Editable blocks
+
+Your content inside an editable block survives template upgrades:
+
+- A block you changed keeps your content.
+- A block you never touched follows the template's new default (for example a pinned tool version).
+- A block you emptied stays empty.
+- A Renovate or `actions-up` bump inside a block is kept on the next `setup-dev`, `lint` or `update`.
+- A block the template no longer has is dropped with a note; a renamed block starts from its default. Git diff shows the dropped content.
+
+An edit outside editable blocks is drift. `sync` names the file and the first line out of place:
+
+```text
+❌ [ERROR] oxfmt.config.ts: expected '    semi: false,', but line 3 is '    semi: true,'; run `bake mc sync --force` to overwrite it (git diff shows what is dropped), or to keep it as is, call `.detach()` on its entry in `_get_managed_files()` in bakefile.py
+```
+
+When a template changes and the file has edits the lock does not know about yet, `sync` exits 2 instead of guessing. Reinstall the previous version of the package the hint names and run `bake mc lock`, or run `bake mc sync --force` and review the diff. An upgrade always works when the lock was current, so you do not need `bake update` for it.
+
+## Adoption
+
+The first sync takes over a hand `.gitignore` (or markdown file) without the header: its content moves verbatim into the editable block the template marks for it, the block under `# (editable)` at the end of the file, so your rules still apply and win over the lines above. A section you pasted from toptal stays too, next to the one bake renders from github/gitignore; delete it by hand once the templates you need are listed in `_get_gitignore_templates()`. Lines another tool appends to `.gitignore` later land in the same block, which is not drift.
+
+Any other file at a managed path without the header (a hand `oxfmt.config.ts`, `renovate.json5`, `.releaserc.mjs` or workflow) is taken over with a note when it already equals what bake would write apart from the header. A template with editable blocks also writes its `(editable)` marker lines, so in practice this covers whole fixed files such as `.releaserc.mjs`. When the file differs, sync exits 2 with nothing written: run `bake mc sync --force` once, review the diff and move your own content back into the editable blocks. To keep your own file instead, such as a company workflow the template does not fit, [detach it](#detaching-a-file).
+
+A file bake wrote that no Space produces any more is deleted with its lock entry, as long as it still matches the hash in `bake.lock`. If you changed it since bake last wrote or locked it, sync keeps it as it is with a one-line note and drops its lock entry, so it becomes a hand file; `--force` does not change this, and `--dry-run` lists only the files it would delete. A file you later recreate at that path is not in the lock, so bake leaves it alone.
+
+## Changing what a Space manages
+
+Managed files come from the `_get_managed_files()` hook, a dict from project path to a `ManagedFile`. Spaces compose it with `super()`, and the most-derived Space on the MRO wins a path.
+
+Drop a file (bake deletes it on the next sync):
+
+```python
+class MyBakebook(GitHubActionsTools, PythonSpace):
+    bake_manage_content: bool = True
+
+    def _get_managed_files(self):
+        files = super()._get_managed_files()
+        del files[".github/renovate.json5"]
+        return files
+```
+
+A `.gitignore` has three parts: the stack section from github/gitignore, the lines from your bakebook's Spaces, then one editable block, under `# (editable)`.
+
+The Space lines come from the `_get_gitignore_lines()` hook, a set of patterns. `BaseSpace` has `.env*`, `*.local.md`, `*.local.toml`, `.claude/settings.local.json`, `.claude/worktrees/`, `.playwright-mcp/`, `.scratch` and the ssh key patterns; `RustSpace` adds `rust-project.json`. Add or remove lines with `super()`:
+
+```python
+class NodeSpace(BaseSpace):
+    def _get_gitignore_lines(self) -> set[str]:
+        return super()._get_gitignore_lines() - {".scratch"} | {"node_modules/"}
+```
+
+Bake writes them sorted, with `!` lines last so they re-include what the lines before them ignore. They are a [bakefile value](#bakefile-values): bake rewrites them on every write, so put your own rules in the editable block at the end instead.
+
+The `.gitignore` starts with a generated stack section, built from [github/gitignore](https://github.com/github/gitignore) templates. `_get_gitignore_templates()` lists their paths: `BaseSpace` has `Global/macOS`, `Global/Windows` and `Global/VisualStudioCode`, `PythonSpace` adds `Python` and `RustSpace` adds `Rust`. Add or remove templates with `super()`; the order you compose them in does not change the file:
+
+```python
+class MyBakebook(PythonSpace):
+    def _get_gitignore_templates(self) -> set[str]:
+        return super()._get_gitignore_templates() - {"Global/Windows"} | {"Node"}
+```
+
+Bake fetches the templates from GitHub when the section has to change, and the committed `.gitignore` keeps them:
+
+| When | Command | Stack section | Network |
+| --- | --- | --- | --- |
+| First time | `bake setup-dev` or `bake mc sync` | fetched from the latest `main` | yes |
+| Normal work | `bake lint`, `bake setup-dev`, `bake mc sync` | kept as committed | no |
+| Template list changed | next `bake mc sync` or `bake setup-dev` | fetched at the section's commit | yes |
+| Template list changed or section edited | `bake lint` | drift, run `bake mc sync` | no |
+| Pick up upstream fixes | `bake update` or `bake mc sync --refresh` | fetched from the latest `main` | yes |
+
+The section's first lines name the github/gitignore commit and the templates, and say to override `_get_gitignore_templates()` in `bakefile.py` to change them; its last line holds a digest of the whole section, so a hand edit anywhere in it, those first lines included, is drift and sync puts the upstream text back. A template github/gitignore does not have, or a failed download, exits 2 with nothing written; if the template was added upstream after the section's commit, run `bake mc sync --refresh`. Bake reads the section only from above the editable block. The section is a [value from the network](#values-from-the-network).
+
+To replace a parent's file whole, map its path to your own `ManagedFile`. You then stop getting the parent's upgrades for that file.
+
+### Your own files
+
+A plain `bakefile.py` with no package of its own manages its own files with `ManagedFile.from_text()`. Give it the template text, inline or read from a file anywhere in the repo:
+
+```python
+from pathlib import Path
+
+from bakelib import BaseSpace
+from bakelib.managed_content import ManagedFile
+
+TEMPLATES = Path(__file__).parent / "templates"
+
+
+class MyBakebook(BaseSpace):
+    bake_manage_content: bool = True
+
+    def _get_managed_files(self):
+        return {
+            **super()._get_managed_files(),
+            "_typos.toml": ManagedFile.from_text('[files]\nextend-exclude = ["*.lock"]\n'),
+            "docs/NOTES.md": ManagedFile.from_text((TEMPLATES / "notes.md").read_text()),
+        }
+```
+
+The text is a template like any other: it may have editable blocks, bakefile values and template hooks. `bake.lock` names it `repo:<path>` (`repo:docs/NOTES.md`). Resolve the file against `Path(__file__).parent`, so it is found whatever directory bake runs from.
+
+### Changing a parent's template
+
+A child Space shapes a parent's template without forking it: it takes the `ManagedFile` from `super()._get_managed_files()` and returns a changed copy. Changes apply in MRO order, so each Space builds on the Spaces it inherits from. Two methods each return a new `ManagedFile`:
+
+- `insert(hook, text)` adds text at a [template hook](#template-hooks) the parent marked. The text lands just above the hook's marker, so several inserts at one hook land in MRO order, each after those of the Spaces it builds on. Write the text at column 0: bake indents it to the hook's column, as it does a bakefile value.
+- `set_default(block, text)` replaces the default of an editable block. An inline block takes one line. A block that holds a template hook cannot take a new default, only inserts at its hook, so one child cannot wipe out what another inserted.
+
+Take a parent `PlatformSpace` whose `ci.yml` template marks a hook and an inline block:
+
+```yaml
+jobs:
+    build:
+        runs-on: {% editable build_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        steps:
+            - run: make build
+
+    {% hook extra_jobs %}
+    # (editable) more jobs below
+{% editable jobs %}
+{% endeditable %}
+```
+
+A company Space runs builds on its own runners and adds an audit job:
+
+```python
+CI = ".github/workflows/ci.yml"
+
+AUDIT_JOB = """\
+audit:
+    runs-on: {% editable audit_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+    steps:
+        - run: make audit
+
+"""
+
+
+class CompanySpace(PlatformSpace):
+    audit_job: bool = True
+
+    def _get_managed_files(self):
+        files = super()._get_managed_files()
+        files[CI] = files[CI].set_default("build_runs_on", "[self-hosted, linux]")
+        if self.audit_job:
+            files[CI] = files[CI].insert("extra_jobs", AUDIT_JOB)
+        return files
+```
+
+What a child inserts becomes part of the template: its editable blocks are locked in `bake.lock` and kept across syncs and upgrades like the parent's, so a repo can edit the inserted job and a Renovate bump inside it survives. Template hooks inside the inserted text work like the parent's, so a grandchild can insert there in turn.
+
+Every mistake raises `ManagedContentError` at the child's own call, with the template key in the message: an unknown template hook or block, a block name the template already has, a new default on a block that holds a template hook, or a multi-line default for an inline block. A command reports it as exit 2 with nothing written, so it fails in the Space's own CI.
+
+To let a repo opt out of an insert, offer a switch, as `audit_job` above; there is no removal by name. There is no way to change a template's fixed text by matching it: that text is not part of the template's contract, so the parent may reword it in any release. A child that needs a change there asks the template's owner for a hook or an editable block.
+
+### Detaching a file
+
+When a repo must own text outside the editable blocks, detach the file in its own bakebook: return its entry from `_get_managed_files()` with `.detach()`.
+
+```python
+class MyBakebook(GitHubActionsTools, PythonSpace):
+    bake_manage_content: bool = True
+
+    def _get_managed_files(self):
+        files = super()._get_managed_files()
+        files[".github/workflows/security.yml"] = files[".github/workflows/security.yml"].detach()
+        return files
+```
+
+Bake then leaves the file as it is, header included: `sync`, `setup-dev`, `update` and `lint` neither load its template, write, check nor delete it, and a detached path with no file gets nothing written. The first command after you detach drops the file's `bake.lock` entry with a one-line note; later runs say nothing about it. A detached `.gitignore` is never fetched for. The detach lives in code, not in `bake.lock`, so it shows in review.
+
+When a repo needs different fixed text, ask the template's owner for a template hook or an editable block, then use `insert()` or `set_default()`, or edit the block in the file. Detach the file meanwhile, and re-attach once the release that adds the hook or block is out. Detach for good when the file has diverged too far, such as several paragraphs of a markdown file.
+
+To re-attach, remove the `.detach()` call. A file whose header and fixed text still match its template is read on the next sync: its editable blocks are kept and it is locked again. Otherwise sync exits 2 with the `--force` hint; `bake mc sync --force` writes the template with default editable blocks, and git diff shows what it dropped.
+
+## Authoring templates
+
+A Space declares a managed file by package and template name:
+
+```python
+from bakelib import BaseSpace
+from bakelib.managed_content import ManagedFile
+
+
+class CompanySpace(BaseSpace):
+    team: str = "data-platform"
+
+    def _get_managed_files(self):
+        return {
+            **super()._get_managed_files(),
+            ".github/pull_request_template.md": ManagedFile(
+                __package__, "pull_request_template.md"
+            ),
+        }
+
+    def _get_managed_values(self, fetch):
+        return {**super()._get_managed_values(fetch), "team": self.team}
+```
+
+The template lives at `<package>/managed/<name>` and is read through `importlib.resources`, so ship the `managed/` folder as package data. Bake reads the editable block and bakefile value names from the template text; give each value's text in `_get_managed_values()`.
+
+`bake.lock` names the template `<package>:<name>` exactly as declared (`bakelib.space:ci.yml`), so the lock is the same on every machine. When a file drifted and its template changed too, the hint looks up which distribution ships the package and names it.
+
+A template may also be a Python string: `ManagedFile.from_text(CI_TEMPLATE, package=__package__, name="ci.yml")`. It renders exactly like the same text in a file, and its key in `bake.lock` is still `<package>:<name>`. Give both `package` and `name` or neither; with neither, the template is [the repo's own](#your-own-files). Files are the norm for a parent template, since the editor checks them and a review shows the output's shape; strings suit the small snippets a child inserts. Keep such strings in Python modules next to the templates in `managed/`; `TemplateSuite` does not count them as templates.
+
+Bake adds the header; the template starts with the file's first real line. The path's file type picks the comment syntax:
+
+| File type                                                                 | Header                                                                                 |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `.yaml`, `.yml`, `.toml`, `.py`, `.sh`, `.gitignore` and other `.*ignore` | `# managed by bakefile; edit only the parts marked "editable"`                         |
+| `.ts`, `.js`, `.mjs`, `.cjs`, `.json5`, `.jsonc`                          | `// managed by bakefile; edit only the parts marked "editable"`                        |
+| `.md`                                                                     | `<!-- managed by bakefile; edit only the parts marked "editable" -->` and a blank line |
+
+Plain `.json` (no comments) and any other file type fail when the template loads. Shebang files are not supported yet.
+
+### Template grammar
+
+**Editable block**, on its own lines (multi-line, may be empty):
+
+```yaml
+# (editable) jobs
+{% editable jobs %}
+jobs:
+    - build
+{% endeditable %}
+```
+
+**Inline editable block**, within one line (single line):
+
+```yaml
+version: {% editable version %}1.0{% endeditable %}
+```
+
+The closing tag may repeat the name: `{% endeditable jobs %}`. Rendered files contain no tags, so write the visible `(editable)` comment yourself.
+
+**Adopt block**: `{% editable <name> adopt %}` marks the block a headerless file is adopted into. At most one per template, on its own lines, and only in ignore files and markdown.
+
+#### Template hooks
+
+`{% hook <name> %}` on its own line marks a place where child Spaces [insert text](#changing-a-parents-template). It renders to nothing, and its indentation sets the column inserted text is indented to. A hook may sit inside an editable block, so a repo can still edit around what children insert. Each hook name appears once per template; a repeated one fails at load. Hooks are optional: a template without them can still be changed through `set_default()`.
+
+Put content with pinned actions (`uses: owner/repo@<sha>`) behind a hook rather than in a bakefile value: bake rewrites values on every write, so a Renovate bump inside one would be reverted, while an inserted pin in an inline editable block is kept.
+
+#### Bakefile values
+
+`{{ bakefile.<name> }}` is filled with text the Space gives. `_get_managed_values()` returns one mapping from name to text for all the Space's templates:
+
+```yaml
+name: {{ bakefile.project_name }}
+jobs:
+    # jobs from Spaces
+    {{ bakefile.extra_jobs }}
+    # end of jobs from Spaces
+```
+
+```python
+def _get_managed_values(self, fetch: Fetch) -> dict[str, str]:
+    return {
+        **super()._get_managed_values(fetch),
+        "project_name": self.project_name,
+        "extra_jobs": self._get_extra_jobs(),
+    }
+```
+
+A value is plain text: read a setting, or call a hook that child Spaces extend with `super()`. Child Spaces add values the same way, with `{**super()._get_managed_values(fetch), ...}`.
+
+A bakefile value matches anything when bake reads the file and is never stored in `bake.lock`. When the value changes, the next sync rewrites it with a note; a hand edit inside it is not kept, and `lint` reports it as drift. An empty string removes the value's lines and leaves the fixed text around it.
+
+A value with more than one line must sit alone on its line. Give it at column 0 in the shared style, and bake indents every line to the tag's column. An editable block's default may contain a value; an untouched block then follows the value, as long as `bake.lock` is current when the value changes.
+
+#### Values from the network
+
+`_get_managed_values(fetch)` takes one argument, which says whether the running command may use the network:
+
+| Command                                 | `fetch`             | Meaning                                               |
+| --------------------------------------- | ------------------- | ----------------------------------------------------- |
+| `bake lint`, `bake mc lock`             | `Fetch.NEVER`       | Stay offline                                          |
+| `bake mc sync`, `bake setup-dev`        | `Fetch.WHEN_NEEDED` | Fetch only if the text in the file is no longer valid |
+| `bake mc sync --refresh`, `bake update` | `Fetch.REFRESH`     | Fetch again, from the latest upstream                 |
+
+Most values ignore it. A value whose text comes from the network reads the committed file as its cache and fetches only when `fetch` allows it:
+
+```python
+from pathlib import Path
+
+from bakelib.space import Fetch
+
+
+def _get_managed_values(self, fetch: Fetch) -> dict[str, str]:
+    return {**super()._get_managed_values(fetch), "license": self._license_text(fetch)}
+
+
+def _license_text(self, fetch: Fetch) -> str:
+    notice = Path("NOTICE.md")
+    kept = _license_in(notice.read_text()) if notice.exists() else None
+    if kept is not None and fetch is not Fetch.REFRESH:
+        return kept
+    if fetch is Fetch.NEVER:
+        return "license text not fetched yet; run `bake mc sync`\n"
+    return _download_license()
+```
+
+Under `Fetch.NEVER`, return text that differs from the file when the committed text is not valid, so `bake lint` reports drift; lint writes nothing, so that text never reaches the file. Raise `ManagedContentError` when a fetch fails: sync exits 2 with your message and writes nothing. `bake mc sync --dry-run` fetches too, so it shows the real change.
+
+**Raw**: `{% raw %}...{% endraw %}` passes its text through untouched, for tag-like text such as `{{ bakefile.x }}` in a doc. GitHub Actions expressions like `${{ github.sha }}` need no escaping.
+
+Bake fails at load, before writing anything, on a malformed or near-miss tag (`{%editable x %}`, `{{bakefile.x}}`, a hook not alone on its line), an unclosed block, two blocks or two template hooks with one name, more than one adopt block, or a value the template uses that `_get_managed_values()` does not give as text.
+
+### Rules for templates
+
+- **Fixed text on both sides.** An editable block or bakefile value needs fixed text between it and the next one, or bake cannot tell where one ends. An empty bakefile value therefore leaves its banner comment in every repo.
+- **Hand content goes only in editable blocks.** Use inline blocks only in short single-line spots.
+- **Write in the shared oxfmt style.** Bake never runs a formatter. Templates follow `BaseSpace`'s managed `oxfmt.config.ts`, so `bake lint` and format-on-save leave the files alone. A repo that formats managed files differently sees drift; per-repo style is not supported.
+- **Formatters that reorder lines** (`toml-sort`, `taplo reorder_keys`, isort) need a whole sorted group in one editable block, or an editable block above every fixed table.
+- **Start clean under common linters.** Report-only linters (actionlint, yamllint, markdownlint, zizmor) cause no drift but can flag template output; fixers that rewrite fixed text cause drift.
+- **Exclude `managed/` from your own formatter**, so it does not reformat template sources that contain tags: add `"**/managed/"` to the `ignorePatterns` editable block in `oxfmt.config.ts`.
+- **Do not name a template after a tool's config file** (such as `oxfmt.config.ts`): the tool reads it as a nested config for `managed/`. `BaseSpace` ships its oxfmt template as `oxfmt-config.ts`.
+
+### Testing templates
+
+`bakelib.managed_content.testing.TemplateSuite` renders every combination your Spaces produce into an empty project: each template as its declaring Space writes it, and each child Space's changed version as that child writes it (expected file `<template>@<Space>.expected`), so a child's inserts are checked like a parent's template. It checks each against an expected file, runs `oxfmt --check` with the shared config, rejects trailing whitespace, reads it back to exactly its defaults and checks a second sync changes nothing. It also compares each template's editable block names with a snapshot next to its expected file: block names are the keys in `bake.lock`, so renaming a block drops every repo's edits to it, and the snapshot makes a rename fail until it is accepted in review. Copy `tests/unit/bakelib/managed_content/test_templates.py` from the bakefile repo and point it at your packages and expected folder. A template in a `managed/` folder that no Space writes fails the suite; list one you ship on purpose for later in `unused=["<package>/managed/<name>"]`.
+
+The suite keeps the `.gitignore` stack section offline: it renders each github/gitignore template as one line naming it, unless you pass `gitignore_upstream`, an `Upstream` that returns the template text, for example from a snapshot kept next to the tests. If your Spaces add their own values from the network, give the upstream a hook on the Space and stub it in your tests.

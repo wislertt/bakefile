@@ -1,0 +1,97 @@
+name: test
+
+on:
+    workflow_call:
+        inputs:
+            python_versions:
+                type: string
+                default: "{% editable test_python_versions %}['3.11', '3.12', '3.13', '3.14', '3.15']{% endeditable %}" # (editable)
+                description: "JSON array of Python versions to test"
+            target_python_version:
+                type: string
+                default: "{% editable test_target_python_version %}3.15{% endeditable %}" # (editable)
+                description: "Python version to use for coverage and SonarQube scans"
+            upload_coverage:
+                type: boolean
+                default: true
+                description: "Whether to upload coverage reports"
+        secrets:
+            SONAR_TOKEN:
+                required: false
+            CODECOV_TOKEN:
+                required: false
+
+jobs:
+    test:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [{% editable test_os %}ubuntu-latest, windows-latest, macos-latest{% endeditable %}] # (editable)
+                python-version: ${{ fromJson(inputs.python_versions) }}
+        runs-on: {% editable test_runs_on %}${{ matrix.os }}{% endeditable %} # (editable)
+
+        steps:
+            - name: checkout
+              # (editable) pin
+              uses: actions/checkout@{% editable test_checkout %}3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1{% endeditable %}
+              with:
+                  fetch-depth: 0
+
+            - name: set-python-version
+              run: echo "${{ matrix.python-version }}" > .python-version
+
+            - name: setup-mise
+              # (editable) pin
+              uses: jdx/mise-action@{% editable test_mise %}924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0{% endeditable %}
+
+            - name: cache-venv
+              env:
+                  CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-py${{ matrix.python-version }}
+                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}
+              # (editable) pin
+              uses: actions/cache@{% editable test_cache %}55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0{% endeditable %}
+              with:
+                  path: |
+                      ~/.local/share/uv
+                      ~/.cache/uv
+                      ${{ github.workspace }}/.venv
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-
+
+            - name: install-dependencies
+              run: uv sync --all-extras --all-groups --frozen
+
+            - name: setup-path
+              shell: bash
+              run: |
+                  if [ "$RUNNER_OS" == "Windows" ]; then
+                      echo "${{ github.workspace }}/.venv/Scripts" >> "$GITHUB_PATH"
+                  else
+                      echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
+                  fi
+
+            - name: run-tests
+              run: bake test
+
+            - name: upload-coverage-reports-to-codecov
+              if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+              # (editable) pin
+              uses: codecov/codecov-action@{% editable test_codecov %}303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1{% endeditable %}
+              with:
+                  fail_ci_if_error: true
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  verbose: true
+
+            - name: sonarqube-scan
+              if: matrix.os == 'ubuntu-latest' && matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+              # (editable) pin
+              uses: SonarSource/sonarqube-scan-action@{% editable test_sonarqube %}59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0{% endeditable %}
+              env:
+                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    # (editable) more jobs below
+{% editable jobs %}
+{% endeditable %}

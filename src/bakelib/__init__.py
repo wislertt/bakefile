@@ -13,7 +13,7 @@ from bakelib.environ import (
 from bakelib.space import SubmodulesUtils
 from bakelib.space.base import BaseSpace
 from bakelib.space.fnox import FnoxSpace
-from bakelib.space.github import GitHubActionsTools
+from bakelib.space.github import GitHubActionsTools, ZervGitHubActionsTools
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
 from bakelib.space.rust import RustSpace
@@ -40,6 +40,7 @@ __all__ = [
     "RustSpace",
     "StagingEnvMixin",
     "SubmodulesUtils",
+    "ZervGitHubActionsTools",
     "__version__",
     "get_bakebook",
     "params",

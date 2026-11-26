@@ -18,6 +18,12 @@ SUITE = TemplateSuite(
     packages=["bake", "bakelib"],
     expected_dir=Path(__file__).parent / "expected",
     gitignore_upstream=GITHUB_GITIGNORE_SNAPSHOT,
+    # kept for the Space that will write the GitHub Actions workflows
+    unused=[
+        "bakelib/space/managed/pre-commit.yml",
+        "bakelib/space/managed/publish.yml",
+        "bakelib/space/managed/test.yml",
+    ],
 )
 CASES = SUITE.cases()
 

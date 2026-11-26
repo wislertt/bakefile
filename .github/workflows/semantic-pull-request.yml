@@ -1,3 +1,4 @@
+# managed by bakefile; edit only the parts marked "editable"
 name: ci
 
 on:
@@ -10,9 +11,12 @@ permissions:
 jobs:
     semantic-pull-request:
         name: semantic-pull-request
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-latest # (editable)
         steps:
-            - uses: amannn/action-semantic-pull-request@c5e23b7e584519ee15caa684cf60d056aa9f035f # v6.1.3
-              name: validate-pr-title
+            - name: validate-pr-title
+              # (editable) pin
+              uses: amannn/action-semantic-pull-request@c5e23b7e584519ee15caa684cf60d056aa9f035f # v6.1.3
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # (editable) more steps below

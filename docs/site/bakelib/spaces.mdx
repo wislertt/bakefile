@@ -17,11 +17,12 @@ How these helpers earn their keep across real repos: [bakefile in practice: the 
 
 ## Prebuilt spaces
 
-- `PythonSpace` - Python lint, test, and dev setup (ruff, ty, deptry, pytest)
+- `PythonSpace` - Python lint, test, and dev setup (ruff, ty, deptry, pytest): manages the pre-commit workflow ([Managed content](/bakelib/managed-content))
 - `RustSpace` - Rust lint, tool setup, and update (cargo sort and fmt; clippy with `bake lint -s`; rustup, cargo)
-- `PythonLibSpace` - `PythonSpace` plus `publish` (PyPI / TestPyPI)
+- `PythonLibSpace` - `PythonSpace` plus `publish` (PyPI / TestPyPI): manages the publish workflow
 - `RustLibSpace` - `RustSpace` plus `publish` (crates.io)
-- `GitHubActionsTools` - GitHub Actions linting (actionlint with shellcheck) and updates
+- `GitHubActionsTools` - GitHub Actions linting (actionlint with shellcheck) and updates: manages `.github/renovate.json5` and the security workflow
+- `ZervGitHubActionsTools` - `GitHubActionsTools` for repos that version with zerv: manages `.releaserc.mjs` and the semantic pull request workflow ([Managed content](/bakelib/managed-content))
 - `BaseServiceSpace` - build / deploy / destroy hooks to override
 - `SubmodulesUtils` - sync git submodules
 - `FnoxSpace` - age key setup for dev, fnox-backed secret cache ([Secrets](/bakelib/secrets))

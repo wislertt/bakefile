@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -19,7 +20,9 @@ from bakelib.managed_content import ManagedContentError, ManagedFile
 from bakelib.managed_content.engine import _distribution
 from bakelib.refreshable_cache.fnox import FNOX_LOCAL_FILE, _ensure_gitignored
 from bakelib.space.base import BaseSpace
+from bakelib.space.github import GitHubActionsTools, ZervGitHubActionsTools
 from bakelib.space.python import PythonSpace
+from bakelib.space.python_lib import PythonLibSpace
 from bakelib.space.rust import RustSpace
 from bakelib.space.utils import Fetch
 from bakelib.space.utils.gitignore import TemplateNotFoundError, Upstream, read_section
@@ -1583,6 +1586,390 @@ class TestFnoxGitignore:
             _ensure_gitignored(project / FNOX_LOCAL_FILE)
 
         assert gitignore.read_text() == before
+
+
+class TestRenovateConfig:
+    def test_github_actions_tools_writes_renovate_config_keeping_repo_rules(
+        self, ctx: Context, project: Path
+    ) -> None:
+        class GitHubSpace(GitHubActionsTools):
+            bake_manage_content: bool = True
+
+        renovate = project / ".github" / "renovate.json5"
+        with ctx:
+            GitHubSpace().managed_content_sync()
+            written = renovate.read_text()
+            edited = written.replace(
+                "    // (editable)\n",
+                "    // (editable)\n    automerge: true,\n",
+            )
+            renovate.write_text(edited)
+            GitHubSpace().managed_content_sync()
+
+        assert written == (
+            f"// {HEADER}\n{{\n"
+            '    $schema: "https://docs.renovatebot.com/renovate-schema.json",\n'
+            '    extends: ["config:recommended"],\n'
+            "    // (editable)\n}\n"
+        )
+        assert renovate.read_text() == edited
+        assert _lock_entry(project, ".github/renovate.json5")["editable"] == {
+            "rules": "    automerge: true,\n"
+        }
+
+
+RELEASERC = Path(__file__).parents[4] / ".releaserc.mjs"
+SEMANTIC_PR_WORKFLOW = (
+    Path(__file__).parents[4] / ".github" / "workflows" / "semantic-pull-request.yml"
+)
+SEMANTIC_PR_PATH = ".github/workflows/semantic-pull-request.yml"
+
+
+class ManagedZervSpace(ZervGitHubActionsTools):
+    bake_manage_content: bool = True
+
+
+class TestZervGitHubActionsTools:
+    def test_writes_releaserc_as_a_whole_fixed_file(self, ctx: Context, project: Path) -> None:
+        with ctx:
+            ManagedZervSpace().managed_content_sync()
+
+        assert (project / ".releaserc.mjs").read_text() == RELEASERC.read_text()
+
+    def test_writes_semantic_pull_request_workflow_with_editable_steps(
+        self, ctx: Context, project: Path
+    ) -> None:
+        with ctx:
+            ManagedZervSpace().managed_content_sync()
+
+        assert (project / SEMANTIC_PR_PATH).read_text() == SEMANTIC_PR_WORKFLOW.read_text()
+
+
+CI_PATH = ".github/workflows/ci.yml"
+CD_PATH = ".github/workflows/cd.yml"
+SPACE_JOBS_MARKER = "    # (editable) jobs\n"
+TEST_JOB = (
+    "    test:\n"
+    "        uses: ./.github/workflows/test.yml\n"
+    "        secrets:\n"
+    "            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}\n"
+)
+
+
+class ZervPythonLibSpace(ZervGitHubActionsTools, PythonLibSpace):
+    bake_manage_content: bool = True
+
+
+class TestCiCdWorkflows:
+    @pytest.mark.parametrize("space", [ManagedZervSpace, ZervPythonLibSpace])
+    @pytest.mark.parametrize("path", [CI_PATH, CD_PATH])
+    def test_writes_zerv_jobs_and_an_empty_jobs_block(
+        self, ctx: Context, project: Path, space: type[BaseSpace], path: str
+    ) -> None:
+        with ctx:
+            space().managed_content_sync()
+
+        written = (project / path).read_text()
+        assert "    # (editable) versioning and release\n" in written
+        assert "wislertt/zerv/.github/workflows/shared-zerv-versioning.yml@" in written
+        assert written.endswith(f"{SPACE_JOBS_MARKER}\n{REPO_JOBS_MARKER}")
+        assert "editable" not in _lock_entry(project, path)
+
+    @pytest.mark.parametrize("path", [CI_PATH, CD_PATH])
+    def test_jobs_filled_in_by_hand_are_kept(self, ctx: Context, project: Path, path: str) -> None:
+        workflow = project / path
+        with ctx:
+            ManagedZervSpace().managed_content_sync()
+            edited = workflow.read_text().replace(SPACE_JOBS_MARKER, SPACE_JOBS_MARKER + TEST_JOB)
+            workflow.write_text(edited)
+            ManagedZervSpace().managed_content_sync()
+
+        assert workflow.read_text() == edited
+        assert _lock_entry(project, path)["editable"] == {"space_jobs": TEST_JOB}
+
+    @pytest.mark.parametrize("path", [CI_PATH, CD_PATH])
+    def test_pin_bump_in_the_zerv_jobs_survives_sync(
+        self, ctx: Context, project: Path, path: str
+    ) -> None:
+        workflow = project / path
+        with ctx:
+            ManagedZervSpace().managed_content_sync()
+            bumped = PINNED_SHA.sub("@" + "a" * 40, workflow.read_text())
+            workflow.write_text(bumped)
+            ManagedZervSpace().managed_content_sync()
+
+        assert workflow.read_text() == bumped
+        assert set(_lock_entry(project, path)["editable"]) == {"versioning"}
+
+
+class ManagedGitHubSpace(GitHubActionsTools):
+    bake_manage_content: bool = True
+
+
+class ManagedPythonSpace(PythonSpace):
+    bake_manage_content: bool = True
+
+
+class ManagedPythonLibSpace(PythonLibSpace):
+    bake_manage_content: bool = True
+
+
+SECURITY_PATH = ".github/workflows/security.yml"
+PRE_COMMIT_PATH = ".github/workflows/pre-commit.yml"
+PUBLISH_PATH = ".github/workflows/publish.yml"
+TEST_PATH = ".github/workflows/test.yml"
+
+
+class RepoWorkflowsSpace(ManagedPythonLibSpace):
+    def _get_managed_files(self) -> dict[str, ManagedFile]:
+        return {
+            **super()._get_managed_files(),
+            TEST_PATH: ManagedFile("bakelib.space", "test.yml"),
+            PRE_COMMIT_PATH: ManagedFile("bakelib.space", "pre-commit.yml"),
+            PUBLISH_PATH: ManagedFile("bakelib.space", "publish.yml"),
+        }
+
+
+PINNED_SHA = re.compile(r"@[0-9a-f]{40}\b")
+REPO_JOBS_MARKER = "    # (editable) more jobs below\n"
+WORKFLOWS = [
+    pytest.param(ManagedGitHubSpace, SECURITY_PATH, id="security"),
+    pytest.param(RepoWorkflowsSpace, PRE_COMMIT_PATH, id="pre-commit"),
+    pytest.param(RepoWorkflowsSpace, PUBLISH_PATH, id="publish"),
+    pytest.param(RepoWorkflowsSpace, TEST_PATH, id="test"),
+]
+PINNED_WORKFLOWS = [
+    *WORKFLOWS,
+    pytest.param(ManagedZervSpace, SEMANTIC_PR_PATH, id="semantic-pull-request"),
+]
+REPO_STEPS_MARKER = "            # (editable) more steps below\n"
+STEPS_WORKFLOWS = [
+    pytest.param(RepoWorkflowsSpace, PRE_COMMIT_PATH, "pre_commit_steps", id="pre-commit"),
+    pytest.param(RepoWorkflowsSpace, PUBLISH_PATH, "publish_steps", id="publish"),
+    pytest.param(
+        ManagedZervSpace,
+        SEMANTIC_PR_PATH,
+        "semantic_pull_request_steps",
+        id="semantic-pull-request",
+    ),
+]
+
+
+class TestWorkflows:
+    def test_security_workflow_scans_with_trivy_and_gitleaks(
+        self, ctx: Context, project: Path
+    ) -> None:
+        with ctx:
+            ManagedGitHubSpace().managed_content_sync()
+
+        written = (project / SECURITY_PATH).read_text()
+        assert written.startswith(f"# {HEADER}\nname: security\non:\n    # (editable)\n    push:\n")
+        assert (
+            "    trivy-scan:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+        ) in written
+        assert (
+            "    gitleaks:\n"
+            "        name: gitleaks\n"
+            "        runs-on: ubuntu-latest # (editable)\n"
+            "        steps:\n"
+        ) in written
+        assert "              # (editable) pin\n              uses: aquasecurity/trivy-action@" in (
+            written
+        )
+        assert "              # (editable) pin\n              uses: gitleaks/gitleaks-action@" in (
+            written
+        )
+        assert (
+            "                  # (editable) more trivy-action inputs\n\n    gitleaks:\n" in written
+        )
+        assert written.endswith(REPO_JOBS_MARKER)
+        assert "cargo" not in written
+
+    def test_company_space_inserts_trivy_inputs_and_a_job_at_the_security_hooks(
+        self, ctx: Context, project: Path
+    ) -> None:
+        class CompanySpace(ManagedGitHubSpace):
+            def _get_managed_files(self) -> dict[str, ManagedFile]:
+                files = super()._get_managed_files()
+                files[SECURITY_PATH] = (
+                    files[SECURITY_PATH]
+                    .insert("trivy_inputs", "severity: HIGH,CRITICAL\n")
+                    .insert("extra_jobs", "audit:\n    runs-on: ubuntu-latest\n")
+                )
+                return files
+
+        workflow = project / SECURITY_PATH
+        with ctx:
+            CompanySpace().managed_content_sync()
+            edited = workflow.read_text().replace(
+                "CRITICAL\n", "CRITICAL\n                  ignore-unfixed: true\n"
+            )
+            workflow.write_text(edited)
+            CompanySpace().managed_content_sync()
+
+        assert (
+            "                  # (editable) more trivy-action inputs\n"
+            "                  severity: HIGH,CRITICAL\n"
+            "                  ignore-unfixed: true\n\n"
+        ) in workflow.read_text()
+        assert workflow.read_text().endswith(
+            "    audit:\n        runs-on: ubuntu-latest\n" + REPO_JOBS_MARKER
+        )
+        assert set(_lock_entry(project, SECURITY_PATH)["editable"]) == {"trivy_with"}
+
+    def test_company_space_inserts_gitleaks_env_and_repo_edits_permissions(
+        self, ctx: Context, project: Path
+    ) -> None:
+        class CompanySpace(ManagedGitHubSpace):
+            def _get_managed_files(self) -> dict[str, ManagedFile]:
+                files = super()._get_managed_files()
+                files[SECURITY_PATH] = files[SECURITY_PATH].insert(
+                    "gitleaks_env_vars", "GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}\n"
+                )
+                return files
+
+        workflow = project / SECURITY_PATH
+        with ctx:
+            CompanySpace().managed_content_sync()
+            edited = workflow.read_text().replace(
+                "    contents: read\n", "    contents: read\n    pull-requests: write\n"
+            )
+            workflow.write_text(edited)
+            CompanySpace().managed_content_sync()
+
+        written = workflow.read_text()
+        assert (
+            "# (editable)\npermissions:\n    contents: read\n    pull-requests: write\n\njobs:\n"
+        ) in written
+        assert (
+            "                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
+            "                  # (editable) more gitleaks-action env\n"
+            "                  GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}\n\n"
+        ) in written
+        assert set(_lock_entry(project, SECURITY_PATH)["editable"]) == {"permissions"}
+
+    @pytest.mark.parametrize(("space", "path"), PINNED_WORKFLOWS)
+    def test_each_pin_and_runs_on_carries_its_editable_note(
+        self, ctx: Context, project: Path, space: type[BaseSpace], path: str
+    ) -> None:
+        with ctx:
+            space().managed_content_sync()
+
+        lines = (project / path).read_text().splitlines()
+        uses = [i for i, line in enumerate(lines) if PINNED_SHA.search(line)]
+        runs_on = [line for line in lines if "runs-on:" in line]
+        assert uses
+        assert all(lines[i - 1].strip() == "# (editable) pin" for i in uses)
+        assert runs_on
+        assert all(line.endswith(" # (editable)") for line in runs_on)
+
+    def test_pre_commit_workflow_skips_the_lint_hook_and_runs_the_slow_lint(
+        self, ctx: Context, project: Path
+    ) -> None:
+        with ctx:
+            RepoWorkflowsSpace().managed_content_sync()
+
+        written = (project / PRE_COMMIT_PATH).read_text()
+        assert written.startswith(
+            f"# {HEADER}\nname: pre-commit\n\non:\n    workflow_call:\n\njobs:\n"
+            "    pre-commit:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+        )
+        assert "              run: SKIP=lint uv run pre-commit run --all-files\n" in written
+        assert "              run: bake lint --slow\n" in written
+        assert written.endswith(REPO_JOBS_MARKER)
+
+    def test_publish_workflow_runs_bake_publish_with_the_called_version(
+        self, ctx: Context, project: Path
+    ) -> None:
+        with ctx:
+            RepoWorkflowsSpace().managed_content_sync()
+
+        written = (project / PUBLISH_PATH).read_text()
+        assert written.startswith(
+            f"# {HEADER}\nname: publish-python-package\n\non:\n    workflow_call:\n"
+        )
+        assert (
+            "    publish:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+        ) in written
+        assert '                      --version "${{ inputs.version }}"\n' in written
+        assert written.endswith(REPO_JOBS_MARKER)
+
+    @pytest.mark.parametrize("space", [ManagedPythonSpace, ManagedPythonLibSpace])
+    def test_python_spaces_write_no_github_workflow(
+        self, ctx: Context, project: Path, space: type[BaseSpace]
+    ) -> None:
+        with ctx:
+            space().managed_content_sync()
+
+        assert not (project / ".github").exists()
+
+    @pytest.mark.parametrize(("space", "path"), PINNED_WORKFLOWS)
+    @pytest.mark.parametrize("command", ["managed_content_sync", "lint"])
+    def test_pin_bump_in_steps_survives(
+        self, ctx: Context, project: Path, space: type[BaseSpace], path: str, command: str
+    ) -> None:
+        workflow = project / path
+        with ctx:
+            space().managed_content_sync()
+            bumped = PINNED_SHA.sub("@" + "a" * 40, workflow.read_text())
+            workflow.write_text(bumped)
+            with patch.object(ctx, "run"):
+                getattr(space(), command)()
+
+        assert "a" * 40 in bumped
+        assert workflow.read_text() == bumped
+        assert "a" * 40 in "".join(_lock_entry(project, path)["editable"].values())
+
+    @pytest.mark.parametrize(("space", "path"), WORKFLOWS)
+    def test_repo_only_job_after_the_last_marker_is_kept(
+        self, ctx: Context, project: Path, space: type[BaseSpace], path: str
+    ) -> None:
+        job = "    mine:\n        runs-on: ubuntu-latest\n        steps:\n            - run: true\n"
+        workflow = project / path
+        with ctx:
+            space().managed_content_sync()
+            workflow.write_text(workflow.read_text() + job)
+            space().managed_content_sync()
+
+        assert workflow.read_text().endswith(REPO_JOBS_MARKER + job)
+        assert _lock_entry(project, path)["editable"] == {"jobs": job}
+
+    @pytest.mark.parametrize(("space", "path", "block"), STEPS_WORKFLOWS)
+    def test_repo_step_after_the_last_step_is_kept_across_sync_and_upgrade(
+        self, ctx: Context, project: Path, space: type[BaseSpace], path: str, block: str
+    ) -> None:
+        base: Any = space
+
+        class UpgradedSpace(base):
+            def _get_managed_files(self) -> dict[str, ManagedFile]:
+                files = super()._get_managed_files()
+                current = files[path]
+                # stands in for a release that changes the template's fixed text
+                files[path] = ManagedFile.from_text(
+                    current.read_template().replace(
+                        "        steps:\n", "        timeout-minutes: 30\n        steps:\n", 1
+                    ),
+                    package=current.package,
+                    name=current.name,
+                )
+                return files
+
+        step = "            - name: mine\n              run: true\n"
+        workflow = project / path
+        with ctx:
+            space().managed_content_sync()
+            workflow.write_text(
+                workflow.read_text().replace(REPO_STEPS_MARKER, REPO_STEPS_MARKER + step)
+            )
+            space().managed_content_sync()
+            synced = workflow.read_text()
+            UpgradedSpace().managed_content_sync()
+
+        upgraded = workflow.read_text()
+        assert REPO_STEPS_MARKER + step in synced
+        assert "        timeout-minutes: 30\n" in upgraded
+        assert REPO_STEPS_MARKER + step in upgraded
+        assert _lock_entry(project, path)["editable"] == {block: step}
 
 
 class ValueSpace(ManagedSpace):

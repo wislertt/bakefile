@@ -1,0 +1,47 @@
+name: ci
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+permissions:
+    contents: write
+    id-token: write
+
+jobs:
+    # (editable) versioning and release
+{% editable versioning %}
+    check-pre-release:
+        name: check-pre-release
+        uses: wislertt/zerv/.github/workflows/shared-check-pr-label-and-branch.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
+        with:
+            target_label: "pre-release"
+            branch_prefixes: '["release/"]'
+            branch_names: '["develop"]'
+
+    zerv-versioning:
+        name: zerv-versioning
+        needs: check-pre-release
+        uses: wislertt/zerv/.github/workflows/shared-zerv-versioning.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
+        with:
+            schema: >-
+                ${{ (needs.check-pre-release.outputs.is_valid == 'true'
+                && 'standard-base-prerelease-post')
+                || 'standard-base-prerelease-post-dev' }}
+
+    tag-pre-release:
+        name: tag-pre-release
+        needs: [zerv-versioning, check-pre-release]
+        if: needs.check-pre-release.outputs.is_valid == 'true'
+        uses: wislertt/zerv/.github/workflows/shared-create-tags.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
+        with:
+            tags: '["${{ fromJson(needs.zerv-versioning.outputs.versions).v_semver }}"]'
+{% endeditable %}
+
+    # (editable) jobs
+{% editable space_jobs %}
+{% endeditable %}
+
+    # (editable) more jobs below
+{% editable jobs %}
+{% endeditable %}

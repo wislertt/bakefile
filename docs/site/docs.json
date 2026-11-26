@@ -124,7 +124,13 @@
             },
             {
                 "group": "bakelib",
-                "pages": ["bakelib/spaces", "bakelib/environments", "bakelib/cache", "bakelib/secrets"]
+                "pages": [
+                    "bakelib/spaces",
+                    "bakelib/environments",
+                    "bakelib/cache",
+                    "bakelib/secrets",
+                    "bakelib/managed-content"
+                ]
             },
             {
                 "group": "Examples",
