@@ -1,0 +1,9 @@
+
+{{ bakefile.gitignore_stack_section }}
+
+# Lines from bakefile.py; to change them, override _get_gitignore_lines()
+{{ bakefile.gitignore_lines_section }}
+
+# (editable)
+{% editable repo adopt %}
+{% endeditable %}

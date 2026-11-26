@@ -8,11 +8,13 @@ from .rust import RustSpace
 from .rust_lib import RustLibSpace
 from .service import BaseServiceSpace
 from .submodules import SubmodulesUtils
+from .utils import Fetch
 
 __all__ = [
     "BaseServiceSpace",
     "BaseSpace",
     "DvcSpace",
+    "Fetch",
     "FnoxSpace",
     "GitHubActionsTools",
     "MediaDvcSpace",

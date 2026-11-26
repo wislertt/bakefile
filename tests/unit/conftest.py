@@ -2,6 +2,9 @@ import keyring
 import keyring.backend
 import pytest
 
+from bakelib.managed_content.testing import STAND_IN_GITIGNORE
+from bakelib.space.base import BaseSpace
+
 
 class _InMemoryKeyring(keyring.backend.KeyringBackend):
     priority = 99
@@ -26,3 +29,9 @@ def isolate_keyring_backend():
     keyring.set_keyring(_InMemoryKeyring())
     yield
     keyring.set_keyring(original)
+
+
+@pytest.fixture(autouse=True)
+def offline_gitignore_templates(monkeypatch: pytest.MonkeyPatch) -> None:
+    # syncing a managed .gitignore fetches github/gitignore templates; unit tests stay offline
+    monkeypatch.setattr(BaseSpace, "_get_gitignore_upstream", lambda _self: STAND_IN_GITIGNORE)

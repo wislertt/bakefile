@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
+import typer
 from _pytest.capture import CaptureFixture
 
 from bake.cli.bake.main import main as bake_main
@@ -84,3 +85,11 @@ def get_warning_label(github_actions: bool | None = None) -> str:
     if github_actions is None:
         github_actions = bake_settings.github_actions
     return "WARNING" if not github_actions else "::warning::"
+
+
+def exit_code(run: Callable[[], None]) -> int:
+    try:
+        run()
+    except typer.Exit as e:
+        return e.exit_code
+    return 0

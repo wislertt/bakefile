@@ -6,7 +6,7 @@ This directory contains the test suite for the bakefile project.
 
 ```
 tests/
-├── unit/              # Fast unit tests (824 tests)
+├── unit/              # Fast unit tests
 │   ├── bake/         # Bake-specific tests
 │   │   ├── bakebook/
 │   │   ├── cli/
@@ -27,7 +27,6 @@ tests/
 
 **Characteristics:**
 
-- Fast (~50 seconds for full suite)
 - Use mocks to avoid subprocess calls
 - Test logic in isolation
 - No external dependencies
@@ -162,6 +161,18 @@ bake test
 # Run linting
 bake lint
 ```
+
+### Managed Content Templates
+
+Every template in a `managed/` folder anywhere under `src/` has an expected output in `tests/unit/bakelib/managed_content/expected/`, at the template's path relative to `src/` plus an `.expected` suffix (so formatters and config discovery ignore it). For example, `src/bakelib/space/managed/oxfmt-config.ts` maps to `expected/bakelib/space/managed/oxfmt-config.ts.expected`. Its content is the file as `bake mc sync` writes it from the Space defaults. A child Space that changes a parent's template (`insert`, `set_default`) gets its own expected file, `<template>@<Space>.expected`. Python modules in `managed/` hold template strings and need no expected file. Beside it, `<template>.blocks.expected` lists the template's editable block names, one per line. Block names are the keys in `bake.lock`, so a rename drops every repo's edits to that block; the snapshot makes a rename fail until it is accepted in review. After adding or changing a template, rewrite the expected files and snapshots and review their diff:
+
+```bash
+BAKE_UPDATE_EXPECTED=1 uv run pytest tests/unit/bakelib/managed_content/test_templates.py
+```
+
+The checks live in `bakelib.managed_content.testing.TemplateSuite`, so a package that ships its own Spaces and `managed/` folders reuses them with its own package names and expected folder. `test_templates.py` is the example to copy.
+
+Unit tests never fetch github/gitignore templates from the network. An autouse fixture in `tests/unit/conftest.py` patches `BaseSpace._get_gitignore_upstream()` to `STAND_IN_GITIGNORE` (`bakelib.managed_content.testing`), which writes one line per template, so Space commands that sync a `.gitignore` stay offline. `TemplateSuite` uses the same stand-in unless it is given `gitignore_upstream`. `test_templates.py` passes one that reads a snapshot of the templates the Spaces list (the three `Global/` ones and `Python`) in `github_gitignore/`, so the expected `.gitignore` shows real content; refresh the snapshot by hand when you want newer upstream text.
 
 ## Test Utilities
 

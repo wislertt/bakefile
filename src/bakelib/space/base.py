@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 import shutil
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -12,15 +13,28 @@ import zerv
 
 from bake import Bakebook, command, console
 from bake._params import fast_option, slow_option
+from bake.bakebook.bakebook import GroupKwargs
+from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
 from bake.utils.settings import PlatformType, bake_settings
+from bakelib.managed_content import (
+    EXIT_ERROR,
+    ManagedContent,
+    ManagedFile,
+    exit_on_error,
+    read_file,
+)
 from bakelib.utils import CleanUtils
 
 from .utils import (
+    Fetch,
     install_mise_tools,
     orjson_default,
     setup_brew,
     setup_mise,
 )
+from .utils.gitignore import GITHUB, Upstream, render_lines, stack_section
+
+OXFMT_SUFFIXES = ("js", "jsx", "ts", "tsx", "css", "json", "json5", "yaml", "yml", "md")
 
 
 def command_not_available(command_name: str) -> None:
@@ -44,6 +58,9 @@ def _global_keyring_env() -> dict[str, str]:
     return {}
 
 
+MANAGED_CONTENT_GROUP = "managed-content"
+
+
 def _semver_normalize(value: str) -> str:
     return zerv.render(version=value, output_format="semver")
 
@@ -63,6 +80,8 @@ def _strip_mise_options(tool: str) -> str:
 
 
 class BaseSpace(CleanUtils, Bakebook):
+    bake_manage_content: bool = False
+
     _version_schema: zerv.StandardSchema = "standard-base-prerelease-post-dev"
 
     @property
@@ -181,7 +200,12 @@ class BaseSpace(CleanUtils, Bakebook):
             self._lint_slow()
 
     def _lint_fast(self) -> None:
-        self.ctx.run('oxfmt "**/*.{js,jsx,ts,tsx,css,json,json5,yaml,yml,md}"')
+        # before any formatter, so drift is reported against the files as committed
+        if self.bake_manage_content:
+            content = self._managed_content(Fetch.NEVER)
+            content.lock(dry_run=self.ctx.dry_run)
+            content.check()
+        self.ctx.run(f'oxfmt "**/*.{{{",".join(OXFMT_SUFFIXES)}}}"')
         for mise_toml in (Path(".mise.toml"), Path("mise.toml")):
             if not mise_toml.exists():
                 continue
@@ -286,6 +310,10 @@ class BaseSpace(CleanUtils, Bakebook):
         install_mise_tools(self.ctx)
 
     def _setup_project(self) -> None:
+        if self.bake_manage_content:
+            # before the clean: it may remove the venv bake runs from, templates included
+            console.start("Syncing managed content")
+            self._run_managed_sync(dry_run=self.ctx.dry_run, force=False)
         console.start("Cleaning")
         self.clean(exclude_patterns=None, default_excludes=True)
         self.ctx.run("pre-commit install")
@@ -403,6 +431,9 @@ class BaseSpace(CleanUtils, Bakebook):
             ),
         ] = 0,
     ) -> None:
+        if self.bake_manage_content:
+            # lock with the outgoing templates, before upgrades replace them
+            self._run_managed_lock()
         if fast < 1:
             console.start("Upgrading platform tools")
             with self._platform_tools_context() as platform:
@@ -412,3 +443,116 @@ class BaseSpace(CleanUtils, Bakebook):
             self._update_tools()
         console.start("Upgrading project")
         self._update_project()
+        if self.bake_manage_content:
+            console.start("Syncing managed content")
+            # a fresh process imports the templates the upgrades just installed
+            self.ctx.run(self._bake_command("mc sync --refresh"))
+
+    def _get_managed_files(self) -> dict[str, ManagedFile]:
+        return {
+            ".gitignore": ManagedFile(__package__, "gitignore"),
+            "oxfmt.config.ts": ManagedFile(__package__, "oxfmt-config.ts"),
+        }
+
+    def _get_managed_values(self, fetch: Fetch) -> dict[str, str]:
+        gitignore = self._get_managed_files().get(".gitignore")
+        if gitignore is None or gitignore.detached:
+            # nothing renders the section, so it must not fetch
+            fetch = Fetch.NEVER
+        return {
+            "gitignore_stack_section": stack_section(
+                read_file(Path.cwd(), ".gitignore"),
+                self._get_gitignore_templates(),
+                fetch,
+                self._get_gitignore_upstream(),
+            ),
+            "gitignore_lines_section": render_lines(self._get_gitignore_lines()),
+        }
+
+    def _get_gitignore_templates(self) -> set[str]:
+        return {"Global/macOS", "Global/Windows", "Global/VisualStudioCode"}
+
+    def _get_gitignore_upstream(self) -> Upstream:
+        return GITHUB
+
+    def _get_gitignore_lines(self) -> set[str]:
+        return {
+            ".env*",
+            "*.local.md",
+            "*.local.toml",
+            ".claude/settings.local.json",
+            ".claude/worktrees/",
+            ".playwright-mcp/",
+            ".scratch",
+            "**/.ssh/id_*",
+            "**/.ssh/*_id_*",
+            "**/.ssh/known_hosts",
+        }
+
+    def _managed_content(self, fetch: Fetch) -> ManagedContent:
+        with exit_on_error():
+            # a child Space's insert or set_default raises here
+            managed_files = self._get_managed_files()
+            values = self._get_managed_values(fetch)
+        return ManagedContent(Path.cwd(), managed_files, values)
+
+    def _bake_command(self, args: str) -> str:
+        obj = self.ctx.obj
+        options = ""
+        if obj.chdir is not None:
+            options += f" --chdir {shlex.quote(str(obj.chdir))}"
+        if obj.use_global:
+            options += " --global"
+        if obj.file_name != DEFAULT_FILE_NAME:
+            options += f" --file-name {shlex.quote(obj.file_name)}"
+        if obj.bakebook_name != DEFAULT_BAKEBOOK_NAME:
+            options += f" --book-name {shlex.quote(obj.bakebook_name)}"
+        return f"bake{options} {args}"
+
+    def _run_managed_lock(self, *, rebuild: bool = False) -> None:
+        self._managed_content(Fetch.NEVER).lock(dry_run=self.ctx.dry_run, rebuild=rebuild)
+
+    def _run_managed_sync(self, *, dry_run: bool, force: bool, refresh: bool = False) -> None:
+        fetch = Fetch.REFRESH if refresh else Fetch.WHEN_NEEDED
+        self._managed_content(fetch).sync(dry_run=dry_run, force=force)
+
+    def get_group_kwargs(self) -> dict[str, GroupKwargs]:
+        group_kwargs = super().get_group_kwargs()
+        group_kwargs[MANAGED_CONTENT_GROUP] = GroupKwargs(
+            help="Write and check files Spaces manage (alias: mc)", aliases=("mc",)
+        )
+        return group_kwargs
+
+    def _require_managed_content(self) -> None:
+        if self.bake_manage_content:
+            return
+        console.error(
+            "managed content is off: set `bake_manage_content: bool = True` on your Bakebook "
+            "in bakefile.py, or BAKE_MANAGE_CONTENT=true"
+        )
+        raise typer.Exit(EXIT_ERROR)
+
+    @command(name="lock", group_name=MANAGED_CONTENT_GROUP, help="Rebuild bake.lock from the files")
+    def managed_content_lock(self) -> None:
+        self._require_managed_content()
+        self._run_managed_lock(rebuild=True)
+
+    @command(name="sync", group_name=MANAGED_CONTENT_GROUP, help="Write managed files")
+    def managed_content_sync(
+        self,
+        dry_run: Annotated[
+            bool, typer.Option("--dry-run", help="Show what would change, write nothing")
+        ] = False,
+        force: Annotated[
+            bool, typer.Option("--force", help="Overwrite files that do not match their template")
+        ] = False,
+        refresh: Annotated[
+            bool,
+            typer.Option(
+                "--refresh",
+                help="Fetch values that come from the network again, from their latest upstream",
+            ),
+        ] = False,
+    ) -> None:
+        self._require_managed_content()
+        self._run_managed_sync(dry_run=dry_run or self.ctx.dry_run, force=force, refresh=refresh)

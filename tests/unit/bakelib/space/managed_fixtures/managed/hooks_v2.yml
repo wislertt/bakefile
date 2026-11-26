@@ -1,0 +1,21 @@
+name: hooks
+on:
+    # (editable)
+{% editable events %}
+    push:
+{% endeditable %}
+
+jobs:
+    build:
+        runs-on: {% editable build_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        steps:
+            - run: build --all
+            # (editable) more build steps
+{% editable build_steps %}
+            {% hook build_steps %}
+{% endeditable %}
+
+    {% hook extra_jobs %}
+    # (editable) more jobs below
+{% editable jobs %}
+{% endeditable %}
