@@ -7,34 +7,34 @@ hash = "sha256:1cc1d771707519e5a866b9286b300a48d951c4dc3d589e0e1e29aa17bb2b97d7"
 
 [managed-content.".github/workflows/cd.yml"]
 template = "bakelib.space:cd.yml"
-hash = "sha256:cba22b2aaf730eb559e1d83d984c96e87e74ead4d5d3115a5b6b198f55da658d"
+hash = "sha256:54c7ea56b26fced457cf2765f9f2b0a19bea412ab752410fafad84f1f7485ad2"
 editable.space_jobs = "    test:\n        uses: ./.github/workflows/test.yml\n        secrets:\n            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}\n            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}\n\n    pre-commit:\n        uses: ./.github/workflows/pre-commit.yml\n\n    publish-pypi:\n        needs: zerv-versioning\n        uses: ./.github/workflows/publish.yml\n        with:\n            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}\n            python_version: \"3.15\"\n            registry: pypi\n        secrets:\n            PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}\n\n    publish-test-pypi:\n        needs: zerv-versioning\n        uses: ./.github/workflows/publish.yml\n        with:\n            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}\n            python_version: \"3.15\"\n            registry: test-pypi\n            allow_fail: true # test-pypi is unreliable\n        secrets:\n            PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}\n"
 
 [managed-content.".github/workflows/ci.yml"]
 template = "bakelib.space:ci.yml"
-hash = "sha256:422e6cc1c5201252db9f51a3c44142b100931873ea9b0606b9d2a5edcbf2eb35"
+hash = "sha256:b7b6773302162bbef5d884e9a1222b1edd677c479e382668989b8ad6d99b0ea2"
 editable.space_jobs = "    test:\n        uses: ./.github/workflows/test.yml\n        secrets:\n            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}\n            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}\n\n    pre-commit:\n        uses: ./.github/workflows/pre-commit.yml\n\n    publish-test-pypi:\n        if: needs.check-pre-release.outputs.has_label == 'true'\n        needs: [zerv-versioning, check-pre-release]\n        uses: ./.github/workflows/publish.yml\n        with:\n            version: ${{ fromJson(needs.zerv-versioning.outputs.versions).pep440 }}\n            python_version: \"3.15\"\n            registry: test-pypi\n            allow_fail: true # test-pypi is unreliable\n        secrets:\n            PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}\n"
 
 [managed-content.".github/workflows/pre-commit.yml"]
 template = "bakelib.space:pre-commit.yml"
-hash = "sha256:d868fa3eceb0aae3259732524a5cdca3eef425b71d24fa2fec67d089c313d785"
+hash = "sha256:041cf2a9a08bdec9db2874bb74f3c28a0d0e18fd984988fabb498baba9978575"
 
 [managed-content.".github/workflows/publish.yml"]
 template = "bakelib.space:publish.yml"
-hash = "sha256:fee1741e9dae4e57c7a15cf8917f2cefbb4db9f97c2eebcebaa5b8a2225cb9cf"
+hash = "sha256:09922c5d51684f294f171301fbcfdce7f7e9144eb64989521380439dcac4758c"
 
 [managed-content.".github/workflows/security.yml"]
 template = "bakelib.space:security.yml"
-hash = "sha256:26953868007be799e093120239bb028136786ac37def427a03f3f13c7af4d7bd"
+hash = "sha256:db2a54d5856fc9c8bc9c08541ad3f096d7e90c733f9d47f78ef7fc489477d114"
 
 [managed-content.".github/workflows/semantic-pull-request.yml"]
 template = "bakelib.space:semantic-pull-request.yml"
-hash = "sha256:a37b43ce1e8c9163903a7010c655736e527e25ed7d6b730c66b491bed6a574b6"
+hash = "sha256:e3a8b6f2ca45467af2afdcfa2d576f62dae039c304a014daa51a6832fc0fd427"
 
 [managed-content.".github/workflows/test.yml"]
 template = "bakelib.space:test.yml"
-hash = "sha256:669065327e6b0d377a3786cee43d1148acce7f1e941456367d900c11da4d0c97"
-editable.jobs = "    test-integration:\n        strategy:\n            fail-fast: false\n            matrix:\n                os: [ubuntu-latest, windows-latest, macos-latest]\n        runs-on: ${{ matrix.os }}\n\n        steps:\n            - name: checkout\n              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n              with:\n                  fetch-depth: 0\n\n            - name: set-python-version\n              run: echo \"${{ inputs.target_python_version }}\" > .python-version\n\n            - name: setup-mise\n              uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0\n\n            - name: cache-venv\n              env:\n                  CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}\n                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}\n              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n              with:\n                  path: |\n                      ~/.local/share/uv\n                      ~/.cache/uv\n                      ${{ github.workspace }}/.venv\n                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}\n                  restore-keys: |\n                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-\n                      ${{ env.CACHE_KEY_PREFIX }}-\n\n            - name: install-dependencies\n              run: uv sync --all-extras --all-groups --frozen\n\n            - name: setup-path\n              shell: bash\n              run: |\n                  if [ \"$RUNNER_OS\" == \"Windows\" ]; then\n                      echo \"${{ github.workspace }}/.venv/Scripts\" >> \"$GITHUB_PATH\"\n                  else\n                      echo \"${{ github.workspace }}/.venv/bin\" >> \"$GITHUB_PATH\"\n                  fi\n\n            - name: run-integration-tests\n              run: bake test-integration\n"
+hash = "sha256:8b67f9d7c238f255bf299c02f190c192f81c29eb7d892de082920354bc8635bc"
+editable.jobs = "    test-integration:\n        strategy:\n            fail-fast: false\n            matrix:\n                os: [ubuntu-latest, windows-latest, macos-latest]\n        runs-on: ${{ matrix.os }}\n        timeout-minutes: 30\n\n        steps:\n            - name: checkout\n              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n              with:\n                  fetch-depth: 0\n\n            - name: set-python-version\n              env:\n                  PYTHON_VERSION: ${{ inputs.target_python_version }}\n              run: echo \"$PYTHON_VERSION\" > .python-version\n\n            - name: setup-mise\n              uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0\n\n            - name: cache-venv\n              env:\n                  CACHE_KEY_PREFIX: venv-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}\n                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock') }}\n              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n              with:\n                  path: |\n                      ~/.local/share/uv\n                      ~/.cache/uv\n                      ${{ github.workspace }}/.venv\n                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}\n                  restore-keys: |\n                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-\n                      ${{ env.CACHE_KEY_PREFIX }}-\n\n            - name: install-dependencies\n              run: uv sync --all-extras --all-groups --frozen\n\n            - name: setup-path\n              shell: bash\n              run: |\n                  if [ \"$RUNNER_OS\" == \"Windows\" ]; then\n                      echo \"${{ github.workspace }}/.venv/Scripts\" >> \"$GITHUB_PATH\"\n                  else\n                      echo \"${{ github.workspace }}/.venv/bin\" >> \"$GITHUB_PATH\"\n                  fi\n\n            - name: run-integration-tests\n              run: bake test-integration\n"
 
 [managed-content.".gitignore"]
 template = "bakelib.space:gitignore"

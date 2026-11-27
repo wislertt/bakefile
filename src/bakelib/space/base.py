@@ -1,9 +1,11 @@
+import inspect
 import os
 import re
 import shlex
 import shutil
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -11,7 +13,7 @@ import orjson
 import typer
 import zerv
 
-from bake import Bakebook, command, console
+from bake import Bakebook, Context, command, console
 from bake._params import fast_option, slow_option
 from bake.bakebook.bakebook import GroupKwargs
 from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
@@ -37,6 +39,39 @@ from .utils import (
 from .utils.gitignore import GITHUB, Upstream, render_lines, stack_section
 
 OXFMT_SUFFIXES = ("js", "jsx", "ts", "tsx", "css", "json", "json5", "yaml", "yml", "md")
+PRETTIER_CONFIG_FILES = (
+    ".prettierrc",
+    ".prettierrc.json",
+    ".prettierrc.json5",
+    ".prettierrc.yaml",
+    ".prettierrc.yml",
+    ".prettierrc.toml",
+    *(
+        f"{stem}.{ext}"
+        for stem in (".prettierrc", "prettier.config")
+        for ext in ("js", "mjs", "cjs", "ts", "mts", "cts")
+    ),
+)
+
+
+def _prettier_config_files() -> list[Path]:
+    return [Path(name) for name in PRETTIER_CONFIG_FILES if Path(name).is_file()]
+
+
+class RemovePrettierConfig(Migration):
+    expires = date(2027, 2, 25)
+    description = "Remove the prettier config, replaced by the managed oxfmt.config.ts"
+
+    def check(self, ctx: Context) -> bool:
+        _ = ctx
+        return bool(_prettier_config_files())
+
+    def apply(self, ctx: Context) -> None:
+        # a Python delete, not `rm`, so it works on Windows too
+        for path in _prettier_config_files():
+            console.cmd(f"rm {path}")
+            if not ctx.dry_run:
+                path.unlink()
 
 
 def command_not_available(command_name: str) -> None:
@@ -81,12 +116,45 @@ def _strip_mise_options(tool: str) -> str:
     return match["name"] if match is not None else tool
 
 
+def local_mise_tools(ctx: Context) -> set[str]:
+    # read-only: run even in dry-run so a preview sees the real tools
+    result = ctx.run(
+        "mise list --local --current --json",
+        stream=False,
+        echo=False,
+        capture_output=True,
+        clean_capture_output=False,  # parsed as JSON below
+        dry_run=False,
+        check=False,
+    )
+    if not result or not result.stdout:
+        return set()
+    return {_strip_mise_options(tool) for tool in orjson.loads(result.stdout)}
+
+
 def _raised_in_get_migrations(error: KeyError) -> bool:
     # a dead `del` fails in C, so its innermost Python frame is the override itself
     tb = error.__traceback__
     while tb is not None and tb.tb_next is not None:
         tb = tb.tb_next
     return tb is not None and tb.tb_frame.f_code.co_name == "_get_migrations"
+
+
+def _defined_in_project(migration: Migration) -> bool:
+    # upstream Spaces live in site-packages; an editable install or bakefile.py lives in the repo
+    source = inspect.getsourcefile(type(migration))
+    if source is None:
+        return False
+    path = Path(source).resolve()
+    return path.is_relative_to(Path.cwd().resolve()) and "site-packages" not in path.parts
+
+
+def _class_location(migration: Migration) -> str:
+    cls = type(migration)
+    source = Path(inspect.getsourcefile(cls) or "").resolve()
+    if source.is_relative_to(Path.cwd().resolve()):
+        source = source.relative_to(Path.cwd().resolve())
+    return f"{cls.__qualname__} in {source.as_posix()}:{inspect.getsourcelines(cls)[1]}"
 
 
 class BaseSpace(CleanUtils, Bakebook):
@@ -210,6 +278,7 @@ class BaseSpace(CleanUtils, Bakebook):
             self._lint_slow()
 
     def _lint_fast(self) -> None:
+        self._fail_on_expired_migrations()
         self._fail_on_pending_migrations()
         # before any formatter, so drift is reported against the files as committed
         if self.bake_manage_content:
@@ -290,21 +359,7 @@ class BaseSpace(CleanUtils, Bakebook):
         }
 
     def _add_mise_tools(self) -> None:
-        # read-only: run even in dry-run so the preview shows real missing tools
-        result = self.ctx.run(
-            "mise list --local --current --json",
-            stream=False,
-            echo=False,
-            capture_output=True,
-            clean_capture_output=False,  # parsed as JSON below
-            dry_run=False,
-            check=False,
-        )
-        current_tools: set[str] = set()
-        if result and result.stdout:
-            data = orjson.loads(result.stdout)
-            current_tools = {_strip_mise_options(tool) for tool in data}
-
+        current_tools = local_mise_tools(self.ctx)
         required_tools = self._get_mise_tools()
         missing_tools = sorted(
             tool for tool in required_tools if _strip_mise_options(tool) not in current_tools
@@ -466,7 +521,7 @@ class BaseSpace(CleanUtils, Bakebook):
             self._run_managed_sync(dry_run=self.ctx.dry_run, force=False, refresh=True)
 
     def _get_migrations(self) -> dict[str, Migration]:
-        return {}
+        return {"remove-prettier-config": RemovePrettierConfig()}
 
     def collect_migrations(self) -> dict[str, Migration]:
         try:
@@ -485,6 +540,27 @@ class BaseSpace(CleanUtils, Bakebook):
     def _pending_migrations(self) -> dict[str, Migration]:
         migrations = self.collect_migrations()
         return {key: m for key, m in migrations.items() if m.check(self.ctx)}
+
+    def _fail_on_expired_migrations(self) -> None:
+        today = date.today()
+        expired = {
+            key: migration
+            for key, migration in self.collect_migrations().items()
+            if migration.expires < today and _defined_in_project(migration)
+        }
+        if not expired:
+            return
+        for key, migration in expired.items():
+            console.error(
+                f"Migration {key} ({_class_location(migration)}) expired on "
+                f"{migration.expires.isoformat()}: {migration.description}",
+                markup=False,
+            )
+        console.error(
+            "remove each expired Migration: its class and its key in _get_migrations()",
+            markup=False,
+        )
+        raise typer.Exit(EXIT_DRIFT)
 
     def _fail_on_pending_migrations(self) -> None:
         pending = self._pending_migrations()

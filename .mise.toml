@@ -2,10 +2,10 @@
 pipx.uvx = true
 
 [tools]
-actionlint = "latest"
 age = "latest"
 bun = "latest"
 fnox = "latest"
+jactionlint = "latest"
 "npm:actions-up" = "latest"
 "npm:mintlify" = "latest"
 "npm:oxfmt" = "latest"

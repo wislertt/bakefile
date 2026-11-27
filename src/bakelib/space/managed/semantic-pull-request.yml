@@ -7,10 +7,15 @@ on:
 permissions:
     pull-requests: read
 
+concurrency:
+    group: semantic-pull-request-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
 jobs:
     semantic-pull-request:
         name: semantic-pull-request
         runs-on: {% editable semantic_pull_request_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable semantic_pull_request_timeout %}5{% endeditable %} # (editable)
         steps:
             - name: validate-pr-title
               # (editable) pin

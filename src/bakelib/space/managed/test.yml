@@ -29,6 +29,7 @@ jobs:
                 os: [{% editable test_os %}ubuntu-latest, windows-latest, macos-latest{% endeditable %}] # (editable)
                 python-version: ${{ fromJson(inputs.python_versions) }}
         runs-on: {% editable test_runs_on %}${{ matrix.os }}{% endeditable %} # (editable)
+        timeout-minutes: {% editable test_timeout %}30{% endeditable %} # (editable)
 
         steps:
             - name: checkout

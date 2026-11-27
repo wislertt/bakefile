@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import pkgutil
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -19,8 +20,9 @@ from bakelib import (
     GitHubActionsTools,
     Migration,
     PythonSpace,
-    assert_no_expired_migrations,
 )
+from bakelib.managed_content import EXIT_DRIFT
+from bakelib.space.base import _defined_in_project
 
 
 class UnuseToolMigration(Migration):
@@ -381,69 +383,104 @@ class TestDeadOptOut:
         with mock_ctx, pytest.raises(KeyError, match="old_tool"):
             BuggySpace().lint()
 
-    def test_assert_no_expired_migrations_exits_2_with_delete_that_line_message(
-        self, capsys: pytest.CaptureFixture
+
+@contextmanager
+def _owned_by_project(owned: bool) -> Generator[None]:
+    with patch("bakelib.space.base._defined_in_project", return_value=owned):
+        yield
+
+
+class TestLintExpiredMigrations:
+    def test_passes_for_future_and_today(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
     ) -> None:
-        with pytest.raises(typer.Exit) as exc_info:
-            assert_no_expired_migrations(DeadOptOutSpace())
-
-        assert exc_info.value.exit_code == 2
-        err = _err(capsys)
-        assert "'removed-upstream'" in err
-        assert "delete that line" in err
-
-
-class TestAssertNoExpiredMigrations:
-    def test_passes_for_future_and_today(self) -> None:
         today = date.today()
-        bakebook = space_with(
+        space = space_with({"future": dated(today + timedelta(days=90)), "today": dated(today)})
+
+        with mock_ctx, _owned_by_project(True):
+            space.lint()
+
+        assert "expired" not in _err(capsys)
+
+    def test_fails_naming_every_expired_migration_of_the_project(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = space_with(
             {
-                "future": dated(today + timedelta(days=90)),
-                "today": dated(today),
-            }
-        )
-
-        assert_no_expired_migrations(bakebook)
-
-    def test_passes_without_migrations(self) -> None:
-        assert_no_expired_migrations(BaseSpace())
-
-    def test_fails_naming_the_expired_migration(self) -> None:
-        yesterday = date.today() - timedelta(days=1)
-        bakebook = space_with(
-            {
-                "unuse-old-tool": dated(yesterday, "Remove old-tool from mise.toml"),
+                "drop-a": dated(date(2020, 1, 1), "Drop a"),
+                "drop-b": dated(date(2021, 6, 30), "Drop b"),
                 "future": dated(date.today() + timedelta(days=1)),
             }
         )
 
-        with pytest.raises(AssertionError) as exc_info:
-            assert_no_expired_migrations(bakebook)
+        with mock_ctx, _owned_by_project(True), pytest.raises(typer.Exit) as exc_info:
+            space.lint()
 
-        message = str(exc_info.value)
-        assert "unuse-old-tool" in message
-        assert "Remove old-tool from mise.toml" in message
-        assert yesterday.isoformat() in message
-        assert "future" not in message
+        assert exc_info.value.exit_code == EXIT_DRIFT
+        err = _err(capsys)
+        line = inspect.getsourcelines(UnuseToolMigration)[1]
+        location = f"UnuseToolMigration in tests/unit/bakelib/space/test_migration.py:{line}"
+        assert f"Migration drop-a ({location}" in err
+        assert ") expired on 2020-01-01: Drop a" in err
+        assert f"Migration drop-b ({location}" in err
+        assert ") expired on 2021-06-30: Drop b" in err
+        assert "future" not in err
+        assert "its class and its key in _get_migrations()" in err
+        assert "oxfmt" not in err
 
-    def test_fails_naming_every_expired_migration(self) -> None:
-        bakebook = space_with(
-            {
-                "drop-a": dated(date(2020, 1, 1), "Drop a"),
-                "drop-b": dated(date(2021, 6, 30), "Drop b"),
-            }
-        )
+    def test_skips_expired_migration_of_an_installed_space(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = space_with({"drop-a": dated(date(2020, 1, 1), "Drop a")})
 
-        with pytest.raises(AssertionError) as exc_info:
-            assert_no_expired_migrations(bakebook)
+        with mock_ctx, _owned_by_project(False):
+            space.lint()
 
-        message = str(exc_info.value)
-        assert "drop-a" in message
-        assert "Drop a" in message
-        assert "2020-01-01" in message
-        assert "drop-b" in message
-        assert "Drop b" in message
-        assert "2021-06-30" in message
+        err = _err(capsys)
+        assert "expired" not in err
+        assert "oxfmt" in err
+
+    def test_reports_expiry_before_a_pending_migration(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        migration = UnuseToolMigration(applies=True)
+        migration.expires = date(2020, 1, 1)
+        space = space_with({"unuse-old-tool": migration})
+
+        with mock_ctx, _owned_by_project(True), pytest.raises(typer.Exit):
+            space.lint()
+
+        err = _err(capsys)
+        assert "Migration unuse-old-tool (UnuseToolMigration in " in err
+        assert ") expired on 2020-01-01" in err
+        assert "applies" not in err
+
+
+class TestDefinedInProject:
+    def test_class_under_the_project_root_is_owned(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(Path(__file__).parent)
+
+        assert _defined_in_project(UnuseToolMigration(applies=False))
+
+    def test_class_outside_the_project_root_is_not_owned(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        assert not _defined_in_project(UnuseToolMigration(applies=False))
+
+    def test_class_in_site_packages_under_the_project_root_is_not_owned(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        source = tmp_path / ".venv/lib/python3.15/site-packages/space/migrations.py"
+
+        with patch("bakelib.space.base.inspect.getsourcefile", return_value=str(source)):
+            assert not _defined_in_project(UnuseToolMigration(applies=False))
+
+    def test_class_without_a_source_file_is_not_owned(self) -> None:
+        with patch("bakelib.space.base.inspect.getsourcefile", return_value=None):
+            assert not _defined_in_project(UnuseToolMigration(applies=False))
 
 
 def _bakelib_spaces() -> list[type[BaseSpace]]:
@@ -482,4 +519,10 @@ def test_bakelib_spaces_are_found() -> None:
 
 @pytest.mark.parametrize("space_cls", BAKELIB_SPACES, ids=lambda cls: cls.__name__)
 def test_bakelib_space_has_no_expired_migrations(space_cls: type[BaseSpace]) -> None:
-    assert_no_expired_migrations(_bakebook_of(space_cls))
+    # bakefile's own lint sees only the Spaces its bakefile.py composes, so this covers the rest
+    expired = {
+        key: migration.expires
+        for key, migration in _bakebook_of(space_cls).collect_migrations().items()
+        if migration.expires < date.today()
+    }
+    assert not expired

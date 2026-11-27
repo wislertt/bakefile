@@ -2,7 +2,7 @@ from .base import BaseSpace
 from .dvc import DvcSpace, MediaDvcSpace
 from .fnox import FnoxSpace
 from .github import GitHubActionsTools, ZervGitHubActionsTools
-from .migration import Migration, assert_no_expired_migrations
+from .migration import Migration
 from .python import PythonSpace
 from .python_lib import PythonLibSpace
 from .rust import RustSpace
@@ -26,5 +26,4 @@ __all__ = [
     "RustSpace",
     "SubmodulesUtils",
     "ZervGitHubActionsTools",
-    "assert_no_expired_migrations",
 ]

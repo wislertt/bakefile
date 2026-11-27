@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# Migrations: stateless checks in the lifecycle, expiry enforced by tests
+# Migrations: stateless checks in the lifecycle, expiry enforced by the owner's lint
 
 When a Space stops wanting something it once put in a project (a tool it added with `mise use`, a config file it no longer reads), nothing removes it: `_add_mise_tools` only adds, and managed content only cleans up the managed files in `bake.lock`. Switching actionlint to jactionlint would leave `actionlint` in every project's `mise.toml`. A Space now ships a Migration for that: a one-off step kept for a limited time to move projects off the old thing.
 
@@ -26,7 +26,7 @@ There is no public `migrate` command; Migrations are rare and run inside existin
 
 ## Expiry
 
-`expires` has no effect at runtime: a downstream repo never breaks because of a date. The shipping package's own unit test fails once a Migration is past its date, which forces its removal; bakelib ships `assert_no_expired_migrations(bakebook)` so company Spaces enforce the same. The default window is 90 days from the release that adds it.
+A downstream repo never breaks because of a date. `bake lint` fails on a Migration past its `expires` only when its class is defined in the repo being linted: under the project root and not in `site-packages`, as with a Space package installed in editable mode or `bakefile.py`. Space authors already run lint in pre-commit and CI, so expiry needs no test of their own. Lint sees only the Spaces the repo's own bakebook composes, so bakefile keeps a unit test over every bakelib Space for the ones its `bakefile.py` does not use. The default window is 90 days from the release that adds it.
 
 ## Considered Options
 
@@ -36,3 +36,5 @@ There is no public `migrate` command; Migrations are rare and run inside existin
 - **A public `bake migrate` command.** Rejected as surface for something rarely run; the hidden `post-update` exists only because `update` needs the incoming version's code.
 - **`update` ending with `setup-dev -ff`.** Rejected: it also cleans and reinstalls pre-commit, which `update` does not do.
 - **Expiry by bakefile version, or a runtime warning after the date.** Rejected: a date is simpler to set at release, and runtime effects would break or nag downstream repos for a decision that belongs to the Space author.
+- **A public `assert_no_expired_migrations` test helper.** Rejected: a Space author had to remember to call it, and a Migration without that test was never caught. Lint in the owning repo needs nothing.
+- **Scanning every imported `Migration` subclass in lint.** Rejected: it depends on what happens to be imported, and test-defined subclasses would leak into lint runs in the same process.

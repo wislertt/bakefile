@@ -7,15 +7,21 @@ on:
     workflow_dispatch:
 
 permissions:
-    contents: write
-    issues: write
-    pull-requests: write
+    contents: read
+
+concurrency:
+    group: cd-caller-${{ github.ref }}
+    cancel-in-progress: false
 
 jobs:
     # (editable) versioning and release
 {% editable versioning %}
     semantic-release:
         name: semantic-release
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
         uses: wislertt/zerv/.github/workflows/shared-semantic-release.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
         with:
             allowed_workflow_dispatch_branches: '["main"]'
@@ -28,6 +34,8 @@ jobs:
 
     create-version-prefix-tags:
         needs: zerv-versioning
+        permissions:
+            contents: write
         uses: wislertt/zerv/.github/workflows/shared-create-tags.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
         with:
             tags: >-

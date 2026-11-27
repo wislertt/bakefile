@@ -21,7 +21,7 @@ How these helpers earn their keep across real repos: [bakefile in practice: the 
 - `RustSpace` - Rust lint, tool setup, and update (cargo sort and fmt; clippy with `bake lint -s`; rustup, cargo)
 - `PythonLibSpace` - `PythonSpace` plus `publish` (PyPI / TestPyPI): manages the publish workflow
 - `RustLibSpace` - `RustSpace` plus `publish` (crates.io)
-- `GitHubActionsTools` - GitHub Actions linting (actionlint with shellcheck) and updates: manages `.github/renovate.json5` and the security workflow
+- `GitHubActionsTools` - GitHub Actions linting and updates: manages `.github/renovate.json5` and the security workflow. Lint runs jactionlint with shellcheck, and `bake lint -s` adds its online checks. `jactionlint_profile` defaults to `default`, which covers actionlint and zizmor's regular audits; set it to `correctness` (actionlint's checks only) or `pedantic`, or to `None` to use the `profile` of `.github/jactionlint.yaml`. Its `remove-actionlint` Migration removes `actionlint` from the project's mise config
 - `ZervGitHubActionsTools` - `GitHubActionsTools` for repos that version with zerv: manages `.releaserc.mjs` and the semantic pull request workflow ([Managed content](/bakelib/managed-content))
 - `BaseServiceSpace` - build / deploy / destroy hooks to override
 - `SubmodulesUtils` - sync git submodules
@@ -75,6 +75,8 @@ bakebook = MySpace()
 - `update()` - Upgrade dependencies
 - ...and more
 
+Every Space inherits the `remove-prettier-config` Migration from `BaseSpace`: it deletes the prettier config files (`.prettierrc*`, `prettier.config.*`) that oxfmt replaced, now that bakelib manages `oxfmt.config.ts`. It keeps `.prettierignore`, which oxfmt still reads.
+
 A custom Space is a Bakebook like any other - publish it as a package to share it across projects. See [Reuse tasks across projects](/concepts/sharing-tasks).
 
 ## Migrations
@@ -122,17 +124,9 @@ The contract:
 - `apply(ctx)` makes every side effect through `ctx.run`, so `--dry-run` prints the commands without running them. A direct file edit checks `ctx.dry_run` itself and skips the edit when it is set.
 - An error raised by `apply` stops the command with exit 2. The next run continues with the Migrations whose `check` is still true.
 - Keys are stable kebab-case ids. Migrations run in dict order, parents first, and do not depend on each other.
-- `expires` is the date after which the Space author removes the Migration, usually 90 days after the release that adds it. It has no effect at runtime.
+- `expires` is the date after which the Space author removes the Migration, usually 90 days after the release that adds it.
 
-Expiry is enforced by the tests of the package that ships the Migration, never in downstream projects. Call `assert_no_expired_migrations` on each of your Spaces in a unit test: it fails once any Migration is past its `expires` date, naming each by key, description and date, so you remove it. bakefile runs the same check on every bakelib Space.
-
-```python
-from bakelib import assert_no_expired_migrations
-
-
-def test_my_space_has_no_expired_migrations() -> None:
-    assert_no_expired_migrations(MySpace())
-```
+`bake lint` enforces expiry only in the repo that owns the Migration: one whose class is defined under the project root and not in `site-packages`, such as your Space package installed in editable mode or `bakefile.py` itself. Past its `expires` date, lint fails naming it by key, description and date, so you remove it. A Migration from an installed Space is never checked, so a downstream project does not break because of a date. Lint sees the Migrations of the Spaces your own `bakefile.py` composes; if your package ships Spaces it does not use itself, check their `collect_migrations()` dates in a unit test.
 
 A project that does not want a Migration removes it by key in its own Bakebook:
 

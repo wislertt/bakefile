@@ -1765,12 +1765,16 @@ class TestWorkflows:
         written = (project / SECURITY_PATH).read_text()
         assert written.startswith(f"# {HEADER}\nname: security\non:\n    # (editable)\n    push:\n")
         assert (
-            "    trivy-scan:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+            "    trivy-scan:\n"
+            "        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 10 # (editable)\n"
+            "        steps:\n"
         ) in written
         assert (
             "    gitleaks:\n"
             "        name: gitleaks\n"
             "        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 10 # (editable)\n"
             "        steps:\n"
         ) in written
         assert "              # (editable) pin\n              uses: aquasecurity/trivy-action@" in (
@@ -1839,7 +1843,8 @@ class TestWorkflows:
 
         written = workflow.read_text()
         assert (
-            "# (editable)\npermissions:\n    contents: read\n    pull-requests: write\n\njobs:\n"
+            "# (editable)\npermissions:\n    contents: read\n    pull-requests: write\n\n"
+            "concurrency:\n"
         ) in written
         assert (
             "                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
@@ -1857,7 +1862,7 @@ class TestWorkflows:
 
         lines = (project / path).read_text().splitlines()
         uses = [i for i, line in enumerate(lines) if PINNED_SHA.search(line)]
-        runs_on = [line for line in lines if "runs-on:" in line]
+        runs_on = [line for line in lines if "runs-on:" in line or "timeout-minutes:" in line]
         assert uses
         assert all(lines[i - 1].strip() == "# (editable) pin" for i in uses)
         assert runs_on
@@ -1872,7 +1877,9 @@ class TestWorkflows:
         written = (project / PRE_COMMIT_PATH).read_text()
         assert written.startswith(
             f"# {HEADER}\nname: pre-commit\n\non:\n    workflow_call:\n\njobs:\n"
-            "    pre-commit:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+            "    pre-commit:\n        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 30 # (editable)\n"
+            "        steps:\n"
         )
         assert "              run: SKIP=lint uv run pre-commit run --all-files\n" in written
         assert "              run: bake lint --slow\n" in written
@@ -1889,9 +1896,17 @@ class TestWorkflows:
             f"# {HEADER}\nname: publish-python-package\n\non:\n    workflow_call:\n"
         )
         assert (
-            "    publish:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+            "    publish:\n"
+            "        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 15 # (editable)\n"
+            "        steps:\n"
         ) in written
-        assert '                      --version "${{ inputs.version }}"\n' in written
+        assert "                  VERSION: ${{ inputs.version }}\n" in written
+        assert (
+            '              run: bake publish --registry "$REGISTRY" --version "$VERSION"\n'
+            in written
+        )
+        assert not [line for line in written.splitlines() if "run:" in line and "inputs." in line]
         assert written.endswith(REPO_JOBS_MARKER)
 
     @pytest.mark.parametrize("space", [ManagedPythonSpace, ManagedPythonLibSpace])
