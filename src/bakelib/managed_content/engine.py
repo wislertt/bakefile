@@ -29,13 +29,11 @@ _HASH_COMMENT_SUFFIXES = {".yaml", ".yml", ".toml", ".py", ".sh"}
 _SLASH_COMMENT_SUFFIXES = {".ts", ".js", ".mjs", ".cjs", ".json5", ".jsonc"}
 _IGNORE_FILE = re.compile(r"\.[\w-]*ignore")
 _NAME = r"[a-z_][a-z0-9_]*"
-_OPEN = re.compile(rf"\{{% editable (?P<name>{_NAME})(?P<adopt> adopt)? %\}}")
+_OPEN = re.compile(rf"\{{% editable (?P<name>{_NAME}) %\}}")
 _CLOSE = re.compile(rf"\{{% endeditable(?: (?P<name>{_NAME}))? %\}}")
 _VALUE = re.compile(rf"\{{\{{ bakefile\.(?P<name>{_NAME}) \}}\}}")
 _HOOK = re.compile(rf"^(?P<indent>[ \t]*)\{{% hook (?P<name>{_NAME}) %\}}\n", re.MULTILINE)
-_BLOCK_TAG_LINE = re.compile(
-    rf"\{{% (?:editable {_NAME}(?: adopt)?|endeditable(?: {_NAME})?) %\}}\n"
-)
+_BLOCK_TAG_LINE = re.compile(rf"\{{% (?:editable {_NAME}|endeditable(?: {_NAME})?) %\}}\n")
 _TAG_START = re.compile(r"\{%|\{\{-?\s*bakefile\b")
 _RAW = "{% raw %}"
 _END_RAW = "{% endraw %}"
@@ -242,7 +240,6 @@ class EditableBlock:
     name: str
     default: str
     inline: bool
-    adopt: bool
 
 
 @dataclass(frozen=True)
@@ -284,10 +281,6 @@ class Template:
     @cached_property
     def defaults(self) -> dict[str, str]:
         return {name: e.default for name, e in self.blocks.items()}
-
-    @cached_property
-    def adopt_block(self) -> str | None:
-        return next((name for name, e in self.blocks.items() if e.adopt), None)
 
     @cached_property
     def _pattern(self) -> re.Pattern[str]:
@@ -377,7 +370,7 @@ class Template:
 
 
 def parse_template(
-    key: str, path: str, header: str, source: str, values: Mapping[str, object]
+    key: str, header: str, source: str, values: Mapping[str, object]
 ) -> tuple[Part, ...]:
     parts: list[Part] = []
     literal, at = header, 0
@@ -452,21 +445,12 @@ def parse_template(
             )
         else:
             at = closed.end()
-        if opened["adopt"] and not block:
-            raise ManagedContentError(
-                f"template {key}: adopt block {name!r} must have its tags on their own lines"
-            )
-        parts += [
-            literal,
-            EditableBlock(
-                name=name, default=default, inline=not block, adopt=bool(opened["adopt"])
-            ),
-        ]
+        parts += [literal, EditableBlock(name=name, default=default, inline=not block)]
         literal, opened = "", None
     if opened is not None:
         raise _unclosed_block(key, opened["name"])
     parts.append(literal + source[at:])
-    _check_parts(key, path, parts)
+    _check_parts(key, parts)
     return tuple(parts)
 
 
@@ -484,7 +468,7 @@ def _near(source: str, start: int) -> str:
     return f"near {source[start : start + 40]!r}"
 
 
-def _check_parts(key: str, path: str, parts: list[Part]) -> None:
+def _check_parts(key: str, parts: list[Part]) -> None:
     blocks = [p for p in parts if isinstance(p, EditableBlock)]
     # parts alternate fixed text and captures, starting with the header
     for index in range(2, len(parts) - 1, 2):
@@ -498,18 +482,6 @@ def _check_parts(key: str, path: str, parts: list[Part]) -> None:
     names = [b.name for b in blocks]
     if duplicates := sorted({n for n in names if names.count(n) > 1}):
         raise ManagedContentError(f"template {key}: editable block {duplicates[0]!r} appears twice")
-    adopts = [b.name for b in blocks if b.adopt]
-    if len(adopts) > 1:
-        raise ManagedContentError(f"template {key}: more than one adopt block: {adopts}")
-    if adopts and not _adoptable(path):
-        raise ManagedContentError(
-            f"template {key}: adopt blocks are only for ignore files and markdown, not {path}"
-        )
-
-
-def _adoptable(path: str) -> bool:
-    pure = PurePosixPath(path)
-    return pure.suffix == ".md" or bool(_IGNORE_FILE.fullmatch(pure.name))
 
 
 def _value(key: str, values: Mapping[str, object], name: str) -> str:
@@ -537,7 +509,7 @@ def load_templates(
         source = managed_file.read_template()
         template_hooks(key, source)
         source = _HOOK.sub("", source)
-        templates[path] = Template(key=key, parts=parse_template(key, path, header, source, values))
+        templates[path] = Template(key=key, parts=parse_template(key, header, source, values))
     return templates
 
 
@@ -747,8 +719,6 @@ def _block_contents(
             )
         if template.equals_defaults_without_header(current):
             return {}, ["taken over, it already equals what bake writes"]
-        if (adopt := template.adopt_block) is not None:
-            return {adopt: current}, [f"adopted into editable block {adopt!r}"]
         if force:
             return {}, []
         raise ManagedContentError(f"exists without the managed header; {FORCE_OR_DETACH_HINT}")

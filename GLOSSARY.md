@@ -68,10 +68,6 @@ _Avoid_: slot, placeholder, variable (bare)
 The file at a project's root that records which managed files bake wrote and the editable blocks the project changed.
 _Avoid_: lock (bare), lockfile, manifest, state file
 
-**Adoption**:
-Taking over an existing file that has no managed header, either because it already equals what bake would write apart from the header, or by moving its content into the one editable block its template marks for it.
-_Avoid_: import, migration
-
 **Detached file**:
 A managed file a project has taken over by hand: its Spaces still declare it, but bake neither writes, checks nor deletes it.
 _Avoid_: unmanaged file, ejected file
@@ -84,7 +80,7 @@ _Avoid_: out of sync, stale
 
 **Migration**:
 A one-off step a Space ships to move projects off something it no longer wants (a retired tool, a leftover file), applied only while the project still needs it and removed from the Space after its expiry date.
-_Avoid_: upgrade step, codemod, adoption (that is taking over a headerless managed file)
+_Avoid_: upgrade step, codemod
 
 ## Python environments
 

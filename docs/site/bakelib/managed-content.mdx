@@ -146,11 +146,13 @@ An edit outside editable blocks is drift. `sync` names the file and the first li
 
 When a template changes and the file has edits the lock does not know about yet, `sync` exits 2 instead of guessing. Reinstall the previous version of the package the hint names and run `bake mc lock`, or run `bake mc sync --force` and review the diff. An upgrade always works when the lock was current, so you do not need `bake update` for it.
 
-## Adoption
+## Files without the header
 
-The first sync takes over a hand `.gitignore` (or markdown file) without the header: its content moves verbatim into the editable block the template marks for it, the block under `# (editable)` at the end of the file, so your rules still apply and win over the lines above. A section you pasted from toptal stays too, next to the one bake renders from github/gitignore; delete it by hand once the templates you need are listed in `_get_gitignore_templates()`. Lines another tool appends to `.gitignore` later land in the same block, which is not drift.
+A file at a managed path without the header (a hand `oxfmt.config.ts`, `renovate.json5`, `.releaserc.mjs` or workflow) is taken over with a note when it already equals what bake would write apart from the header. A template with editable blocks also writes its `(editable)` marker lines, so in practice this covers whole fixed files such as `.releaserc.mjs`.
 
-Any other file at a managed path without the header (a hand `oxfmt.config.ts`, `renovate.json5`, `.releaserc.mjs` or workflow) is taken over with a note when it already equals what bake would write apart from the header. A template with editable blocks also writes its `(editable)` marker lines, so in practice this covers whole fixed files such as `.releaserc.mjs`. When the file differs, sync exits 2 with nothing written: run `bake mc sync --force` once, review the diff and move your own content back into the editable blocks. To keep your own file instead, such as a company workflow the template does not fit, [detach it](#detaching-a-file).
+Any other headerless file, a hand `.gitignore` included, stops sync: it exits 2 with nothing written, whatever the file type. Run `bake mc sync --force` once to write the template with default editable blocks; your old content stays in git history, so review the diff and move what you still need back into the editable blocks. For a `.gitignore`, that is the block under `# (editable)` at the end of the file, and a section you pasted from toptal is replaced by listing the templates you need in `_get_gitignore_templates()`. To keep your own file instead, such as a company workflow the template does not fit, [detach it](#detaching-a-file).
+
+Lines another tool appends to a managed `.gitignore` later land in its trailing editable block, which is not drift.
 
 A file bake wrote that no Space produces any more is deleted with its lock entry, as long as it still matches the hash in `bake.lock`. If you changed it since bake last wrote or locked it, sync keeps it as it is with a one-line note and drops its lock entry, so it becomes a hand file; `--force` does not change this, and `--dry-run` lists only the files it would delete. A file you later recreate at that path is not in the lock, so bake leaves it alone.
 
@@ -363,8 +365,6 @@ version: {% editable version %}1.0{% endeditable %}
 
 The closing tag may repeat the name: `{% endeditable jobs %}`. Rendered files contain no tags, so write the visible `(editable)` comment yourself.
 
-**Adopt block**: `{% editable <name> adopt %}` marks the block a headerless file is adopted into. At most one per template, on its own lines, and only in ignore files and markdown.
-
 #### Template hooks
 
 `{% hook <name> %}` on its own line marks a place where child Spaces [insert text](#changing-a-parents-template). It renders to nothing, and its indentation sets the column inserted text is indented to. A hook may sit inside an editable block, so a repo can still edit around what children insert. Each hook name appears once per template; a repeated one fails at load. Hooks are optional: a template without them can still be changed through `set_default()`.
@@ -434,7 +434,7 @@ Under `Fetch.NEVER`, return text that differs from the file when the committed t
 
 **Raw**: `{% raw %}...{% endraw %}` passes its text through untouched, for tag-like text such as `{{ bakefile.x }}` in a doc. GitHub Actions expressions like `${{ github.sha }}` need no escaping.
 
-Bake fails at load, before writing anything, on a malformed or near-miss tag (`{%editable x %}`, `{{bakefile.x}}`, a hook not alone on its line), an unclosed block, two blocks or two template hooks with one name, more than one adopt block, or a value the template uses that `_get_managed_values()` does not give as text.
+Bake fails at load, before writing anything, on a malformed or near-miss tag (`{%editable x %}`, `{{bakefile.x}}`, a hook not alone on its line), an unclosed block, two blocks or two template hooks with one name, or a value the template uses that `_get_managed_values()` does not give as text.
 
 ### Rules for templates
 
