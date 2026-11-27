@@ -1468,7 +1468,7 @@ class TestHeaderlessFile:
         self, ctx: Context, project: Path, capsys: pytest.CaptureFixture
     ) -> None:
         gitignore = project / ".gitignore"
-        gitignore.write_text(HAND_GITIGNORE)
+        gitignore.write_bytes(HAND_GITIGNORE.encode())
         with ctx:
             code = _sync_exit_code(ManagedSpace())
             after_error = _snapshot(project)
