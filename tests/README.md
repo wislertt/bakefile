@@ -172,7 +172,7 @@ BAKE_UPDATE_EXPECTED=1 uv run pytest tests/unit/bakelib/managed_content/test_tem
 
 The checks live in `bakelib.managed_content.testing.TemplateSuite`, so a package that ships its own Spaces and `managed/` folders reuses them with its own package names and expected folder. `test_templates.py` is the example to copy.
 
-Unit tests never fetch github/gitignore templates from the network. An autouse fixture in `tests/unit/conftest.py` patches `BaseSpace._get_gitignore_upstream()` to `STAND_IN_GITIGNORE` (`bakelib.managed_content.testing`), which writes one line per template, so Space commands that sync a `.gitignore` stay offline. `TemplateSuite` uses the same stand-in unless it is given `gitignore_upstream`. `test_templates.py` passes one that reads a snapshot of the templates the Spaces list (the three `Global/` ones and `Python`) in `github_gitignore/`, so the expected `.gitignore` shows real content; refresh the snapshot by hand when you want newer upstream text.
+Unit tests never fetch github/gitignore templates from the network. An autouse fixture in `tests/unit/conftest.py` patches `BaseSpace._get_gitignore_upstream()` to `STAND_IN_GITIGNORE` (`bakelib.managed_content.testing`), which writes one line per template, so Space commands that sync a `.gitignore` stay offline. `TemplateSuite` uses the same stand-in unless it is given `gitignore_upstream`. `test_templates.py` passes one that reads a snapshot of the templates `BaseSpace` lists (the three `Global/` ones and `Python`) in `github_gitignore/`, so the expected `.gitignore` shows real content; refresh the snapshot by hand when you want newer upstream text.
 
 ## Test Utilities
 

@@ -2326,7 +2326,7 @@ def github(monkeypatch: pytest.MonkeyPatch) -> FakeGitHub:
 
 class AddTemplateSpace(ManagedSpace):
     def _get_gitignore_templates(self) -> set[str]:
-        return super()._get_gitignore_templates() | {"Python"}
+        return super()._get_gitignore_templates() | {"Node"}
 
 
 class RemoveTemplateSpace(ManagedSpace):
@@ -2391,6 +2391,7 @@ class TestGitignoreTemplates:
             f"{raw}/VisualStudioCode.gitignore",
             f"{raw}/Windows.gitignore",
             f"{raw}/macOS.gitignore",
+            f"https://raw.githubusercontent.com/github/gitignore/{SHA_1}/Python.gitignore",
         ]
         text = (project / ".gitignore").read_text()
         assert f"{TEMPLATES_START}{SHA_1}\n" in text
@@ -2408,12 +2409,13 @@ class TestGitignoreTemplates:
             .startswith(
                 f"# {HEADER}\n\n"
                 f"{TEMPLATES_START}{SHA_1}\n"
-                f"{TEMPLATES_LINE}Global/VisualStudioCode, Global/Windows, Global/macOS\n"
+                f"{TEMPLATES_LINE}Global/VisualStudioCode, Global/Windows, Global/macOS, Python\n"
                 "# To change the templates, override _get_gitignore_templates() in bakefile.py\n"
                 "\n### Global/VisualStudioCode ###\n# Global/VisualStudioCode at 1\n"
                 "/global/visualstudiocode-out/\n"
                 "\n### Global/Windows ###\n# Global/Windows at 1\n/global/windows-out/\n"
                 "\n### Global/macOS ###\n# Global/macOS at 1\n/global/macos-out/\n"
+                "\n### Python ###\n# Python at 1\n/python-out/\n"
                 "\n# End of github/gitignore section, sha256:"
             )
         )
@@ -2426,6 +2428,7 @@ class TestGitignoreTemplates:
             "Global/VisualStudioCode@1",
             "Global/Windows@1",
             "Global/macOS@1",
+            "Python@1",
         ]
 
     def test_same_templates_never_fetch_again_from_sync_setup_dev_or_lint(
@@ -2450,14 +2453,20 @@ class TestGitignoreTemplates:
         [
             pytest.param(
                 AddTemplateSpace,
-                ["Global/VisualStudioCode", "Global/Windows", "Global/macOS", "Python"],
-                ["Global/VisualStudioCode@1", "Global/Windows@1", "Global/macOS@1", "Python@1"],
+                ["Global/VisualStudioCode", "Global/Windows", "Global/macOS", "Node", "Python"],
+                [
+                    "Global/VisualStudioCode@1",
+                    "Global/Windows@1",
+                    "Global/macOS@1",
+                    "Node@1",
+                    "Python@1",
+                ],
                 id="add",
             ),
             pytest.param(
                 RemoveTemplateSpace,
-                ["Global/VisualStudioCode", "Global/macOS"],
-                ["Global/VisualStudioCode@1", "Global/macOS@1"],
+                ["Global/VisualStudioCode", "Global/macOS", "Python"],
+                ["Global/VisualStudioCode@1", "Global/macOS@1", "Python@1"],
                 id="remove",
             ),
         ],
@@ -2534,8 +2543,9 @@ class TestGitignoreTemplates:
         [
             pytest.param(
                 AddTemplateSpace,
-                f"{TEMPLATES_LINE}Global/VisualStudioCode, Global/Windows, Global/macOS\n",
                 f"{TEMPLATES_LINE}Global/VisualStudioCode, Global/Windows, Global/macOS, Python\n",
+                f"{TEMPLATES_LINE}Global/VisualStudioCode, Global/Windows, Global/macOS, "
+                "Node, Python\n",
                 "1",
                 id="templates-line",
             ),
@@ -2597,7 +2607,12 @@ class TestGitignoreTemplates:
             ManagedSpace().managed_content_sync()
 
         assert written.count(old) == 1
-        assert github.calls == ["Global/VisualStudioCode@1", "Global/Windows@1", "Global/macOS@1"]
+        assert github.calls == [
+            "Global/VisualStudioCode@1",
+            "Global/Windows@1",
+            "Global/macOS@1",
+            "Python@1",
+        ]
         assert gitignore.read_text() == written
 
     def test_hand_edit_that_breaks_the_commit_line_fetches_from_main(
@@ -2746,7 +2761,7 @@ class TestGitignoreTemplates:
     ) -> None:
         class ListOrderSpace(ManagedSpace):
             def _get_gitignore_templates(self) -> set[str]:
-                return {"Python"} | super()._get_gitignore_templates() | {"Python"}
+                return {"Node"} | super()._get_gitignore_templates() | {"Node"}
 
         with ctx:
             AddTemplateSpace().managed_content_sync()
@@ -2778,7 +2793,9 @@ class TestGitignoreTemplates:
         ("space", "templates"),
         [
             pytest.param(
-                BaseSpace, {"Global/macOS", "Global/Windows", "Global/VisualStudioCode"}, id="base"
+                BaseSpace,
+                {"Global/macOS", "Global/Windows", "Global/VisualStudioCode", "Python"},
+                id="base",
             ),
             pytest.param(
                 PythonSpace,
@@ -2787,7 +2804,7 @@ class TestGitignoreTemplates:
             ),
             pytest.param(
                 RustSpace,
-                {"Global/macOS", "Global/Windows", "Global/VisualStudioCode", "Rust"},
+                {"Global/macOS", "Global/Windows", "Global/VisualStudioCode", "Python", "Rust"},
                 id="rust",
             ),
         ],

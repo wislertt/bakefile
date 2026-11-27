@@ -608,7 +608,8 @@ class BaseSpace(CleanUtils, Bakebook):
         }
 
     def _get_gitignore_templates(self) -> set[str]:
-        return {"Global/macOS", "Global/Windows", "Global/VisualStudioCode"}
+        # every repo runs bakefile.py, which leaves __pycache__/ behind
+        return {"Global/macOS", "Global/Windows", "Global/VisualStudioCode", "Python"}
 
     def _get_gitignore_upstream(self) -> Upstream:
         return GITHUB

@@ -19,9 +19,6 @@ class PythonSpace(BaseSpace):
             return None
         return path.read_text().strip()
 
-    def _get_gitignore_templates(self) -> set[str]:
-        return super()._get_gitignore_templates() | {"Python"}
-
     def _get_required_cli_tools(self) -> dict[str, set[Path] | None]:
         tools = super()._get_required_cli_tools()
         tools["python"] = {VENV_BIN}  # local - should be from venv
