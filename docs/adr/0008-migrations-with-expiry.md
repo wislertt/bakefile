@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Migrations: stateless checks in the lifecycle, expiry enforced by tests

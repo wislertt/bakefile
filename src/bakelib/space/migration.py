@@ -23,7 +23,7 @@ def assert_no_expired_migrations(bakebook: "BaseSpace") -> None:
     today = date.today()
     expired = [
         f"Migration {key} expired on {migration.expires.isoformat()}: {migration.description}"
-        for key, migration in bakebook._collect_migrations().items()
+        for key, migration in bakebook.collect_migrations().items()
         if migration.expires < today
     ]
     if expired:

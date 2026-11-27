@@ -81,6 +81,8 @@ A custom Space is a Bakebook like any other - publish it as a package to share i
 
 A **Migration** is a one-off step a Space ships to move projects off something it no longer wants, such as a tool it once added to `mise.toml` or a config file it no longer reads. There is no command for it: `bake lint` fails while a Migration still applies, naming it and how to apply it, `bake setup-dev` applies pending Migrations as its first step, at every `-f` level, and `bake update` applies the upgraded version's Migrations once it has upgraded bakefile.
 
+`bake update --dry-run` previews no Migrations: it upgrades nothing, so it only prints the `bake post-update` step that would apply them. To preview the Migrations that apply now, run `bake --dry-run post-update` or `bake --dry-run setup-dev`.
+
 Write one as a subclass of `Migration` and return it from `_get_migrations()`, extending the parent's dict through `super()`:
 
 ```python

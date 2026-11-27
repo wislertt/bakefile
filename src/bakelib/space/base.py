@@ -17,6 +17,7 @@ from bake.bakebook.bakebook import GroupKwargs
 from bake.utils.constants import DEFAULT_BAKEBOOK_NAME, DEFAULT_FILE_NAME
 from bake.utils.settings import PlatformType, bake_settings
 from bakelib.managed_content import (
+    EXIT_DRIFT,
     EXIT_ERROR,
     ManagedContent,
     ManagedFile,
@@ -78,6 +79,14 @@ def _strip_mise_options(tool: str) -> str:
     # mise list keys are bare ids: no [options], no @version
     match = _MISE_TOOL_SPEC.match(tool)
     return match["name"] if match is not None else tool
+
+
+def _raised_in_get_migrations(error: KeyError) -> bool:
+    # a dead `del` fails in C, so its innermost Python frame is the override itself
+    tb = error.__traceback__
+    while tb is not None and tb.tb_next is not None:
+        tb = tb.tb_next
+    return tb is not None and tb.tb_frame.f_code.co_name == "_get_migrations"
 
 
 class BaseSpace(CleanUtils, Bakebook):
@@ -201,7 +210,7 @@ class BaseSpace(CleanUtils, Bakebook):
             self._lint_slow()
 
     def _lint_fast(self) -> None:
-        self._check_migrations()
+        self._fail_on_pending_migrations()
         # before any formatter, so drift is reported against the files as committed
         if self.bake_manage_content:
             content = self._managed_content(Fetch.NEVER)
@@ -459,10 +468,12 @@ class BaseSpace(CleanUtils, Bakebook):
     def _get_migrations(self) -> dict[str, Migration]:
         return {}
 
-    def _collect_migrations(self) -> dict[str, Migration]:
+    def collect_migrations(self) -> dict[str, Migration]:
         try:
             return self._get_migrations()
         except KeyError as e:
+            if not _raised_in_get_migrations(e):
+                raise
             key = e.args[0] if e.args else ""
             console.error(
                 f"_get_migrations() removes Migration {key!r}, which no longer exists upstream, "
@@ -472,10 +483,10 @@ class BaseSpace(CleanUtils, Bakebook):
             raise typer.Exit(EXIT_ERROR) from None
 
     def _pending_migrations(self) -> dict[str, Migration]:
-        migrations = self._collect_migrations()
+        migrations = self.collect_migrations()
         return {key: m for key, m in migrations.items() if m.check(self.ctx)}
 
-    def _check_migrations(self) -> None:
+    def _fail_on_pending_migrations(self) -> None:
         pending = self._pending_migrations()
         if not pending:
             return
@@ -484,7 +495,7 @@ class BaseSpace(CleanUtils, Bakebook):
         console.error(
             "run `bake setup-dev` (or `bake update`) to apply pending Migrations", markup=False
         )
-        raise typer.Exit(1)
+        raise typer.Exit(EXIT_DRIFT)
 
     def _apply_migrations(self) -> None:
         pending = self._pending_migrations()
