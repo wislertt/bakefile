@@ -136,7 +136,7 @@ def stack_section(
     paths = sorted(set(templates))
     if not paths:
         return ""
-    # a copy of the section inside the editable block, or in a hand file to adopt, is not the cache
+    # a section copy in the editable block or in a headerless hand file is not the cache
     managed, found, _ = (current or "").partition(_EDITABLE)
     managed = f"{managed}\n" if found else ""
     section = read_section(managed)

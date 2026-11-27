@@ -1,4 +1,4 @@
-{% editable notes adopt %}
+{% editable notes %}
 {% endeditable %}
 <!-- standard section, managed by bakefile -->
 

@@ -1,5 +1,5 @@
 ---
-status: accepted, Plugins section partly superseded by ADR-0007
+status: accepted, Plugins section partly superseded by ADR-0007, "Header and adoption" section partly superseded by ADR-0009
 ---
 
 # Managed files with editable blocks, state in `bake.lock`
@@ -32,6 +32,8 @@ A file in the lock that no Space produces any more is deleted when it still matc
 A project detaches a managed file when it must own text outside the editable blocks, for example a fix that cannot wait for the Space's next release: its own Bakebook returns the file's entry from `_get_managed_files()` with `.detach()`. Bake then neither loads the template, writes, checks nor deletes the file, and drops its lock entry; removing `.detach()` resumes management, through `--force` when the fixed text no longer matches. It is set per file in the hook, not in `bake.lock`, so it shows in code review, and a Bakebook field listing paths was rejected for the same reason the hook is where files are declared. Leftovers from before the lock (such as `.prettierrc.json`) are cleaned up by hand once.
 
 ## Header and adoption
+
+ADR 0009 removes adoption: a headerless file now exits 2 for every file type, and only the takeover of a file that already equals the defaults stays. The text below is the decision as first made.
 
 The header is fixed text bake owns and is not stored in the lock: `managed by bakefile; edit only the parts marked "editable"`. It has no template key and no version; bake matches a file to its template by path, through the Bakebook.
 

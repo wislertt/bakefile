@@ -1208,22 +1208,9 @@ class TestTemplateGrammarErrors:
             ),
             pytest.param(
                 ".gitignore",
-                "{% editable a adopt %}\n{% endeditable %}\n#\n{% editable b adopt %}\n"
-                "{% endeditable %}\n",
-                "more than one adopt block",
-                id="two-adopt",
-            ),
-            pytest.param(
-                "t.yml",
-                "a: 1\n{% editable x adopt %}\n{% endeditable %}\n",
-                "adopt blocks are only for ignore files and markdown",
-                id="adopt-structured",
-            ),
-            pytest.param(
-                "t.md",
-                "a {% editable x adopt %}1{% endeditable %}\n",
-                "adopt block 'x' must have its tags on their own lines",
-                id="adopt-inline",
+                "{% editable x adopt %}\n{% endeditable %}\n",
+                "malformed tag near '{% editable x adopt %}",
+                id="adopt-option",
             ),
             pytest.param(
                 "t.yml",
@@ -1476,23 +1463,26 @@ TEMPLATES_START = "# Created from github/gitignore@"
 TEMPLATES_LINE = "# Templates: "
 
 
-class TestAdoption:
-    def test_hand_gitignore_is_adopted_verbatim_after_the_space_lines(
+class TestHeaderlessFile:
+    def test_hand_gitignore_exits_2_and_force_writes_an_empty_repo_block(
         self, ctx: Context, project: Path, capsys: pytest.CaptureFixture
     ) -> None:
         gitignore = project / ".gitignore"
-        gitignore.write_text(HAND_GITIGNORE)
+        gitignore.write_bytes(HAND_GITIGNORE.encode())
         with ctx:
-            ManagedSpace().managed_content_sync()
-            adopted = gitignore.read_text()
-            ManagedSpace().managed_content_sync()
+            code = _sync_exit_code(ManagedSpace())
+            after_error = _snapshot(project)
+            err = " ".join(strip_ansi(capsys.readouterr().err).split())
+            ManagedSpace().managed_content_sync(force=True)
 
-        assert adopted.startswith(f"# {HEADER}\n\n{TEMPLATES_START}")
-        assert adopted.endswith(f"\n\n{SPACE_LINES}\n{REPO_BLOCK}{HAND_GITIGNORE}")
-        assert gitignore.read_text() == adopted
-        err = strip_ansi(capsys.readouterr().err)
-        assert ".gitignore: adopted into editable block 'repo'" in err
-        assert err.rstrip().endswith("managed content up to date")
+        assert code == 2
+        assert after_error == {".gitignore": HAND_GITIGNORE.encode()}
+        assert ".gitignore: exists without the managed header" in err
+        assert "call `.detach()` on its entry" in err
+        text = gitignore.read_text()
+        assert text.startswith(f"# {HEADER}\n\n{TEMPLATES_START}")
+        assert text.endswith(f"\n\n{SPACE_LINES}\n{REPO_BLOCK}")
+        assert "editable" not in _lock_entry(project, ".gitignore")
 
     def test_line_another_tool_appends_lands_in_the_trailing_block(
         self, ctx: Context, project: Path
@@ -1507,25 +1497,7 @@ class TestAdoption:
         assert gitignore.read_text() == appended
         assert _lock_entry(project, ".gitignore")["editable"] == {"repo": "tool-cache/\n"}
 
-    def test_markdown_is_adopted_verbatim(self, ctx: Context, project: Path) -> None:
-        class NotesSpace(ManagedSpace):
-            def _get_managed_files(self) -> dict[str, ManagedFile]:
-                return {"NOTES.md": ManagedFile(FIXTURES, "adopt.md")}
-
-        notes = project / "NOTES.md"
-        notes.write_text("# My notes\n\nKeep this.\n")
-        with ctx:
-            NotesSpace().managed_content_sync()
-            adopted = notes.read_text()
-            NotesSpace().managed_content_sync()
-
-        assert adopted == (
-            f"<!-- {HEADER} -->\n\n# My notes\n\nKeep this.\n"
-            "<!-- standard section, managed by bakefile -->\n\n## Standard\n\nFixed text.\n"
-        )
-        assert notes.read_text() == adopted
-
-    def test_headerless_file_without_adopt_block_exits_2_and_force_writes_defaults(
+    def test_headerless_file_exits_2_and_force_writes_defaults(
         self, ctx: Context, project: Path, capsys: pytest.CaptureFixture
     ) -> None:
         ci = project / "ci.yml"
@@ -1557,12 +1529,12 @@ class TestTakeover:
         )
         assert "editable" not in _lock_entry(project, "ci.yml")
 
-    def test_headerless_markdown_equal_to_the_defaults_leaves_its_adopt_block_empty(
+    def test_headerless_markdown_equal_to_the_defaults_leaves_its_editable_block_empty(
         self, ctx: Context, project: Path
     ) -> None:
         class NotesSpace(ManagedSpace):
             def _get_managed_files(self) -> dict[str, ManagedFile]:
-                return {"NOTES.md": ManagedFile(FIXTURES, "adopt.md")}
+                return {"NOTES.md": ManagedFile(FIXTURES, "notes_block.md")}
 
         notes = project / "NOTES.md"
         with ctx:
@@ -2294,7 +2266,6 @@ class TestGitignoreLines:
         self, ctx: Context, project: Path
     ) -> None:
         gitignore = project / ".gitignore"
-        gitignore.write_text("/hand\n")
         with ctx:
             NodeSpace().managed_content_sync()
             edited = gitignore.read_text() + "/repo-rule\n"
@@ -2302,7 +2273,7 @@ class TestGitignoreLines:
             NodeSpace().managed_content_sync()
 
         assert edited.startswith(f"# {HEADER}\n\n{TEMPLATES_START}")
-        assert edited.endswith(f"{SPACE_LINES}node_modules/\n\n{REPO_BLOCK}/hand\n/repo-rule\n")
+        assert edited.endswith(f"{SPACE_LINES}node_modules/\n\n{REPO_BLOCK}/repo-rule\n")
         assert gitignore.read_text() == edited
 
     def test_child_space_removes_a_parent_line_and_its_negation_comes_last(
@@ -2502,7 +2473,6 @@ class TestGitignoreTemplates:
         fetched: list[str],
     ) -> None:
         gitignore = project / ".gitignore"
-        gitignore.write_text("/hand\n")
         with ctx:
             ManagedSpace().managed_content_sync()
             gitignore.write_text(gitignore.read_text() + "/repo-rule\n")
@@ -2516,7 +2486,7 @@ class TestGitignoreTemplates:
         assert github.calls == fetched
         assert f"{TEMPLATES_START}{SHA_1}\n{TEMPLATES_LINE}{', '.join(paths)}\n" in text
         assert _template_paths(text) == paths
-        assert text.endswith(f"{REPO_BLOCK}/hand\n/repo-rule\n")
+        assert text.endswith(f"{REPO_BLOCK}/repo-rule\n")
         assert lint_code == 0
         assert "managed content up to date" in strip_ansi(capsys.readouterr().err)
 
@@ -2670,7 +2640,7 @@ class TestGitignoreTemplates:
         assert text.startswith(f"# {HEADER}\n\n{TEMPLATES_START}{SHA_2}\n")
         assert text.endswith(f"{REPO_BLOCK}{section.text}")
 
-    def test_section_in_an_adopted_hand_file_is_not_the_cache(
+    def test_section_in_a_headerless_hand_file_is_not_the_cache(
         self, ctx: Context, project: Path, github: FakeGitHub
     ) -> None:
         gitignore = project / ".gitignore"
@@ -2682,12 +2652,12 @@ class TestGitignoreTemplates:
             gitignore.write_text(section.text)
             github.calls.clear()
             github.sha = SHA_2
-            ManagedSpace().managed_content_sync()
+            ManagedSpace().managed_content_sync(force=True)
 
         text = gitignore.read_text()
         assert github.calls[0] == "ls-remote"
         assert text.startswith(f"# {HEADER}\n\n{TEMPLATES_START}{SHA_2}\n")
-        assert text.endswith(f"{REPO_BLOCK}{section.text}")
+        assert text.endswith(f"\n\n{SPACE_LINES}\n{REPO_BLOCK}")
 
     def test_template_missing_at_the_section_commit_says_to_refresh(
         self, ctx: Context, capsys: pytest.CaptureFixture, github: FakeGitHub

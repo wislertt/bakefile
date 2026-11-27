@@ -1,10 +1,13 @@
+import subprocess
 import textwrap
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from bakelib.managed_content import testing
 from bakelib.managed_content.testing import UPDATE_ENV, TemplateSuite
 
 HEADER = 'managed by bakefile; edit only the parts marked "editable"'
@@ -401,3 +404,66 @@ def test_stale_expected_file_of_a_gone_combination_fails(
 
     with pytest.raises(AssertionError, match=r"stale expected files.*kit\.yml@GoneSpace\.expected"):
         kit.suite.assert_no_stale_expected()
+
+
+@pytest.fixture
+def oxfmt_lookup(monkeypatch: pytest.MonkeyPatch):
+    testing._oxfmt_executable.cache_clear()
+    monkeypatch.setattr(testing.shutil, "which", lambda _name: "/bin/mise")
+    yield
+    testing._oxfmt_executable.cache_clear()
+
+
+def _mise_which(monkeypatch: pytest.MonkeyPatch, returncode: int, stdout: str) -> None:
+    def run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, returncode, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(testing.subprocess, "run", run)
+
+
+def _windows(monkeypatch: pytest.MonkeyPatch, pathext: str) -> None:
+    fake_os = SimpleNamespace(name="nt", environ={"PATHEXT": pathext}, pathsep=";")
+    monkeypatch.setattr(testing, "os", fake_os)
+
+
+@pytest.mark.usefixtures("oxfmt_lookup")
+class TestOxfmtExecutable:
+    def test_without_mise_uses_oxfmt_from_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(testing.shutil, "which", lambda _name: None)
+
+        assert testing._oxfmt_executable() == "oxfmt"
+
+    @pytest.mark.parametrize(
+        ("returncode", "stdout"),
+        [pytest.param(1, "", id="mise-fails"), pytest.param(0, "\n", id="empty-output")],
+    )
+    def test_mise_without_an_answer_falls_back_to_oxfmt(
+        self, monkeypatch: pytest.MonkeyPatch, returncode: int, stdout: str
+    ) -> None:
+        _mise_which(monkeypatch, returncode, stdout)
+
+        assert testing._oxfmt_executable() == "oxfmt"
+
+    def test_uses_the_path_mise_gives(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _mise_which(monkeypatch, 0, "/tools/oxfmt\n")
+
+        assert testing._oxfmt_executable() == "/tools/oxfmt"
+
+    def test_windows_picks_the_pathext_sibling_of_the_npm_shim(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        shim = tmp_path / "oxfmt"
+        Path(f"{shim}.CMD").write_text("")
+        _mise_which(monkeypatch, 0, f"{shim}\n")
+        _windows(monkeypatch, ".EXE;.CMD")
+
+        assert testing._oxfmt_executable() == f"{shim}.CMD"
+
+    def test_windows_without_a_pathext_sibling_keeps_the_mise_path(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        shim = tmp_path / "oxfmt"
+        _mise_which(monkeypatch, 0, f"{shim}\n")
+        _windows(monkeypatch, ".EXE;.CMD")
+
+        assert testing._oxfmt_executable() == str(shim)

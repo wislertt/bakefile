@@ -5,5 +5,5 @@
 {{ bakefile.gitignore_lines_section }}
 
 # (editable)
-{% editable repo adopt %}
+{% editable repo %}
 {% endeditable %}
