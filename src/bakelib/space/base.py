@@ -454,9 +454,9 @@ class BaseSpace(CleanUtils, Bakebook):
     def _get_migrations(self) -> dict[str, Migration]:
         return {}
 
-    def _pending_migrations(self) -> dict[str, Migration]:
+    def _collect_migrations(self) -> dict[str, Migration]:
         try:
-            migrations = self._get_migrations()
+            return self._get_migrations()
         except KeyError as e:
             key = e.args[0] if e.args else ""
             console.error(
@@ -465,6 +465,9 @@ class BaseSpace(CleanUtils, Bakebook):
                 markup=False,
             )
             raise typer.Exit(EXIT_ERROR) from None
+
+    def _pending_migrations(self) -> dict[str, Migration]:
+        migrations = self._collect_migrations()
         return {key: m for key, m in migrations.items() if m.check(self.ctx)}
 
     def _check_migrations(self) -> None:

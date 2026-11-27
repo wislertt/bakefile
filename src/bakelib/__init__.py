@@ -14,7 +14,7 @@ from bakelib.space import SubmodulesUtils
 from bakelib.space.base import BaseSpace
 from bakelib.space.fnox import FnoxSpace
 from bakelib.space.github import GitHubActionsTools, ZervGitHubActionsTools
-from bakelib.space.migration import Migration
+from bakelib.space.migration import Migration, assert_no_expired_migrations
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
 from bakelib.space.rust import RustSpace
@@ -44,6 +44,7 @@ __all__ = [
     "SubmodulesUtils",
     "ZervGitHubActionsTools",
     "__version__",
+    "assert_no_expired_migrations",
     "get_bakebook",
     "params",
     "suppress",

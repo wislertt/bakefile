@@ -122,6 +122,16 @@ The contract:
 - Keys are stable kebab-case ids. Migrations run in dict order, parents first, and do not depend on each other.
 - `expires` is the date after which the Space author removes the Migration, usually 90 days after the release that adds it. It has no effect at runtime.
 
+Expiry is enforced by the tests of the package that ships the Migration, never in downstream projects. Call `assert_no_expired_migrations` on each of your Spaces in a unit test: it fails once any Migration is past its `expires` date, naming each by key, description and date, so you remove it. bakefile runs the same check on every bakelib Space.
+
+```python
+from bakelib import assert_no_expired_migrations
+
+
+def test_my_space_has_no_expired_migrations() -> None:
+    assert_no_expired_migrations(MySpace())
+```
+
 A project that does not want a Migration removes it by key in its own Bakebook:
 
 ```python
