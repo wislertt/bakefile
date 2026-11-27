@@ -25,6 +25,7 @@ from bakelib.managed_content import (
 )
 from bakelib.utils import CleanUtils
 
+from .migration import Migration
 from .utils import (
     Fetch,
     install_mise_tools,
@@ -200,6 +201,7 @@ class BaseSpace(CleanUtils, Bakebook):
             self._lint_slow()
 
     def _lint_fast(self) -> None:
+        self._check_migrations()
         # before any formatter, so drift is reported against the files as committed
         if self.bake_manage_content:
             content = self._managed_content(Fetch.NEVER)
@@ -328,6 +330,7 @@ class BaseSpace(CleanUtils, Bakebook):
             fast_option(help="Skip steps: -f skips platform tools, -ff also skips tools"),
         ] = 0,
     ) -> None:
+        self._apply_migrations()
         if fast < 1:
             console.start("Setting up platform tools")
             with self._platform_tools_context() as platform:
@@ -447,6 +450,46 @@ class BaseSpace(CleanUtils, Bakebook):
             console.start("Syncing managed content")
             # a fresh process imports the templates the upgrades just installed
             self.ctx.run(self._bake_command("mc sync --refresh"))
+
+    def _get_migrations(self) -> dict[str, Migration]:
+        return {}
+
+    def _pending_migrations(self) -> dict[str, Migration]:
+        try:
+            migrations = self._get_migrations()
+        except KeyError as e:
+            key = e.args[0] if e.args else ""
+            console.error(
+                f"_get_migrations() removes Migration {key!r}, which no longer exists upstream, "
+                "so delete that line",
+                markup=False,
+            )
+            raise typer.Exit(EXIT_ERROR) from None
+        return {key: m for key, m in migrations.items() if m.check(self.ctx)}
+
+    def _check_migrations(self) -> None:
+        pending = self._pending_migrations()
+        if not pending:
+            return
+        for key, migration in pending.items():
+            console.error(f"Migration {key} applies: {migration.description}", markup=False)
+        console.error(
+            "run `bake setup-dev` (or `bake update`) to apply pending Migrations", markup=False
+        )
+        raise typer.Exit(1)
+
+    def _apply_migrations(self) -> None:
+        pending = self._pending_migrations()
+        if not pending:
+            return
+        console.start("Applying migrations")
+        for key, migration in pending.items():
+            console.info(f"{key}: {migration.description}", markup=False)
+            try:
+                migration.apply(self.ctx)
+            except Exception as e:
+                console.error(f"Migration {key} failed: {e}", markup=False)
+                raise typer.Exit(EXIT_ERROR) from e
 
     def _get_managed_files(self) -> dict[str, ManagedFile]:
         return {

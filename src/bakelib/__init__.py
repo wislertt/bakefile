@@ -14,6 +14,7 @@ from bakelib.space import SubmodulesUtils
 from bakelib.space.base import BaseSpace
 from bakelib.space.fnox import FnoxSpace
 from bakelib.space.github import GitHubActionsTools, ZervGitHubActionsTools
+from bakelib.space.migration import Migration
 from bakelib.space.python import PythonSpace
 from bakelib.space.python_lib import PythonLibSpace
 from bakelib.space.rust import RustSpace
@@ -33,6 +34,7 @@ __all__ = [
     "FnoxSpace",
     "GcpLandingZoneEnv",
     "GitHubActionsTools",
+    "Migration",
     "ProdEnvMixin",
     "PythonLibSpace",
     "PythonSpace",

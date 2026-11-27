@@ -77,6 +77,63 @@ bakebook = MySpace()
 
 A custom Space is a Bakebook like any other - publish it as a package to share it across projects. See [Reuse tasks across projects](/concepts/sharing-tasks).
 
+## Migrations
+
+A **Migration** is a one-off step a Space ships to move projects off something it no longer wants, such as a tool it once added to `mise.toml` or a config file it no longer reads. There is no command for it: `bake lint` fails while a Migration still applies, naming it and how to apply it, and `bake setup-dev` applies pending Migrations as its first step, at every `-f` level.
+
+Write one as a subclass of `Migration` and return it from `_get_migrations()`, extending the parent's dict through `super()`:
+
+```python
+from datetime import date
+
+from bake import Context
+from bakelib import Migration, PythonSpace
+
+
+class RemoveOldToolMigration(Migration):
+    expires = date(2027, 3, 1)
+    description = "Remove old-tool from mise.toml, replaced by new-tool"
+
+    def check(self, ctx: Context) -> bool:
+        result = ctx.run(
+            "mise list --local --current --json",
+            stream=False,
+            echo=False,
+            capture_output=True,
+            dry_run=False,  # check is read-only, so it runs even under --dry-run
+            check=False,
+        )
+        return bool(result and "old-tool" in result.stdout)
+
+    def apply(self, ctx: Context) -> None:
+        ctx.run("mise unuse old-tool")
+
+
+class MySpace(PythonSpace):
+    def _get_migrations(self) -> dict[str, Migration]:
+        return {**super()._get_migrations(), "remove-old-tool": RemoveOldToolMigration()}
+```
+
+The contract:
+
+- `check(ctx)` decides from the project itself whether the Migration still applies. It is read-only and offline, and runs for real under `--dry-run`, so any `ctx.run` it makes passes `dry_run=False`. Nothing records which Migrations ran: once `apply` succeeds, `check` returns false and the Migration does nothing again.
+- `apply(ctx)` makes every side effect through `ctx.run`, so `--dry-run` prints the commands without running them. A direct file edit checks `ctx.dry_run` itself and skips the edit when it is set.
+- An error raised by `apply` stops the command with exit 2. The next run continues with the Migrations whose `check` is still true.
+- Keys are stable kebab-case ids. Migrations run in dict order, parents first, and do not depend on each other.
+- `expires` is the date after which the Space author removes the Migration, usually 90 days after the release that adds it. It has no effect at runtime.
+
+A project that does not want a Migration removes it by key in its own Bakebook:
+
+```python
+class MyBakebook(MySpace):
+    def _get_migrations(self) -> dict[str, Migration]:
+        migrations = super()._get_migrations()
+        del migrations["remove-old-tool"]
+        return migrations
+```
+
+Once upstream removes that Migration, the `del` fails: `bake lint` and `bake setup-dev` exit 2 with a message naming the key, so you delete the dead line.
+
 ## Other bakelib helpers
 
 - [Environments](/bakelib/environments) - multi-environment bakebooks
