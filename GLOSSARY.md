@@ -80,6 +80,12 @@ _Avoid_: unmanaged file, ejected file
 A difference between the managed content on disk and what its Spaces would write now.
 _Avoid_: out of sync, stale
 
+## Migrations
+
+**Migration**:
+A one-off step a Space ships to move projects off something it no longer wants (a retired tool, a leftover file), applied only while the project still needs it and removed from the Space after its expiry date.
+_Avoid_: upgrade step, codemod, adoption (that is taking over a headerless managed file)
+
 ## Python environments
 
 **Bakefile-level**:
