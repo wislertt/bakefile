@@ -92,7 +92,7 @@ Each editable block carries a visible `(editable)` comment, so you can see where
 | Command                  | What it does with managed content                                                                  |
 | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `bake setup-dev`         | Locks, then writes managed files at the start of `BaseSpace`'s project step, before it cleans      |
-| `bake update`            | Locks before any upgrade, then runs `bake mc sync --refresh` once tools and dependencies upgrade   |
+| `bake update`            | Locks before any upgrade, then syncs with `--refresh` once tools and dependencies upgrade          |
 | `bake lint`              | Relocks, then fails on drift, before oxfmt or any other formatter runs                             |
 | `bake mc sync`           | Locks, then writes managed files                                                                   |
 | `bake mc sync --dry-run` | Shows what would be written or deleted, writes nothing                                             |
@@ -104,7 +104,7 @@ Each editable block carries a visible `(editable)` comment, so you can see where
 
 Exit codes: `0` clean, `1` drift (from `lint`: run `bake mc sync`), `2` error. An error leaves every file untouched: bake prints `nothing written` and writes nothing.
 
-`bake update` writes from a fresh `bake mc sync --refresh` process, so the files use the templates the upgrade just installed. It keeps your `--chdir`, `--global`, `--file-name` and `--book-name` options.
+`bake update` writes from a fresh `bake` process, after applying [Migrations](/bakelib/spaces#migrations), so the files use the templates the upgrade just installed. It keeps your `--chdir`, `--global`, `--file-name` and `--book-name` options.
 
 Bake writes a file only when its content changes. A Windows checkout with CRLF line endings, a byte order mark or a missing final newline is not drift. Bake writes LF, no byte order mark and a final newline.
 

@@ -552,8 +552,8 @@ class TestDetachedFile:
             capsys.readouterr()
             with patch.object(ctx, "run"):
                 DetachableSpace(detached=True).update(fast=2)
-            # stands in for the `bake mc sync --refresh` subprocess update runs last
-            DetachableSpace(detached=True).managed_content_sync(refresh=True)
+            # stands in for the `bake post-update` subprocess update runs last
+            DetachableSpace(detached=True).post_update()
 
         assert config.read_bytes() == edited
         assert "config.ts" not in (project / "bake.lock").read_text()
@@ -2815,7 +2815,7 @@ class TestGitignoreTemplates:
 
 
 class TestUpdate:
-    def test_renovate_bump_is_locked_before_upgrades_and_sync_runs_last_as_a_subprocess(
+    def test_renovate_bump_is_locked_before_upgrades_and_post_update_runs_last_as_a_subprocess(
         self, ctx: Context, project: Path
     ) -> None:
         commands: list[str] = []
@@ -2837,28 +2837,14 @@ class TestUpdate:
         assert ci.read_text() == bumped
         assert locked_before_first_command[0]["editable"] == {"version": "1.1"}
         assert commands[0] == "pre-commit autoupdate"
-        assert commands[-1] == f"bake --chdir {project} mc sync --refresh"
+        assert commands[-1] == f"bake --chdir {project} post-update"
 
-    @pytest.mark.usefixtures("project")
-    def test_sync_subprocess_keeps_the_bakefile_options(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    def test_post_update_syncs_with_refresh(
+        self, ctx: Context, project: Path, github: FakeGitHub
     ) -> None:
-        mock_ctx.obj.bakebook_name = "bakebook2"
-        mock_ctx.obj.file_name = "tasks.py"
-        mock_ctx.obj.chdir = Path("sub dir")
-        mock_ctx.obj.use_global = True
-        with mock_ctx:
-            ManagedSpace().update(fast=2)
+        with ctx:
+            ManagedSpace().managed_content_sync()
+            github.sha = SHA_2
+            ManagedSpace().post_update()
 
-        err = strip_ansi(capsys.readouterr().err)
-        assert (
-            "bake --chdir 'sub dir' --global --file-name tasks.py --book-name bakebook2 "
-            "mc sync --refresh" in err
-        )
-
-    @pytest.mark.usefixtures("project")
-    def test_off_runs_no_sync(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
-        with mock_ctx:
-            BaseSpace().update(fast=2)
-
-        assert "mc sync" not in strip_ansi(capsys.readouterr().err)
+        assert f"{TEMPLATES_START}{SHA_2}\n" in (project / ".gitignore").read_text()

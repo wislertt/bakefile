@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 import typer
+from typer.testing import CliRunner
 
 from bake import Context
 from bake.ui.logger import strip_ansi
@@ -242,6 +243,90 @@ class TestSetupDevMigrations:
         assert err.index("Remove old-tool from mise.toml") < err.index("Child step")
 
 
+class TestUpdateMigrations:
+    @pytest.mark.parametrize("managed", [True, False])
+    def test_update_ends_with_post_update_in_a_fresh_process_keeping_bakefile_options(
+        self,
+        mock_ctx: Context,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        managed: bool,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        mock_ctx.obj.bakebook_name = "bakebook2"
+        mock_ctx.obj.file_name = "tasks.py"
+        mock_ctx.obj.chdir = Path("sub dir")
+        mock_ctx.obj.use_global = True
+        space = space_with({"unuse-old-tool": UnuseToolMigration(applies=True)})
+        space.bake_manage_content = managed
+
+        with mock_ctx:
+            space.update(fast=2)
+
+        err = _err(capsys)
+        post_update = (
+            "bake --chdir 'sub dir' --global --file-name tasks.py --book-name bakebook2 post-update"
+        )
+        assert err.rstrip().endswith(post_update)
+        assert err.index("pre-commit autoupdate") < err.index(post_update)
+        # the running process holds the outgoing version's Migrations
+        assert "mise unuse old-tool" not in err
+        assert "mc sync" not in err
+
+    def test_post_update_applies_migrations_then_syncs_managed_content(
+        self,
+        mock_ctx: Context,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        space = space_with({"unuse-old-tool": UnuseToolMigration(applies=True)})
+        space.bake_manage_content = True
+
+        with mock_ctx:
+            space.post_update()
+
+        err = _err(capsys)
+        assert err.index("Remove old-tool from mise.toml") < err.index("mise unuse old-tool")
+        assert err.index("mise unuse old-tool") < err.index("would write oxfmt.config.ts")
+        assert list(tmp_path.iterdir()) == []
+
+    def test_post_update_skips_sync_when_managed_content_is_off(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = space_with({"unuse-old-tool": UnuseToolMigration(applies=True)})
+
+        with mock_ctx:
+            space.post_update()
+
+        err = _err(capsys)
+        assert "mise unuse old-tool" in err
+        assert "Syncing managed content" not in err
+
+    def test_post_update_failing_apply_exits_2(
+        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    ) -> None:
+        space = space_with({"fail": FailingMigration()})
+        space.bake_manage_content = True
+
+        with mock_ctx, pytest.raises(typer.Exit) as exc_info:
+            space.post_update()
+
+        assert exc_info.value.exit_code == 2
+        err = _err(capsys)
+        assert "Migration fail failed: boom" in err
+        assert "Syncing managed content" not in err
+
+    def test_post_update_is_hidden_from_help(self) -> None:
+        result = CliRunner().invoke(BaseSpace()._app, ["--help"])
+
+        assert result.exit_code == 0
+        assert "update" in result.output
+        assert "post-update" not in result.output
+
+
 class DeadOptOutSpace(BaseSpace):
     def _get_migrations(self) -> dict[str, Migration]:
         migrations = super()._get_migrations()
@@ -250,7 +335,9 @@ class DeadOptOutSpace(BaseSpace):
 
 
 class TestDeadOptOut:
-    @pytest.mark.parametrize("run", [lambda s: s.lint(), lambda s: s.setup_dev(fast=2)])
+    @pytest.mark.parametrize(
+        "run", [lambda s: s.lint(), lambda s: s.setup_dev(fast=2), lambda s: s.post_update()]
+    )
     def test_del_of_missing_migration_exits_2_naming_the_key(
         self, mock_ctx: Context, capsys: pytest.CaptureFixture, run
     ) -> None:

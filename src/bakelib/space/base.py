@@ -446,10 +446,15 @@ class BaseSpace(CleanUtils, Bakebook):
             self._update_tools()
         console.start("Upgrading project")
         self._update_project()
+        # a fresh process imports the Migrations and templates the upgrades just installed
+        self.ctx.run(self._bake_command("post-update"))
+
+    @command(name="post-update", hidden=True, help="Finish `bake update` with the upgraded code")
+    def post_update(self) -> None:
+        self._apply_migrations()
         if self.bake_manage_content:
             console.start("Syncing managed content")
-            # a fresh process imports the templates the upgrades just installed
-            self.ctx.run(self._bake_command("mc sync --refresh"))
+            self._run_managed_sync(dry_run=self.ctx.dry_run, force=False, refresh=True)
 
     def _get_migrations(self) -> dict[str, Migration]:
         return {}
