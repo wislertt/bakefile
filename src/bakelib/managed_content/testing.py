@@ -4,6 +4,7 @@ import importlib
 import inspect
 import os
 import pkgutil
+import shutil
 import subprocess
 import tomllib
 from collections import defaultdict
@@ -19,6 +20,25 @@ from bakelib.space.utils import Fetch
 from bakelib.space.utils.gitignore import Upstream
 
 from .engine import LOCK_FILE, ManagedFile, load_templates
+
+
+@cache
+def _oxfmt_executable() -> str:
+    # a mise shim (as on Windows CI) picks the version from cwd; the temp project has no mise config
+    mise = shutil.which("mise")
+    if mise is None:
+        return "oxfmt"
+    result = subprocess.run([mise, "which", "oxfmt"], capture_output=True, text=True, check=False)
+    path = result.stdout.strip()
+    if result.returncode != 0 or not path:
+        return "oxfmt"
+    if os.name == "nt":
+        # npm's .bin/oxfmt is a sh script; CreateProcess needs its oxfmt.cmd sibling
+        for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(os.pathsep):
+            if Path(path + ext).is_file():
+                return path + ext
+    return path
+
 
 UPDATE_ENV = "BAKE_UPDATE_EXPECTED"
 EXPECTED_SUFFIX = ".expected"
@@ -136,7 +156,7 @@ class TemplateSuite:
         if PurePosixPath(case.path).suffix.removeprefix(".") in OXFMT_SUFFIXES:
             # the Space's own oxfmt.config.ts is in the project, so oxfmt runs with it
             result = subprocess.run(
-                ["oxfmt", "--check", case.path],
+                [_oxfmt_executable(), "--check", case.path],
                 cwd=project_dir,
                 capture_output=True,
                 text=True,

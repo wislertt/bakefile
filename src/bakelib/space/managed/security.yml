@@ -14,9 +14,14 @@ permissions:
     contents: read
 {% endeditable %}
 
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     trivy-scan:
         runs-on: {% editable trivy_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable trivy_timeout %}10{% endeditable %} # (editable)
         steps:
             - name: checkout
               # (editable) pin
@@ -38,6 +43,7 @@ jobs:
     gitleaks:
         name: gitleaks
         runs-on: {% editable gitleaks_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable gitleaks_timeout %}10{% endeditable %} # (editable)
         steps:
             - name: checkout
               # (editable) pin

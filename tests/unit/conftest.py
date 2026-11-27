@@ -35,3 +35,9 @@ def isolate_keyring_backend():
 def offline_gitignore_templates(monkeypatch: pytest.MonkeyPatch) -> None:
     # syncing a managed .gitignore fetches github/gitignore templates; unit tests stay offline
     monkeypatch.setattr(BaseSpace, "_get_gitignore_upstream", lambda _self: STAND_IN_GITIGNORE)
+
+
+@pytest.fixture(autouse=True)
+def no_local_mise_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Migrations check the real mise config otherwise, so lint results would depend on the repo
+    monkeypatch.setattr("bakelib.space.github.local_mise_tools", lambda _ctx: set())

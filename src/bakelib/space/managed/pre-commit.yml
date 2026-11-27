@@ -6,6 +6,7 @@ on:
 jobs:
     pre-commit:
         runs-on: {% editable pre_commit_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable pre_commit_timeout %}30{% endeditable %} # (editable)
         steps:
             - name: checkout
               # (editable) pin

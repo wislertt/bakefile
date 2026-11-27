@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import textwrap
@@ -34,7 +35,8 @@ def test_every_declared_template_resolves_from_the_built_wheel(tmp_path: Path) -
     result = subprocess.run(
         [sys.executable, "-c", RESOLVE_TEMPLATES, str(wheel)],
         cwd=tmp_path,
-        env={"PYTHONPATH": str(wheel)},
+        # Windows needs SYSTEMROOT and friends to import asyncio, so extend the env, not replace it
+        env={**os.environ, "PYTHONPATH": str(wheel)},
         capture_output=True,
         text=True,
         check=False,

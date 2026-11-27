@@ -28,13 +28,16 @@ on:
 jobs:
     publish:
         runs-on: {% editable publish_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable publish_timeout %}15{% endeditable %} # (editable)
         steps:
             - name: checkout
               # (editable) pin
               uses: actions/checkout@{% editable publish_checkout %}3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1{% endeditable %}
 
             - name: set-python-version
-              run: echo "${{ inputs.python_version }}" > .python-version
+              env:
+                  PYTHON_VERSION: ${{ inputs.python_version }}
+              run: echo "$PYTHON_VERSION" > .python-version
 
             - name: setup-mise
               # (editable) pin
@@ -48,11 +51,11 @@ jobs:
 
             - name: publish
               continue-on-error: ${{ inputs.allow_fail }}
-              run: |
-                  BAKE_PUBLISH_TOKEN=${{ secrets.PYPI_API_TOKEN }} \
-                  bake publish \
-                      --registry "${{ inputs.registry }}" \
-                      --version "${{ inputs.version }}"
+              env:
+                  BAKE_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+                  REGISTRY: ${{ inputs.registry }}
+                  VERSION: ${{ inputs.version }}
+              run: bake publish --registry "$REGISTRY" --version "$VERSION"
 
             # (editable) more steps below
 {% editable publish_steps %}

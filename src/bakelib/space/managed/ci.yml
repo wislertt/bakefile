@@ -5,14 +5,20 @@ on:
         types: [opened, synchronize, reopened]
 
 permissions:
-    contents: write
-    id-token: write
+    contents: read
+
+concurrency:
+    group: ci-caller-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
 
 jobs:
     # (editable) versioning and release
 {% editable versioning %}
     check-pre-release:
         name: check-pre-release
+        permissions:
+            contents: read
+            pull-requests: read
         uses: wislertt/zerv/.github/workflows/shared-check-pr-label-and-branch.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
         with:
             target_label: "pre-release"
@@ -33,6 +39,8 @@ jobs:
         name: tag-pre-release
         needs: [zerv-versioning, check-pre-release]
         if: needs.check-pre-release.outputs.is_valid == 'true'
+        permissions:
+            contents: write
         uses: wislertt/zerv/.github/workflows/shared-create-tags.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
         with:
             tags: '["${{ fromJson(needs.zerv-versioning.outputs.versions).v_semver }}"]'

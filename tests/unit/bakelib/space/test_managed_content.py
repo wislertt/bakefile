@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 import sys
 import tomllib
@@ -316,7 +317,7 @@ class TestSyncErrors:
         assert not (project / "bake.lock").exists()
 
     def test_one_error_writes_no_file(self, ctx: Context, project: Path) -> None:
-        (project / "notes.md").write_text("# hand notes\n")
+        (project / "notes.md").write_bytes(b"# hand notes\n")
         with ctx:
             code = _sync_exit_code(TwoFileSpace())
 
@@ -552,8 +553,8 @@ class TestDetachedFile:
             capsys.readouterr()
             with patch.object(ctx, "run"):
                 DetachableSpace(detached=True).update(fast=2)
-            # stands in for the `bake mc sync --refresh` subprocess update runs last
-            DetachableSpace(detached=True).managed_content_sync(refresh=True)
+            # stands in for the `bake post-update` subprocess update runs last
+            DetachableSpace(detached=True).post_update()
 
         assert config.read_bytes() == edited
         assert "config.ts" not in (project / "bake.lock").read_text()
@@ -1528,7 +1529,7 @@ class TestAdoption:
         self, ctx: Context, project: Path, capsys: pytest.CaptureFixture
     ) -> None:
         ci = project / "ci.yml"
-        ci.write_text("name: mine\n")
+        ci.write_bytes(b"name: mine\n")
         with ctx:
             code = _sync_exit_code(BlocksSpace())
             after_error = _snapshot(project)
@@ -1765,12 +1766,16 @@ class TestWorkflows:
         written = (project / SECURITY_PATH).read_text()
         assert written.startswith(f"# {HEADER}\nname: security\non:\n    # (editable)\n    push:\n")
         assert (
-            "    trivy-scan:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+            "    trivy-scan:\n"
+            "        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 10 # (editable)\n"
+            "        steps:\n"
         ) in written
         assert (
             "    gitleaks:\n"
             "        name: gitleaks\n"
             "        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 10 # (editable)\n"
             "        steps:\n"
         ) in written
         assert "              # (editable) pin\n              uses: aquasecurity/trivy-action@" in (
@@ -1839,7 +1844,8 @@ class TestWorkflows:
 
         written = workflow.read_text()
         assert (
-            "# (editable)\npermissions:\n    contents: read\n    pull-requests: write\n\njobs:\n"
+            "# (editable)\npermissions:\n    contents: read\n    pull-requests: write\n\n"
+            "concurrency:\n"
         ) in written
         assert (
             "                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
@@ -1857,7 +1863,7 @@ class TestWorkflows:
 
         lines = (project / path).read_text().splitlines()
         uses = [i for i, line in enumerate(lines) if PINNED_SHA.search(line)]
-        runs_on = [line for line in lines if "runs-on:" in line]
+        runs_on = [line for line in lines if "runs-on:" in line or "timeout-minutes:" in line]
         assert uses
         assert all(lines[i - 1].strip() == "# (editable) pin" for i in uses)
         assert runs_on
@@ -1872,7 +1878,9 @@ class TestWorkflows:
         written = (project / PRE_COMMIT_PATH).read_text()
         assert written.startswith(
             f"# {HEADER}\nname: pre-commit\n\non:\n    workflow_call:\n\njobs:\n"
-            "    pre-commit:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+            "    pre-commit:\n        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 30 # (editable)\n"
+            "        steps:\n"
         )
         assert "              run: SKIP=lint uv run pre-commit run --all-files\n" in written
         assert "              run: bake lint --slow\n" in written
@@ -1889,9 +1897,17 @@ class TestWorkflows:
             f"# {HEADER}\nname: publish-python-package\n\non:\n    workflow_call:\n"
         )
         assert (
-            "    publish:\n        runs-on: ubuntu-latest # (editable)\n        steps:\n"
+            "    publish:\n"
+            "        runs-on: ubuntu-latest # (editable)\n"
+            "        timeout-minutes: 15 # (editable)\n"
+            "        steps:\n"
         ) in written
-        assert '                      --version "${{ inputs.version }}"\n' in written
+        assert "                  VERSION: ${{ inputs.version }}\n" in written
+        assert (
+            '              run: bake publish --registry "$REGISTRY" --version "$VERSION"\n'
+            in written
+        )
+        assert not [line for line in written.splitlines() if "run:" in line and "inputs." in line]
         assert written.endswith(REPO_JOBS_MARKER)
 
     @pytest.mark.parametrize("space", [ManagedPythonSpace, ManagedPythonLibSpace])
@@ -2746,7 +2762,7 @@ class TestGitignoreTemplates:
         offline: bool,
         message: str,
     ) -> None:
-        (project / ".gitignore").write_text("/hand\n")
+        (project / ".gitignore").write_bytes(b"/hand\n")
         github.offline = offline
         with ctx:
             code = _sync_exit_code(space())
@@ -2815,7 +2831,7 @@ class TestGitignoreTemplates:
 
 
 class TestUpdate:
-    def test_renovate_bump_is_locked_before_upgrades_and_sync_runs_last_as_a_subprocess(
+    def test_renovate_bump_is_locked_before_upgrades_and_post_update_runs_last_as_a_subprocess(
         self, ctx: Context, project: Path
     ) -> None:
         commands: list[str] = []
@@ -2837,28 +2853,14 @@ class TestUpdate:
         assert ci.read_text() == bumped
         assert locked_before_first_command[0]["editable"] == {"version": "1.1"}
         assert commands[0] == "pre-commit autoupdate"
-        assert commands[-1] == f"bake --chdir {project} mc sync --refresh"
+        assert commands[-1] == f"bake --chdir {shlex.quote(str(project))} post-update"
 
-    @pytest.mark.usefixtures("project")
-    def test_sync_subprocess_keeps_the_bakefile_options(
-        self, mock_ctx: Context, capsys: pytest.CaptureFixture
+    def test_post_update_syncs_with_refresh(
+        self, ctx: Context, project: Path, github: FakeGitHub
     ) -> None:
-        mock_ctx.obj.bakebook_name = "bakebook2"
-        mock_ctx.obj.file_name = "tasks.py"
-        mock_ctx.obj.chdir = Path("sub dir")
-        mock_ctx.obj.use_global = True
-        with mock_ctx:
-            ManagedSpace().update(fast=2)
+        with ctx:
+            ManagedSpace().managed_content_sync()
+            github.sha = SHA_2
+            ManagedSpace().post_update()
 
-        err = strip_ansi(capsys.readouterr().err)
-        assert (
-            "bake --chdir 'sub dir' --global --file-name tasks.py --book-name bakebook2 "
-            "mc sync --refresh" in err
-        )
-
-    @pytest.mark.usefixtures("project")
-    def test_off_runs_no_sync(self, mock_ctx: Context, capsys: pytest.CaptureFixture) -> None:
-        with mock_ctx:
-            BaseSpace().update(fast=2)
-
-        assert "mc sync" not in strip_ansi(capsys.readouterr().err)
+        assert f"{TEMPLATES_START}{SHA_2}\n" in (project / ".gitignore").read_text()

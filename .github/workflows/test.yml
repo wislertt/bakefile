@@ -30,6 +30,7 @@ jobs:
                 os: [ubuntu-latest, windows-latest, macos-latest] # (editable)
                 python-version: ${{ fromJson(inputs.python_versions) }}
         runs-on: ${{ matrix.os }} # (editable)
+        timeout-minutes: 30 # (editable)
 
         steps:
             - name: checkout
@@ -89,7 +90,7 @@ jobs:
             - name: sonarqube-scan
               if: matrix.os == 'ubuntu-latest' && matrix.python-version == inputs.target_python_version && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
               # (editable) pin
-              uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+              uses: SonarSource/sonarqube-scan-action@70bad232163b09d998ea0707ee80c0ec80798c16 # v8.5.1
               env:
                   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -100,6 +101,7 @@ jobs:
             matrix:
                 os: [ubuntu-latest, windows-latest, macos-latest]
         runs-on: ${{ matrix.os }}
+        timeout-minutes: 30
 
         steps:
             - name: checkout
@@ -108,7 +110,9 @@ jobs:
                   fetch-depth: 0
 
             - name: set-python-version
-              run: echo "${{ inputs.target_python_version }}" > .python-version
+              env:
+                  PYTHON_VERSION: ${{ inputs.target_python_version }}
+              run: echo "$PYTHON_VERSION" > .python-version
 
             - name: setup-mise
               uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
