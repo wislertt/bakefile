@@ -32,8 +32,12 @@ def _oxfmt_executable() -> str:
     path = result.stdout.strip()
     if result.returncode != 0 or not path:
         return "oxfmt"
-    # on Windows this adds the PATHEXT extension (oxfmt.cmd) that CreateProcess needs
-    return shutil.which(path) or path
+    if os.name == "nt":
+        # npm's .bin/oxfmt is a sh script; CreateProcess needs its oxfmt.cmd sibling
+        for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(os.pathsep):
+            if Path(path + ext).is_file():
+                return path + ext
+    return path
 
 
 UPDATE_ENV = "BAKE_UPDATE_EXPECTED"
