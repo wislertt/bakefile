@@ -184,7 +184,7 @@ class NodeSpace(BaseSpace):
 
 Bake writes them sorted, with `!` lines last so they re-include what the lines before them ignore. They are a [bakefile value](#bakefile-values): bake rewrites them on every write, so put your own rules in the editable block at the end instead.
 
-The `.gitignore` starts with a generated stack section, built from [github/gitignore](https://github.com/github/gitignore) templates. `_get_gitignore_templates()` lists their paths: `BaseSpace` has `Global/macOS`, `Global/Windows` and `Global/VisualStudioCode`, `PythonSpace` adds `Python` and `RustSpace` adds `Rust`. Add or remove templates with `super()`; the order you compose them in does not change the file:
+The `.gitignore` starts with a generated stack section, built from [github/gitignore](https://github.com/github/gitignore) templates. `_get_gitignore_templates()` lists their paths: `BaseSpace` has `Global/macOS`, `Global/Windows`, `Global/VisualStudioCode` and `Python` (every repo runs `bakefile.py`, which leaves `__pycache__/` behind), and `RustSpace` adds `Rust`. If a `Python` pattern such as `lib/` or `build/` ignores your own files, re-include the path with a `!` line in the editable block at the end, or drop the template with `super()._get_gitignore_templates() - {"Python"}`. Add or remove templates with `super()`; the order you compose them in does not change the file:
 
 ```python
 class MyBakebook(PythonSpace):
