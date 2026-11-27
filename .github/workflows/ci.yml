@@ -1,3 +1,4 @@
+# managed by bakefile; edit only the parts marked "editable"
 name: ci
 
 on:
@@ -5,15 +6,19 @@ on:
         types: [opened, synchronize, reopened]
 
 permissions:
-    contents: write
-    id-token: write
+    contents: read
+
+concurrency:
+    group: ci-caller-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
 
 jobs:
-    # ====================================================
-    # Versioning and Release
-    # ====================================================
+    # (editable) versioning and release
     check-pre-release:
         name: check-pre-release
+        permissions:
+            contents: read
+            pull-requests: read
         uses: wislertt/zerv/.github/workflows/shared-check-pr-label-and-branch.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
         with:
             target_label: "pre-release"
@@ -34,13 +39,13 @@ jobs:
         name: tag-pre-release
         needs: [zerv-versioning, check-pre-release]
         if: needs.check-pre-release.outputs.is_valid == 'true'
+        permissions:
+            contents: write
         uses: wislertt/zerv/.github/workflows/shared-create-tags.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
         with:
             tags: '["${{ fromJson(needs.zerv-versioning.outputs.versions).v_semver }}"]'
 
-    # ====================================================
-    # Test and Lint
-    # ====================================================
+    # (editable) jobs
     test:
         uses: ./.github/workflows/test.yml
         secrets:
@@ -50,9 +55,6 @@ jobs:
     pre-commit:
         uses: ./.github/workflows/pre-commit.yml
 
-    # ====================================================
-    # Deployment
-    # ====================================================
     publish-test-pypi:
         if: needs.check-pre-release.outputs.has_label == 'true'
         needs: [zerv-versioning, check-pre-release]
@@ -64,3 +66,5 @@ jobs:
             allow_fail: true # test-pypi is unreliable
         secrets:
             PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+    # (editable) more jobs below

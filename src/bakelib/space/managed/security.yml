@@ -1,0 +1,67 @@
+name: security
+on:
+    # (editable)
+{% editable events %}
+    push:
+    workflow_dispatch:
+    schedule:
+        - cron: "0 4 * * *"
+{% endeditable %}
+
+# (editable)
+{% editable permissions %}
+permissions:
+    contents: read
+{% endeditable %}
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    trivy-scan:
+        runs-on: {% editable trivy_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable trivy_timeout %}10{% endeditable %} # (editable)
+        steps:
+            - name: checkout
+              # (editable) pin
+              uses: actions/checkout@{% editable trivy_checkout %}3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1{% endeditable %}
+
+            - name: run-trivy-scan
+              # (editable) pin
+              uses: aquasecurity/trivy-action@{% editable trivy_action %}ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0{% endeditable %}
+              with:
+                  scan-type: fs
+                  format: table
+                  exit-code: "1"
+                  vuln-type: "os,library"
+                  # (editable) more trivy-action inputs
+{% editable trivy_with %}
+                  {% hook trivy_inputs %}
+{% endeditable %}
+
+    gitleaks:
+        name: gitleaks
+        runs-on: {% editable gitleaks_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable gitleaks_timeout %}10{% endeditable %} # (editable)
+        steps:
+            - name: checkout
+              # (editable) pin
+              uses: actions/checkout@{% editable gitleaks_checkout %}3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1{% endeditable %}
+              with:
+                  fetch-depth: 0
+
+            - name: run-gitleaks
+              # (editable) pin
+              uses: gitleaks/gitleaks-action@{% editable gitleaks_action %}e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0{% endeditable %}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # (editable) more gitleaks-action env
+{% editable gitleaks_env %}
+                  {% hook gitleaks_env_vars %}
+{% endeditable %}
+
+    {% hook extra_jobs %}
+    # (editable) more jobs below
+{% editable jobs %}
+{% endeditable %}

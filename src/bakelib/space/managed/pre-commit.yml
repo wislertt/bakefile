@@ -1,0 +1,58 @@
+name: pre-commit
+
+on:
+    workflow_call:
+
+jobs:
+    pre-commit:
+        runs-on: {% editable pre_commit_runs_on %}ubuntu-latest{% endeditable %} # (editable)
+        timeout-minutes: {% editable pre_commit_timeout %}30{% endeditable %} # (editable)
+        steps:
+            - name: checkout
+              # (editable) pin
+              uses: actions/checkout@{% editable pre_commit_checkout %}3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1{% endeditable %}
+
+            - name: setup-mise
+              # (editable) pin
+              uses: jdx/mise-action@{% editable pre_commit_mise %}924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0{% endeditable %}
+
+            - name: cache-deps
+              env:
+                  CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}
+                  CACHE_KEY_DEPS: ${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+              # (editable) pin
+              uses: actions/cache@{% editable pre_commit_cache %}55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0{% endeditable %}
+              with:
+                  path: |
+                      ~/.cache/pre-commit
+                      ~/.cache/ruff
+                      ~/.bun/install/cache
+                      ~/.local/share/uv
+                      ~/.cache/uv
+                      ${{ github.workspace }}/.venv
+                  key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-${{ github.run_id }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ env.CACHE_KEY_DEPS }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('uv.lock') }}-
+                      ${{ env.CACHE_KEY_PREFIX }}-
+
+            - name: install-dependencies
+              run: uv sync --all-extras --all-groups --frozen
+
+            - name: setup-path
+              run: echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
+
+            - name: run-pre-commit
+              run: SKIP=lint uv run pre-commit run --all-files
+
+            - name: run-lint-slow
+              run: bake lint --slow
+
+            # (editable) more steps below
+{% editable pre_commit_steps %}
+{% endeditable %}
+
+    # (editable) more jobs below
+{% editable jobs %}
+{% endeditable %}

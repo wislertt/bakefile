@@ -1,0 +1,13 @@
+events
+permissions
+trivy_runs_on
+trivy_timeout
+trivy_checkout
+trivy_action
+trivy_with
+gitleaks_runs_on
+gitleaks_timeout
+gitleaks_checkout
+gitleaks_action
+gitleaks_env
+jobs

@@ -1,0 +1,49 @@
+# managed by bakefile; edit only the parts marked "editable"
+name: cd
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: cd-caller-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    # (editable) versioning and release
+    semantic-release:
+        name: semantic-release
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
+        uses: wislertt/zerv/.github/workflows/shared-semantic-release.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
+        with:
+            allowed_workflow_dispatch_branches: '["main"]'
+            fail_on_invalid_workflow_dispatch_ref: true
+
+    zerv-versioning:
+        needs: semantic-release
+        if: needs.semantic-release.outputs.is_valid_semantic_release == 'true'
+        uses: wislertt/zerv/.github/workflows/shared-zerv-versioning.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
+
+    create-version-prefix-tags:
+        needs: zerv-versioning
+        permissions:
+            contents: write
+        uses: wislertt/zerv/.github/workflows/shared-create-tags.yml@348c40b7e38f9ac640b85919de2d45c7077f6507 # v0.8.42
+        with:
+            tags: >-
+                [
+                  "${{ fromJson(needs.zerv-versioning.outputs.versions).v_major }}",
+                  "${{ fromJson(needs.zerv-versioning.outputs.versions).v_major_minor }}"
+                ]
+
+    # (editable) jobs
+
+    # (editable) more jobs below

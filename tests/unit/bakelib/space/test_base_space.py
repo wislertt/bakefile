@@ -9,11 +9,17 @@ import pytest
 import typer
 import zerv
 
-from bake import Context
+from bake import Context, context
 from bake.ui import run
 from bake.ui.logger import strip_ansi
 from bake.utils.settings import PlatformType, bake_settings
-from bakelib.space.base import BaseSpace, _global_keyring_env, _strip_mise_options
+from bakelib.space.base import (
+    BaseSpace,
+    RemovePrettierConfig,
+    _global_keyring_env,
+    _strip_mise_options,
+    local_mise_tools,
+)
 
 
 class MinimalTestSpace(BaseSpace):
@@ -920,6 +926,82 @@ def test_strip_matches_real_mise_list_keys(tmp_path: Path) -> None:
 
     stripped_keys = {_strip_mise_options(tool) for tool in REAL_MISE_TOOLS}
     assert stripped_keys == reported_keys
+
+
+class TestLocalMiseTools:
+    @pytest.mark.parametrize("stdout", [None, b""], ids=["no-result", "empty-stdout"])
+    def test_returns_no_tools_when_mise_lists_nothing(
+        self, mock_ctx: Context, stdout: bytes | None
+    ) -> None:
+        result = None if stdout is None else MagicMock(stdout=stdout)
+
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=result):
+            assert local_mise_tools(mock_ctx) == set()
+
+    def test_returns_tool_names_without_options(self, mock_ctx: Context) -> None:
+        result = MagicMock(stdout=orjson.dumps({"jactionlint": {}, "pipx:poetry@1.7.0": {}}))
+
+        with mock_ctx, patch.object(mock_ctx, "run", return_value=result):
+            assert local_mise_tools(mock_ctx) == {"jactionlint", "pipx:poetry"}
+
+
+class TestRemovePrettierConfigMigration:
+    @pytest.fixture(autouse=True)
+    def in_project(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        # bakelib reads the project from the process cwd, which context(chdir=) does not change
+        monkeypatch.chdir(tmp_path)
+
+    def test_declared_by_base_space(self) -> None:
+        migrations = MinimalTestSpace().collect_migrations()
+        assert isinstance(migrations["remove-prettier-config"], RemovePrettierConfig)
+
+    @pytest.mark.parametrize(
+        "name", [".prettierrc", ".prettierrc.json", ".prettierrc.yaml", "prettier.config.mjs"]
+    )
+    def test_applies_while_a_prettier_config_exists(
+        self, mock_ctx: Context, tmp_path: Path, name: str
+    ) -> None:
+        (tmp_path / name).write_text("{}\n")
+
+        with mock_ctx:
+            assert RemovePrettierConfig().check(mock_ctx)
+
+    def test_does_not_apply_to_prettierignore_alone(
+        self, mock_ctx: Context, tmp_path: Path
+    ) -> None:
+        # oxfmt still reads .prettierignore, so it is not a leftover
+        (tmp_path / ".prettierignore").write_text("dist/\n")
+
+        with mock_ctx:
+            assert not RemovePrettierConfig().check(mock_ctx)
+
+    def test_apply_removes_every_prettier_config_and_keeps_the_rest(self, tmp_path: Path) -> None:
+        for name in (
+            ".prettierrc.json",
+            "prettier.config.js",
+            ".prettierignore",
+            "oxfmt.config.ts",
+        ):
+            (tmp_path / name).write_text("{}\n")
+        migration = RemovePrettierConfig()
+        ctx = context(chdir=tmp_path)
+
+        with ctx:
+            migration.apply(ctx)
+            assert not migration.check(ctx)
+
+        assert sorted(p.name for p in tmp_path.iterdir()) == [".prettierignore", "oxfmt.config.ts"]
+
+    def test_dry_run_prints_the_removal_and_keeps_the_file(
+        self, mock_ctx: Context, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        (tmp_path / ".prettierrc.json").write_text("{}\n")
+
+        with mock_ctx:
+            RemovePrettierConfig().apply(mock_ctx)
+
+        assert "rm .prettierrc.json" in capsys.readouterr().err
+        assert (tmp_path / ".prettierrc.json").is_file()
 
 
 class TestAddMiseTools:

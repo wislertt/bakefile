@@ -1,0 +1,12 @@
+name: fixture
+# (editable) version
+version: {% editable version %}1.0{% endeditable %}
+# (editable) jobs
+{% editable jobs %}
+jobs:
+    - build
+{% endeditable jobs %}
+# (editable) extra
+{% editable extra %}
+{% endeditable %}
+end: true

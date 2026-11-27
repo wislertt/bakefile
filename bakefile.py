@@ -1,4 +1,5 @@
 import logging
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from textwrap import dedent
@@ -16,7 +17,9 @@ from bake import (
     console,
     spawn_env,
 )
-from bakelib import FnoxSpace, GitHubActionsTools, PythonLibSpace, params
+from bakelib import FnoxSpace, PythonLibSpace, ZervGitHubActionsTools, params
+from bakelib.managed_content import ManagedFile
+from bakelib.space.github import ACTIONS_UP_MIN_AGE_DAYS
 from scripts.locked_pins import (
     PYPROJECT_PATH,
     UV_LOCK_PATH,
@@ -26,11 +29,13 @@ from scripts.locked_pins import (
     relax_locked_pins,
     rewrite_locked_pins,
 )
+from scripts.template_pins import bump_template_pins
 
 logger = logging.getLogger(__name__)
 
 
-class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
+class MyBakebook(ZervGitHubActionsTools, PythonLibSpace, FnoxSpace):
+    bake_manage_content: bool = True
     bake_log: str = DEFAULT_BAKE_LOG
     bake_log_verbosity: params.BakeLogVerbosityField = 3
     bake_log_pretty: bool = DEFAULT_BAKE_LOG_PRETTY
@@ -39,6 +44,14 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
     fnox_bootstrap_secrets: ClassVar[Mapping[str, str]] = {
         "FNOX_BWS_ACCESS_TOKEN": "Bitwarden access token",
     }
+
+    def _get_managed_files(self) -> dict[str, ManagedFile]:
+        return {
+            **super()._get_managed_files(),
+            ".github/workflows/test.yml": ManagedFile("bakelib.space", "test.yml"),
+            ".github/workflows/pre-commit.yml": ManagedFile("bakelib.space", "pre-commit.yml"),
+            ".github/workflows/publish.yml": ManagedFile("bakelib.space", "publish.yml"),
+        }
 
     def test(self, durations: params.DurationsOption = None) -> None:
         self._test(tests_paths="tests/unit/", parallel=True, durations=durations)
@@ -52,7 +65,25 @@ class MyBakebook(GitHubActionsTools, PythonLibSpace, FnoxSpace):
     def _update_project(self) -> None:
         super()._update_project()
         self._update_locked_pins()
+        self._update_template_actions()
         self._update_examples()
+
+    def _update_template_actions(self) -> None:
+        if self.ctx.dry_run:
+            console.info("Would bump action pins in templates under src/ (dry run)")
+            return
+        templates = sorted(
+            path for path in Path("src").rglob("*") if path.suffix in {".yml", ".py"}
+        )
+        changed = bump_template_pins(templates, min_age_days=ACTIONS_UP_MIN_AGE_DAYS)
+        for path in changed:
+            console.success(f"Updated {path}")
+        if not changed:
+            return
+        self.ctx.run(
+            "uv run pytest tests/unit/bakelib/managed_content/test_templates.py",
+            env={**os.environ, "BAKE_UPDATE_EXPECTED": "1"},
+        )
 
     def _update_locked_pins(self) -> None:
         original_text = PYPROJECT_PATH.read_text()

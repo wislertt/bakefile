@@ -1,11 +1,18 @@
 import re
 import subprocess
+from enum import Enum
 from pathlib import Path
 
 from bake import Context, console
 from bake.ui.logger.capsys import strip_ansi
 
 VENV_BIN = Path.cwd() / ".venv" / "bin"
+
+
+class Fetch(Enum):
+    NEVER = "never"
+    WHEN_NEEDED = "when-needed"
+    REFRESH = "refresh"
 
 
 def orjson_default(obj):

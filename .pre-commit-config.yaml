@@ -5,6 +5,8 @@ repos:
           - id: trailing-whitespace
           - id: end-of-file-fixer
           - id: check-yaml
+            # managed-content templates hold tags, so they are not valid YAML
+            exclude: /managed/
           - id: check-added-large-files
             args: ["--maxkb=2000"]
     - repo: https://github.com/gitleaks/gitleaks

@@ -123,6 +123,13 @@ def run_rustup_update(
 
 
 class RustSpace(BaseSpace):
+    def _get_gitignore_templates(self) -> set[str]:
+        return super()._get_gitignore_templates() | {"Rust"}
+
+    def _get_gitignore_lines(self) -> set[str]:
+        # rust-analyzer's project file, which github/gitignore's Rust template leaves out
+        return super()._get_gitignore_lines() | {"rust-project.json"}
+
     def _get_mise_tools(self) -> set[str]:
         return super()._get_mise_tools() | {
             "aqua:cargo-bins/cargo-binstall",

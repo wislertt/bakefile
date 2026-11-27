@@ -1,3 +1,4 @@
+# managed by bakefile; edit only the parts marked "editable"
 name: pre-commit
 
 on:
@@ -5,18 +6,22 @@ on:
 
 jobs:
     pre-commit:
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-latest # (editable)
+        timeout-minutes: 30 # (editable)
         steps:
             - name: checkout
+              # (editable) pin
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: setup-mise
+              # (editable) pin
               uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
 
             - name: cache-deps
               env:
                   CACHE_KEY_PREFIX: deps-${{ github.workflow }}-${{ github.job }}-${{ runner.os }}
                   CACHE_KEY_DEPS: ${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+              # (editable) pin
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
@@ -44,3 +49,7 @@ jobs:
 
             - name: run-lint-slow
               run: bake lint --slow
+
+            # (editable) more steps below
+
+    # (editable) more jobs below
