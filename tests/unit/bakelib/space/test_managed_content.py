@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 import sys
 import tomllib
@@ -316,7 +317,7 @@ class TestSyncErrors:
         assert not (project / "bake.lock").exists()
 
     def test_one_error_writes_no_file(self, ctx: Context, project: Path) -> None:
-        (project / "notes.md").write_text("# hand notes\n")
+        (project / "notes.md").write_bytes(b"# hand notes\n")
         with ctx:
             code = _sync_exit_code(TwoFileSpace())
 
@@ -1528,7 +1529,7 @@ class TestAdoption:
         self, ctx: Context, project: Path, capsys: pytest.CaptureFixture
     ) -> None:
         ci = project / "ci.yml"
-        ci.write_text("name: mine\n")
+        ci.write_bytes(b"name: mine\n")
         with ctx:
             code = _sync_exit_code(BlocksSpace())
             after_error = _snapshot(project)
@@ -2761,7 +2762,7 @@ class TestGitignoreTemplates:
         offline: bool,
         message: str,
     ) -> None:
-        (project / ".gitignore").write_text("/hand\n")
+        (project / ".gitignore").write_bytes(b"/hand\n")
         github.offline = offline
         with ctx:
             code = _sync_exit_code(space())
@@ -2852,7 +2853,7 @@ class TestUpdate:
         assert ci.read_text() == bumped
         assert locked_before_first_command[0]["editable"] == {"version": "1.1"}
         assert commands[0] == "pre-commit autoupdate"
-        assert commands[-1] == f"bake --chdir {project} post-update"
+        assert commands[-1] == f"bake --chdir {shlex.quote(str(project))} post-update"
 
     def test_post_update_syncs_with_refresh(
         self, ctx: Context, project: Path, github: FakeGitHub
